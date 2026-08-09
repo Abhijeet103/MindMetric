@@ -153,25 +153,65 @@ WORD_MEANING_INSTRUCTIONS = [
     "Which word does not belong with the other two?",
     "Pick the word that does not fit the group.",
 ]
-CCAT_SENTENCE_TEMPLATES = [
-    "Despite the {descriptor} weather, the outdoor event proceeded as planned.",
-    "The manager praised her {descriptor} approach to solving the deadline issue.",
-    "His answer sounded {descriptor}, so the team asked for stronger evidence.",
+CCAT_SENTENCE_COMPLETIONS = [
+    ("Despite the _____ weather, the outdoor event proceeded as planned.", ["favorable", "inclement", "predictable", "mild"], "inclement"),
+    ("The manager praised her _____ approach to solving the deadline issue.", ["careless", "methodical", "random", "casual"], "methodical"),
+    ("His answer was too _____ to support such a definite conclusion.", ["precise", "vague", "decisive", "detailed"], "vague"),
+    ("The instructions were so _____ that every participant completed the task correctly.", ["ambiguous", "clear", "lengthy", "optional"], "clear"),
+    ("Because the evidence was _____, the committee postponed its decision.", ["conclusive", "insufficient", "relevant", "abundant"], "insufficient"),
+    ("Her explanation was _____, covering the issue in only two sentences.", ["concise", "confusing", "indirect", "repetitive"], "concise"),
+    ("The two reports were _____; both reached the same conclusion.", ["contradictory", "consistent", "unrelated", "incomplete"], "consistent"),
+    ("The new process should _____ the time required to review each application.", ["reduce", "repeat", "conceal", "divide"], "reduce"),
+    ("Although the proposal was ambitious, the schedule remained _____.", ["feasible", "careless", "ordinary", "unrelated"], "feasible"),
+    ("The witness gave an _____ account that did not favour either side.", ["impartial", "emotional", "invented", "hostile"], "impartial"),
 ]
-CCAT_SENTENCE_OPTIONS = {
-    "inclement": ["favorable", "inclement", "predictable", "mild"],
-    "methodical": ["careless", "methodical", "random", "casual"],
-    "vague": ["precise", "vague", "confident", "detailed"],
-}
 CCAT_ANALOGIES = [
     ("Doctor", "Patient", "Teacher", ["Classroom", "Student", "Lesson", "School"], "Student"),
     ("Chef", "Kitchen", "Pilot", ["Runway", "Cockpit", "Ticket", "Airport"], "Cockpit"),
     ("Painter", "Brush", "Writer", ["Notebook", "Pen", "Library", "Idea"], "Pen"),
+    ("Bird", "Nest", "Bee", ["Hive", "Honey", "Flower", "Wing"], "Hive"),
+    ("Glove", "Hand", "Shoe", ["Sock", "Foot", "Lace", "Walk"], "Foot"),
+    ("Thermometer", "Temperature", "Clock", ["Distance", "Weight", "Time", "Speed"], "Time"),
+    ("Chapter", "Book", "Scene", ["Actor", "Play", "Stage", "Script"], "Play"),
+    ("Sapling", "Tree", "Calf", ["Herd", "Grass", "Cow", "Farm"], "Cow"),
+    ("Generous", "Selfish", "Cautious", ["Careful", "Reckless", "Patient", "Quiet"], "Reckless"),
+    ("Whisper", "Speak", "Stroll", ["Run", "Walk", "Rest", "Stand"], "Walk"),
 ]
 CCAT_ODD_ONE_OUT = [
     (["Sprint", "Jog", "Walk", "Whisper"], "Whisper"),
     (["Maple", "Oak", "Pine", "Copper"], "Copper"),
     (["Tablet", "Capsule", "Syrup", "Lantern"], "Lantern"),
+    (["Violin", "Cello", "Guitar", "Trumpet"], "Trumpet"),
+    (["Copper", "Iron", "Silver", "Granite"], "Granite"),
+    (["Mercury", "Venus", "Mars", "Moon"], "Moon"),
+    (["Triangle", "Square", "Pentagon", "Sphere"], "Sphere"),
+    (["Novel", "Poem", "Essay", "Canvas"], "Canvas"),
+    (["Minute", "Hour", "Second", "Metre"], "Metre"),
+    (["January", "March", "July", "Monday"], "Monday"),
+]
+CCAT_SYNONYMS = [
+    ("abundant", "plentiful", ["scarce", "narrow", "fragile"]),
+    ("brief", "concise", ["ancient", "distant", "complex"]),
+    ("diligent", "industrious", ["careless", "uncertain", "silent"]),
+    ("obscure", "unclear", ["famous", "simple", "visible"]),
+    ("reluctant", "unwilling", ["eager", "certain", "cheerful"]),
+    ("verify", "confirm", ["ignore", "divide", "predict"]),
+]
+CCAT_ANTONYMS = [
+    ("expand", "contract", ["extend", "explain", "include"]),
+    ("frequent", "rare", ["regular", "common", "repeated"]),
+    ("rigid", "flexible", ["solid", "strict", "fixed"]),
+    ("transparent", "opaque", ["clear", "visible", "open"]),
+    ("optimistic", "pessimistic", ["hopeful", "positive", "cheerful"]),
+    ("permit", "forbid", ["allow", "request", "accept"]),
+]
+CCAT_CATEGORY_MATCHES = [
+    ("Which option is a unit of electrical current?", "Ampere", ["Litre", "Metre", "Kelvin"]),
+    ("Which option is a mammal?", "Dolphin", ["Trout", "Lizard", "Falcon"]),
+    ("Which option is a programming language?", "Python", ["Falcon", "Mercury", "Sonnet"]),
+    ("Which option is a form of precipitation?", "Sleet", ["Mist", "Dew", "Steam"]),
+    ("Which option is a prime number?", "29", ["21", "27", "33"]),
+    ("Which option is a renewable energy source?", "Wind", ["Coal", "Diesel", "Natural gas"]),
 ]
 CCAT_SPATIAL_RULES = [
     {
@@ -431,27 +471,88 @@ class SpatialVisualizationGenerator(BaseQuestionGenerator):
         )
 
 
+def _format_ccat_number(value: int | float) -> str:
+    if isinstance(value, float):
+        value = round(value, 2)
+        if value.is_integer():
+            return str(int(value))
+    return str(value)
+
+
+def _build_ccat_number_options(
+    rng: random.Random,
+    answer: int | float,
+    distractors: list[int | float],
+) -> tuple[list[str], str]:
+    values = [answer]
+    for value in distractors:
+        normalized = round(value, 2) if isinstance(value, float) else value
+        if normalized >= 0 and normalized not in values:
+            values.append(normalized)
+
+    offset = 1
+    while len(values) < 4:
+        candidate = round(answer + offset, 2)
+        if candidate not in values:
+            values.append(candidate)
+        offset += 1
+
+    options = [_format_ccat_number(value) for value in values[:4]]
+    rng.shuffle(options)
+    return options, _format_ccat_number(answer)
+
+
 class CCATNumericalGenerator(BaseQuestionGenerator):
     section_type = "ccat_numerical"
 
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
-        subtype = rng.choice(["series", "discount", "ratio"])
+        subtype = rng.choice(
+            [
+                "series",
+                "percentage",
+                "discount",
+                "ratio",
+                "work_rate",
+                "average",
+                "equation",
+                "distance",
+            ]
+        )
 
         if subtype == "series":
-            start = rng.randint(2, 6)
-            gap = rng.randint(2, 5)
-            series = [start]
-            increment = gap
-            for _ in range(4):
-                series.append(series[-1] + increment)
-                increment += 2
-            answer = series[-1] + increment
-            options = [answer, answer + 2, answer - 2, answer + 4]
-            rng.shuffle(options)
+            pattern = rng.choice(["arithmetic", "growing_gap", "geometric"])
+            start = rng.randint(2, 12)
+            if pattern == "arithmetic":
+                gap = rng.randint(2, 9)
+                series = [start + gap * index for index in range(5)]
+                answer = series[-1] + gap
+                distractors = [answer - gap, answer + 1, answer + gap]
+            elif pattern == "geometric":
+                multiplier = rng.choice([2, 3])
+                series = [start * (multiplier**index) for index in range(4)]
+                answer = series[-1] * multiplier
+                distractors = [series[-1] + multiplier, answer - multiplier, answer + multiplier]
+            else:
+                gap = rng.randint(1, 4)
+                growth = rng.randint(1, 3)
+                series = [start]
+                for index in range(4):
+                    series.append(series[-1] + gap + growth * index)
+                answer = series[-1] + gap + growth * 4
+                distractors = [answer - growth, answer + growth, series[-1] + gap]
             prompt = {
                 "instruction": "What comes next in the number series?",
                 "question": f"{', '.join(str(value) for value in series)}, ___",
+            }
+        elif subtype == "percentage":
+            percent = rng.choice([10, 20, 25, 30, 40, 50])
+            base = rng.choice([40, 60, 80, 100, 120, 160, 200])
+            answer = base * percent / 100
+            distractors = [base - answer, base + answer, percent]
+            prompt = {
+                "instruction": "Calculate the percentage.",
+                "question": f"What is {percent}% of {base}?",
             }
         elif subtype == "discount":
             base = rng.choice([40, 50, 60, 75, 80])
@@ -459,24 +560,69 @@ class CCATNumericalGenerator(BaseQuestionGenerator):
             discount = rng.choice([10, 20, 25])
             marked = base * (1 + markup / 100)
             answer = round(marked * (1 - discount / 100), 2)
-            options = [answer, round(base * (1 - discount / 100), 2), round(base * (1 + (markup - discount) / 100), 2), round(marked, 2)]
+            distractors = [
+                round(base * (1 - discount / 100), 2),
+                round(base * (1 + (markup - discount) / 100), 2),
+                round(marked, 2),
+            ]
             prompt = {
                 "instruction": "Calculate the final price.",
                 "question": f"A product costing ${base} is marked up by {markup}% and then discounted by {discount}%. What is the final price?",
             }
-        else:
+        elif subtype == "ratio":
+            left = rng.randint(2, 7)
+            right = rng.randint(2, 7)
+            multiplier = rng.randint(3, 12)
+            total = (left + right) * multiplier
+            answer = left * multiplier
+            distractors = [right * multiplier, total - left, total // left]
+            prompt = {
+                "instruction": "Use the ratio to find the requested share.",
+                "question": f"A total of {total} items is divided in the ratio {left}:{right}. How many items are in the first share?",
+            }
+        elif subtype == "work_rate":
             workers = rng.randint(3, 6)
             days = rng.randint(4, 8)
-            target_workers = workers - 1
+            target_workers = rng.choice([value for value in range(2, 8) if value != workers])
             answer = round((workers * days) / target_workers, 2)
-            options = [answer, round(days - 1, 2), round(days + 1, 2), round((target_workers * days) / workers, 2)]
+            distractors = [days - 1, days + 1, round((target_workers * days) / workers, 2)]
             prompt = {
                 "instruction": "Use work-rate reasoning.",
                 "question": f"If {workers} workers can finish a job in {days} days, how many days will {target_workers} workers need?",
             }
+        elif subtype == "average":
+            average = rng.randint(8, 30)
+            known = [average + rng.randint(-5, 5) for _ in range(3)]
+            answer = average * 4 - sum(known)
+            if answer <= 0:
+                known = [average - 1, average, average + 1]
+                answer = average
+            distractors = [average, answer + 2, max(1, answer - 2)]
+            prompt = {
+                "instruction": "Find the missing value from the average.",
+                "question": f"The average of {known[0]}, {known[1]}, {known[2]}, and one other number is {average}. What is the missing number?",
+            }
+        elif subtype == "equation":
+            answer = rng.randint(3, 20)
+            coefficient = rng.randint(2, 8)
+            constant = rng.randint(1, 15)
+            result = coefficient * answer + constant
+            distractors = [answer - 1, answer + 1, round(result / coefficient, 2)]
+            prompt = {
+                "instruction": "Solve for the unknown value.",
+                "question": f"If {coefficient}x + {constant} = {result}, what is x?",
+            }
+        else:
+            speed = rng.choice([30, 40, 45, 50, 60, 70])
+            hours = rng.choice([2, 3, 4, 5])
+            answer = speed * hours
+            distractors = [speed + hours, speed * (hours - 1), speed * (hours + 1)]
+            prompt = {
+                "instruction": "Use the distance, speed, and time relationship.",
+                "question": f"A vehicle travels at {speed} miles per hour for {hours} hours. How far does it travel?",
+            }
 
-        option_strings = [str(option).rstrip("0").rstrip(".") if isinstance(option, float) else str(option) for option in options]
-        answer_string = str(answer).rstrip("0").rstrip(".") if isinstance(answer, float) else str(answer)
+        option_strings, answer_string = _build_ccat_number_options(rng, answer, distractors)
         return GeneratedQuestion(
             self.section_type,
             difficulty,
@@ -497,7 +643,9 @@ class CCATVerbalGenerator(BaseQuestionGenerator):
 
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
-        subtype = rng.choice(["analogy", "sentence", "odd_one_out"])
+        subtype = rng.choice(
+            ["analogy", "sentence_completion", "odd_one_out", "synonym", "antonym", "category"]
+        )
 
         if subtype == "analogy":
             left, right, target, options, answer = rng.choice(CCAT_ANALOGIES)
@@ -505,21 +653,42 @@ class CCATVerbalGenerator(BaseQuestionGenerator):
                 "instruction": "Choose the option that completes the analogy.",
                 "question": f"{left} is to {right} as {target} is to ___?",
             }
-        elif subtype == "sentence":
-            descriptor = rng.choice(list(CCAT_SENTENCE_OPTIONS.keys()))
-            options = CCAT_SENTENCE_OPTIONS[descriptor][:]
-            template = rng.choice(CCAT_SENTENCE_TEMPLATES)
-            answer = descriptor
+        elif subtype == "sentence_completion":
+            question, options, answer = rng.choice(CCAT_SENTENCE_COMPLETIONS)
             prompt = {
                 "instruction": "Choose the word that best completes the sentence.",
-                "question": template.format(descriptor="_____"),
+                "question": question,
             }
-        else:
+        elif subtype == "odd_one_out":
             options, answer = rng.choice(CCAT_ODD_ONE_OUT)
             prompt = {
                 "instruction": "Choose the word that does not belong.",
                 "question": "Which word does not belong with the others?",
             }
+        elif subtype == "synonym":
+            word, answer, distractors = rng.choice(CCAT_SYNONYMS)
+            options = [answer, *distractors]
+            prompt = {
+                "instruction": "Choose the word with the closest meaning.",
+                "question": f"Which word is most similar in meaning to '{word}'?",
+            }
+        elif subtype == "antonym":
+            word, answer, distractors = rng.choice(CCAT_ANTONYMS)
+            options = [answer, *distractors]
+            prompt = {
+                "instruction": "Choose the word with the opposite meaning.",
+                "question": f"Which word is most opposite in meaning to '{word}'?",
+            }
+        else:
+            question, answer, distractors = rng.choice(CCAT_CATEGORY_MATCHES)
+            options = [answer, *distractors]
+            prompt = {
+                "instruction": "Choose the option that matches the category.",
+                "question": question,
+            }
+
+        options = list(options)
+        rng.shuffle(options)
 
         return GeneratedQuestion(
             self.section_type,
@@ -539,9 +708,110 @@ class CCATVerbalGenerator(BaseQuestionGenerator):
 class CCATSpatialGenerator(BaseQuestionGenerator):
     section_type = "ccat_spatial"
 
+    ROTATION_OPTIONS = [
+        {"value": "Up", "shape": "triangle", "rotation": 0},
+        {"value": "Right", "shape": "triangle", "rotation": 90},
+        {"value": "Down", "shape": "triangle", "rotation": 180},
+        {"value": "Left", "shape": "triangle", "rotation": 270},
+    ]
+    FILL_OPTIONS = [
+        {"value": "Left half", "shape": "split_square", "fill": "left"},
+        {"value": "Top half", "shape": "split_square", "fill": "top"},
+        {"value": "Right half", "shape": "split_square", "fill": "right"},
+        {"value": "Bottom half", "shape": "split_square", "fill": "bottom"},
+    ]
+
+    def _rotation_rule(self, rng: random.Random) -> dict:
+        start = rng.choice([0, 90, 180, 270])
+        step = rng.choice([90, -90])
+        rotations = [(start + step * index) % 360 for index in range(4)]
+        answer_visual = next(item for item in self.ROTATION_OPTIONS if item["rotation"] == rotations[-1])
+        return {
+            "subtype": "rotation",
+            "question": f"Which option continues the {('clockwise' if step > 0 else 'counter-clockwise')} rotation?",
+            "instruction": "Track the direction change from one shape to the next.",
+            "stimulus": [
+                *[{"shape": "triangle", "rotation": value} for value in rotations[:3]],
+                {"shape": "missing"},
+            ],
+            "option_visuals": self.ROTATION_OPTIONS,
+            "answer": answer_visual["value"],
+        }
+
+    def _fill_rotation_rule(self, rng: random.Random) -> dict:
+        fills = ["left", "top", "right", "bottom"]
+        start = rng.randrange(len(fills))
+        step = rng.choice([1, -1])
+        sequence = [fills[(start + step * index) % len(fills)] for index in range(4)]
+        answer_visual = next(item for item in self.FILL_OPTIONS if item["fill"] == sequence[-1])
+        return {
+            "subtype": "fill_rotation",
+            "question": "Which option continues the movement of the shaded half?",
+            "instruction": "Follow the shaded area around the square.",
+            "stimulus": [
+                *[{"shape": "split_square", "fill": value} for value in sequence[:3]],
+                {"shape": "missing"},
+            ],
+            "option_visuals": self.FILL_OPTIONS,
+            "answer": answer_visual["value"],
+        }
+
+    def _mirror_rule(self, rng: random.Random) -> dict:
+        axis = rng.choice(["vertical", "horizontal"])
+        source = rng.choice(["left", "right"] if axis == "vertical" else ["top", "bottom"])
+        mirrors = {"left": "right", "right": "left", "top": "bottom", "bottom": "top"}
+        answer_fill = mirrors[source]
+        answer_visual = next(item for item in self.FILL_OPTIONS if item["fill"] == answer_fill)
+        return {
+            "subtype": "mirror",
+            "question": "Which option is the mirror image of the reference figure?",
+            "instruction": f"Reflect the shaded area across the {axis} mirror line.",
+            "stimulus": [
+                {"shape": "split_square", "fill": source},
+                {"shape": "mirror_axis", "orientation": axis},
+                {"shape": "missing"},
+            ],
+            "option_visuals": self.FILL_OPTIONS,
+            "answer": answer_visual["value"],
+        }
+
+    def _polygon_rule(self, rng: random.Random) -> dict:
+        start = rng.choice([3, 4, 5])
+        step = rng.choice([1, 2])
+        if start + step * 3 > 8:
+            step = 1
+        sequence = [start + step * index for index in range(4)]
+        answer = sequence[-1]
+        candidates = list(range(3, 9))
+        distractors = rng.sample([value for value in candidates if value != answer], 3)
+        option_visuals = [
+            {"value": f"{value} sides", "shape": "polygon", "sides": value}
+            for value in [answer, *distractors]
+        ]
+        rng.shuffle(option_visuals)
+        return {
+            "subtype": "polygon_growth",
+            "question": f"Which option continues the pattern by adding {step} side{'' if step == 1 else 's'} each step?",
+            "instruction": "Count the sides of each figure.",
+            "stimulus": [
+                *[{"shape": "polygon", "sides": value} for value in sequence[:3]],
+                {"shape": "missing"},
+            ],
+            "option_visuals": option_visuals,
+            "answer": f"{answer} sides",
+        }
+
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
-        rule = rng.choice(CCAT_SPATIAL_RULES)
+        rule = rng.choice(
+            [
+                self._rotation_rule,
+                self._fill_rotation_rule,
+                self._mirror_rule,
+                self._polygon_rule,
+            ]
+        )(rng)
+        options = [visual["value"] for visual in rule["option_visuals"]]
         return GeneratedQuestion(
             self.section_type,
             difficulty,
@@ -554,9 +824,9 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
                     "question": rule["question"],
                     "stimulus": rule["stimulus"],
                 },
-                "options": rule["options"],
+                "options": options,
                 "option_visuals": rule["option_visuals"],
-                "metadata": {"difficulty": difficulty, "subtype": "abstract_pattern"},
+                "metadata": {"difficulty": difficulty, "subtype": rule["subtype"]},
             },
             {"answer": rule["answer"]},
         )

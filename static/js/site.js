@@ -1729,10 +1729,11 @@ function renderCcatSpatialSvg(spec = {}) {
 
   if (shape === "mirror_axis") {
     const line = document.createElementNS(svgNS, "line");
-    line.setAttribute("x1", "50");
-    line.setAttribute("y1", "12");
-    line.setAttribute("x2", "50");
-    line.setAttribute("y2", "88");
+    const horizontal = spec.orientation === "horizontal";
+    line.setAttribute("x1", horizontal ? "12" : "50");
+    line.setAttribute("y1", horizontal ? "50" : "12");
+    line.setAttribute("x2", horizontal ? "88" : "50");
+    line.setAttribute("y2", horizontal ? "50" : "88");
     line.setAttribute("class", "ccat-spatial-mirror-axis");
     svg.appendChild(line);
     return svg;
