@@ -624,10 +624,6 @@ body.is-loading .page-main-content {
   min-height: clamp(390px, 48vh, 500px);
   padding: clamp(44px, 5vw, 66px);
   align-items: center;
-  background:
-    radial-gradient(circle at 92% 18%, rgba(46, 125, 107, 0.12), transparent 28%),
-    radial-gradient(circle at 76% 112%, rgba(214, 138, 44, 0.1), transparent 35%),
-    rgba(var(--bg-rgb), 0.9);
 }
 
 .home-hero-copy {
@@ -3059,13 +3055,13 @@ body.has-open-modal {
   margin: 0;
   color: var(--ink);
   font-family: var(--font-display);
-  font-size: clamp(2.7rem, 6vw, 5.5rem);
-  line-height: .98;
-  letter-spacing: -.04em;
+  font-size: clamp(2.5rem, 4vw, 4rem);
+  line-height: 1.04;
+  letter-spacing: -.025em;
 }
 
 .guide-module-hero h1 {
-  font-size: clamp(2.5rem, 5vw, 4.7rem);
+  font-size: clamp(2.4rem, 3.6vw, 3.65rem);
 }
 
 .guide-intro {
@@ -3409,7 +3405,7 @@ body.has-open-modal {
   }
 
   .guide-hero h1 {
-    font-size: clamp(2.35rem, 13vw, 3.5rem);
+    font-size: clamp(2.15rem, 10vw, 3rem);
   }
 
   .guide-actions,
