@@ -659,14 +659,16 @@ function initSectionPlayer() {
     }
     if (questionEl) {
       questionEl.textContent = item.question_text || item.summary || "";
+      renderCcatSpatialStimulus(questionEl, item);
     }
     if (optionsEl) {
       optionsEl.innerHTML = "";
-      (item.options || []).forEach((option) => {
+      optionsEl.classList.toggle("ccat-spatial-answer-options", item.context_kind === "ccat_spatial");
+      (item.options || []).forEach((option, optionIndex) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "answer-option";
-        button.textContent = option;
+        renderCcatSpatialOption(button, item, option, optionIndex);
         button.addEventListener("click", () => {
           if (!isTestMode()) {
             optionsEl.querySelectorAll(".answer-option").forEach((node) => {
@@ -847,6 +849,10 @@ function initFullTestPlayer() {
   }
 
   const sections = JSON.parse(dataScript.textContent || "[]");
+  const isMixedFullTest = player.dataset.fullTestMode === "mixed";
+  const fullTestDurationSeconds = Number(player.dataset.fullTestDurationSeconds || 0);
+  const fullTestDescription = player.dataset.fullTestDescription || "";
+  const assessmentTitle = player.dataset.assessmentTitle || "Assessment";
   let sectionIndex = 0;
   let phase = "intro";
   let questionIndex = 0;
@@ -854,6 +860,8 @@ function initFullTestPlayer() {
   let timerInterval = null;
   let activeQuestion = null;
   let currentSectionRuntime = null;
+  let mixedQuestions = [];
+  let mixedRuntimeLoaded = false;
   const collectedTestAnswers = [];
   let isSubmitting = false;
   let shouldAdvanceDirectlyToNextSection = false;
@@ -930,12 +938,15 @@ function initFullTestPlayer() {
   const allStages = [introStage, fullscreenStage, contextStage, questionStage, sectionCompleteStage, completeStage];
 
   const getCurrentSection = () => sections[sectionIndex];
-  const getCurrentQuestionCount = () =>
-    phase === "practice"
+  const getCurrentQuestionCount = () => {
+    if (isMixedFullTest && phase === "test") {
+      return mixedQuestions.length || sections.reduce((total, section) => total + Number(section.test_count || 0), 0);
+    }
+    return phase === "practice"
       ? currentSectionRuntime?.practice_questions?.length || getCurrentSection()?.practice_count || 0
       : currentSectionRuntime?.test_questions?.length || getCurrentSection()?.test_count || 0;
-  const getCurrentSectionAnswers = () => {
-    const sectionId = getCurrentSection()?.section_id;
+  };
+  const getCurrentSectionAnswers = (sectionId = getCurrentSection()?.section_id) => {
     if (!sectionId) {
       return null;
     }
@@ -947,12 +958,18 @@ function initFullTestPlayer() {
     return entry;
   };
   const getActiveQuestions = () => {
+    if (isMixedFullTest && phase === "test") {
+      return mixedQuestions;
+    }
     if (!currentSectionRuntime) {
       return [];
     }
     return phase === "practice" ? currentSectionRuntime.practice_questions || [] : currentSectionRuntime.test_questions || [];
   };
   const getRailPhaseLabel = () => {
+    if (isMixedFullTest && phase === "intro") {
+      return "Ready";
+    }
     if (phase === "practice") {
       return "Practice";
     }
@@ -970,14 +987,27 @@ function initFullTestPlayer() {
     let progressLabel = `${Math.min(sectionIndex + 1, sections.length)} / ${sections.length}`;
     let progressRatio = sections.length ? (sectionIndex + 1) / sections.length : 0;
 
-    if ((phase === "practice" || phase === "test") && currentQuestionCount > 0) {
+    if (isMixedFullTest) {
+      const totalQuestions = currentQuestionCount || sections.reduce(
+        (total, item) => total + Number(item.test_count || 0),
+        0,
+      );
+      if (phase === "test" && totalQuestions > 0) {
+        const currentStep = Math.min(questionIndex + 1, totalQuestions);
+        progressLabel = `${currentStep} / ${totalQuestions}`;
+        progressRatio = currentStep / totalQuestions;
+      } else {
+        progressLabel = `${totalQuestions} questions`;
+        progressRatio = 0;
+      }
+    } else if ((phase === "practice" || phase === "test") && currentQuestionCount > 0) {
       const currentStep = Math.min(questionIndex + 1, currentQuestionCount);
       progressLabel = `${currentStep} / ${currentQuestionCount}`;
       progressRatio = currentStep / currentQuestionCount;
     }
 
     if (railSectionEl) {
-      railSectionEl.textContent = section?.title || "Section";
+      railSectionEl.textContent = isMixedFullTest ? assessmentTitle : section?.title || "Section";
     }
     if (railPhaseEl) {
       railPhaseEl.textContent = getRailPhaseLabel();
@@ -1076,7 +1106,9 @@ function initFullTestPlayer() {
 
   const startTimer = () => {
     stopTimer();
-    remainingSeconds = getCurrentSection()?.time_limit_seconds || 0;
+    remainingSeconds = isMixedFullTest
+      ? fullTestDurationSeconds
+      : getCurrentSection()?.time_limit_seconds || 0;
     updateTimer();
     timerInterval = window.setInterval(() => {
       remainingSeconds -= 1;
@@ -1111,8 +1143,52 @@ function initFullTestPlayer() {
     return payload;
   };
 
+  const loadMixedRuntime = async (force = false) => {
+    if (!force && mixedRuntimeLoaded) {
+      return mixedQuestions;
+    }
+
+    const sectionRuntimes = await Promise.all(
+      sections.map(async (section, sourceSectionIndex) => {
+        const params = new URLSearchParams({
+          section_index: String(sourceSectionIndex),
+        });
+        const response = await fetch(`${player.dataset.sectionUrl}?${params.toString()}`, {
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || `Could not load ${section.title || "a CCAT section"}.`);
+        }
+        return (payload.test_questions || []).map((question, sourceQuestionIndex) => ({
+          ...question,
+          source_section_id: section.section_id,
+          source_question_index: sourceQuestionIndex,
+        }));
+      }),
+    );
+
+    mixedQuestions = [];
+    const longestSection = Math.max(0, ...sectionRuntimes.map((questions) => questions.length));
+    for (let index = 0; index < longestSection; index += 1) {
+      sectionRuntimes.forEach((questions) => {
+        if (questions[index]) {
+          mixedQuestions.push(questions[index]);
+        }
+      });
+    }
+    mixedRuntimeLoaded = true;
+    return mixedQuestions;
+  };
+
   const renderQuestion = async () => {
-    await loadSectionRuntime();
+    if (isMixedFullTest) {
+      await loadMixedRuntime();
+    } else {
+      await loadSectionRuntime();
+    }
     const questions = getActiveQuestions();
     if (questionIndex >= questions.length) {
       await finishPhase();
@@ -1124,14 +1200,18 @@ function initFullTestPlayer() {
       hideFeedback();
       hideInlineFeedback();
       if (contextEl) renderContext(contextEl, activeQuestion);
-      if (questionEl) questionEl.textContent = activeQuestion.question_text || activeQuestion.summary || "";
+      if (questionEl) {
+        questionEl.textContent = activeQuestion.question_text || activeQuestion.summary || "";
+        renderCcatSpatialStimulus(questionEl, activeQuestion);
+      }
       if (optionsEl) {
         optionsEl.innerHTML = "";
-        (activeQuestion.options || []).forEach((option) => {
+        optionsEl.classList.toggle("ccat-spatial-answer-options", activeQuestion.context_kind === "ccat_spatial");
+        (activeQuestion.options || []).forEach((option, optionIndex) => {
           const button = document.createElement("button");
           button.type = "button";
           button.className = "answer-option";
-          button.textContent = option;
+          renderCcatSpatialOption(button, activeQuestion, option, optionIndex);
           button.addEventListener("click", () => {
             const selected = String(option);
             const isCorrect = selected === String(activeQuestion.correct_answer || "");
@@ -1143,11 +1223,11 @@ function initFullTestPlayer() {
                 node.classList.remove("is-selected-correct", "is-selected-wrong", "is-correct-answer");
               });
               answerButtons.forEach((node) => {
-                const nodeText = String(node.textContent || "");
-                if (nodeText === selected) {
+                const nodeValue = String(node.dataset.optionValue || node.textContent || "");
+                if (nodeValue === selected) {
                   node.classList.add(isCorrect ? "is-selected-correct" : "is-selected-wrong");
                 }
-                if (nodeText === String(activeQuestion.correct_answer || "")) {
+                if (nodeValue === String(activeQuestion.correct_answer || "")) {
                   node.classList.add("is-correct-answer");
                 }
               });
@@ -1169,10 +1249,16 @@ function initFullTestPlayer() {
               return;
             }
 
-            const entry = getCurrentSectionAnswers();
-            const answerRow = { question_index: questionIndex, selected_option: selected };
+            const answerSectionId = isMixedFullTest
+              ? activeQuestion.source_section_id
+              : getCurrentSection()?.section_id;
+            const answerQuestionIndex = isMixedFullTest
+              ? activeQuestion.source_question_index
+              : questionIndex;
+            const entry = getCurrentSectionAnswers(answerSectionId);
+            const answerRow = { question_index: answerQuestionIndex, selected_option: selected };
             if (entry) {
-              const existingIndex = entry.answers.findIndex((row) => row.question_index === questionIndex);
+              const existingIndex = entry.answers.findIndex((row) => row.question_index === answerQuestionIndex);
               if (existingIndex >= 0) {
                 entry.answers[existingIndex] = answerRow;
               } else {
@@ -1211,14 +1297,22 @@ function initFullTestPlayer() {
     hideFeedback();
     updateTimer();
 
-    if (titleEl) titleEl.textContent = section.title;
-    if (descriptionEl) descriptionEl.textContent = section.description;
-    if (instructionEl) instructionEl.textContent = section.instruction;
-    if (phaseLabelEl) {
-      phaseLabelEl.textContent = phase === "test-intro" ? "Timed test" : "Section intro";
-    }
-    if (startButton) {
-      startButton.textContent = "Enter fullscreen and start full test";
+    if (isMixedFullTest) {
+      if (titleEl) titleEl.textContent = assessmentTitle;
+      if (descriptionEl) descriptionEl.textContent = fullTestDescription;
+      if (instructionEl) {
+        instructionEl.textContent = "Work quickly and accurately. Calculators are not permitted.";
+      }
+      if (phaseLabelEl) phaseLabelEl.textContent = "Full test";
+      if (startButton) startButton.textContent = `Enter fullscreen and start ${assessmentTitle}`;
+    } else {
+      if (titleEl) titleEl.textContent = section.title;
+      if (descriptionEl) descriptionEl.textContent = section.description;
+      if (instructionEl) instructionEl.textContent = section.instruction;
+      if (phaseLabelEl) {
+        phaseLabelEl.textContent = phase === "test-intro" ? "Timed test" : "Section intro";
+      }
+      if (startButton) startButton.textContent = "Enter fullscreen and start full test";
     }
     updateRail();
     showStage(introStage);
@@ -1247,6 +1341,25 @@ function initFullTestPlayer() {
     await waitForNextPaint();
   };
 
+  const startMixedTest = async () => {
+    hideFeedback();
+    hideInlineFeedback();
+    sectionIndex = 0;
+    questionIndex = 0;
+    phase = "test";
+    currentSectionRuntime = null;
+    mixedQuestions = [];
+    mixedRuntimeLoaded = false;
+    shouldAdvanceDirectlyToNextSection = false;
+    updateEndTestButton();
+    updateSkipPracticeButton();
+    await loadMixedRuntime(true);
+    startTimer();
+    await renderQuestion();
+    await waitForNextPaint();
+    await waitForNextPaint();
+  };
+
   const submitCurrentSection = async () => {
     const section = getCurrentSection();
     if (!section?.section_id || !player.dataset.sectionSubmitUrl) {
@@ -1269,6 +1382,10 @@ function initFullTestPlayer() {
 
   const finishPhase = async () => {
     stopTimer();
+    if (isMixedFullTest && phase === "test") {
+      await submitFullTest();
+      return;
+    }
     const section = getCurrentSection();
     if (!section) {
       showStage(completeStage);
@@ -1319,43 +1436,53 @@ function initFullTestPlayer() {
     window.hidePageLoader?.();
   };
 
-  startButton?.addEventListener("click", async () => {
-    window.setButtonLoading?.(startButton);
+  const startFullTestFromButton = async (button, failureMessage, stagedStart) => {
+    window.setButtonLoading?.(button);
     window.showPageLoader?.();
-    const enteredFullscreen = await requestFullscreenFor(player);
-    if (!enteredFullscreen) {
-      window.clearButtonLoading?.(startButton);
+    try {
+      const enteredFullscreen = await requestFullscreenFor(player);
+      if (!enteredFullscreen) {
+        showFeedback(failureMessage, "wrong");
+        return;
+      }
+      if (isMixedFullTest) {
+        await startMixedTest();
+      } else {
+        await stagedStart();
+      }
+    } catch (error) {
+      showFeedback(error.message || "The test could not be loaded. Please try again.", "wrong");
+    } finally {
+      window.clearButtonLoading?.(button);
       window.hidePageLoader?.();
-      showFeedback("Fullscreen is required to start the full test.", "wrong");
-      return;
     }
-    await startSectionPractice();
-    window.clearButtonLoading?.(startButton);
-    window.hidePageLoader?.();
+  };
+
+  startButton?.addEventListener("click", async () => {
+    await startFullTestFromButton(
+      startButton,
+      "Fullscreen is required to start the full test.",
+      startSectionPractice,
+    );
   });
 
   fullscreenStartButton?.addEventListener("click", async () => {
-    window.setButtonLoading?.(fullscreenStartButton);
-    window.showPageLoader?.();
-    const enteredFullscreen = await requestFullscreenFor(player);
-    if (!enteredFullscreen) {
-      window.clearButtonLoading?.(fullscreenStartButton);
-      window.hidePageLoader?.();
-      showFeedback("Fullscreen is required to start timed test mode.", "wrong");
-      return;
-    }
-    hideFeedback();
-    questionIndex = 0;
-    phase = "test";
-    currentSectionRuntime = null;
-    updateEndTestButton();
-    await loadSectionRuntime(true);
-    startTimer();
-    await renderQuestion();
-    await waitForNextPaint();
-    await waitForNextPaint();
-    window.clearButtonLoading?.(fullscreenStartButton);
-    window.hidePageLoader?.();
+    await startFullTestFromButton(
+      fullscreenStartButton,
+      "Fullscreen is required to start timed test mode.",
+      async () => {
+        hideFeedback();
+        questionIndex = 0;
+        phase = "test";
+        currentSectionRuntime = null;
+        updateEndTestButton();
+        await loadSectionRuntime(true);
+        startTimer();
+        await renderQuestion();
+        await waitForNextPaint();
+        await waitForNextPaint();
+      },
+    );
   });
 
   nextPhaseButton?.addEventListener("click", async () => {
@@ -1513,6 +1640,179 @@ function initFullTestPlayer() {
   updateRail();
 }
 
+function inferCcatSpatialPresentation(item) {
+  const question = String(item.question_text || item.summary || "").toLowerCase();
+  if (question.includes("rotate")) {
+    return {
+      stimulus: [
+        { shape: "triangle", rotation: 0 },
+        { shape: "triangle", rotation: 90 },
+        { shape: "triangle", rotation: 180 },
+        { shape: "missing" },
+      ],
+      options: [0, 90, 180, 270].map((rotation, index) => ({
+        value: String((item.options || [])[index] || ""),
+        shape: "triangle",
+        rotation,
+      })),
+    };
+  }
+  if (question.includes("mirror")) {
+    return {
+      stimulus: [
+        { shape: "split_square", fill: "left" },
+        { shape: "mirror_axis" },
+        { shape: "missing" },
+      ],
+      options: ["left", "right", "top", "bottom"].map((fill, index) => ({
+        value: String((item.options || [])[index] || ""),
+        shape: "split_square",
+        fill,
+      })),
+    };
+  }
+  return {
+    stimulus: [3, 4, 5].map((sides) => ({ shape: "polygon", sides })).concat({ shape: "missing" }),
+    options: [3, 4, 5, 6].map((sides, index) => ({
+      value: String((item.options || [])[index] || ""),
+      shape: "polygon",
+      sides,
+    })),
+  };
+}
+
+function getCcatSpatialPresentation(item) {
+  const fallback = inferCcatSpatialPresentation(item);
+  return {
+    stimulus:
+      Array.isArray(item.spatial_stimulus) && item.spatial_stimulus.length
+        ? item.spatial_stimulus
+        : fallback.stimulus,
+    options:
+      Array.isArray(item.option_visuals) && item.option_visuals.length
+        ? item.option_visuals
+        : fallback.options,
+  };
+}
+
+function polygonPoints(sides, radius = 31) {
+  const safeSides = Math.max(3, Math.min(8, Number(sides) || 3));
+  return Array.from({ length: safeSides }, (_, index) => {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / safeSides;
+    return `${50 + radius * Math.cos(angle)},${50 + radius * Math.sin(angle)}`;
+  }).join(" ");
+}
+
+function renderCcatSpatialSvg(spec = {}) {
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("class", "ccat-spatial-svg");
+  svg.setAttribute("aria-hidden", "true");
+
+  const shape = String(spec.shape || "missing");
+  if (shape === "missing") {
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", "50");
+    circle.setAttribute("cy", "50");
+    circle.setAttribute("r", "29");
+    circle.setAttribute("class", "ccat-spatial-missing-ring");
+    const text = document.createElementNS(svgNS, "text");
+    text.setAttribute("x", "50");
+    text.setAttribute("y", "64");
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "ccat-spatial-missing-text");
+    text.textContent = "?";
+    svg.append(circle, text);
+    return svg;
+  }
+
+  if (shape === "mirror_axis") {
+    const line = document.createElementNS(svgNS, "line");
+    line.setAttribute("x1", "50");
+    line.setAttribute("y1", "12");
+    line.setAttribute("x2", "50");
+    line.setAttribute("y2", "88");
+    line.setAttribute("class", "ccat-spatial-mirror-axis");
+    svg.appendChild(line);
+    return svg;
+  }
+
+  if (shape === "split_square") {
+    const fill = String(spec.fill || "left");
+    const filled = document.createElementNS(svgNS, "rect");
+    const fillRects = {
+      left: [20, 20, 30, 60],
+      right: [50, 20, 30, 60],
+      top: [20, 20, 60, 30],
+      bottom: [20, 50, 60, 30],
+    };
+    const [x, y, width, height] = fillRects[fill] || fillRects.left;
+    filled.setAttribute("x", String(x));
+    filled.setAttribute("y", String(y));
+    filled.setAttribute("width", String(width));
+    filled.setAttribute("height", String(height));
+    filled.setAttribute("class", "ccat-spatial-shape-fill");
+    const outline = document.createElementNS(svgNS, "rect");
+    outline.setAttribute("x", "20");
+    outline.setAttribute("y", "20");
+    outline.setAttribute("width", "60");
+    outline.setAttribute("height", "60");
+    outline.setAttribute("class", "ccat-spatial-shape-outline");
+    svg.append(filled, outline);
+    return svg;
+  }
+
+  const polygon = document.createElementNS(svgNS, "polygon");
+  polygon.setAttribute("points", polygonPoints(shape === "triangle" ? 3 : spec.sides));
+  polygon.setAttribute("class", "ccat-spatial-shape-outline");
+  if (shape === "triangle") {
+    polygon.setAttribute("transform", `rotate(${Number(spec.rotation) || 0} 50 50)`);
+  }
+  svg.appendChild(polygon);
+  return svg;
+}
+
+function renderCcatSpatialStimulus(questionEl, item) {
+  const shell = questionEl?.parentElement;
+  if (!shell) return;
+  shell.querySelector("[data-ccat-spatial-stimulus]")?.remove();
+  shell.classList.toggle("is-ccat-spatial", item.context_kind === "ccat_spatial");
+  if (item.context_kind !== "ccat_spatial") return;
+
+  const stimulus = document.createElement("div");
+  stimulus.className = "ccat-spatial-stimulus";
+  stimulus.dataset.ccatSpatialStimulus = "";
+  stimulus.setAttribute("aria-label", "Spatial pattern to complete");
+  getCcatSpatialPresentation(item).stimulus.forEach((spec, index, values) => {
+    const cell = document.createElement("div");
+    cell.className = "ccat-spatial-stimulus-cell";
+    cell.appendChild(renderCcatSpatialSvg(spec));
+    stimulus.appendChild(cell);
+    if (index < values.length - 1) {
+      const arrow = document.createElement("span");
+      arrow.className = "ccat-spatial-sequence-arrow";
+      arrow.textContent = "→";
+      arrow.setAttribute("aria-hidden", "true");
+      stimulus.appendChild(arrow);
+    }
+  });
+  shell.insertBefore(stimulus, questionEl);
+}
+
+function renderCcatSpatialOption(button, item, option, optionIndex) {
+  const value = String(option);
+  button.dataset.optionValue = value;
+  if (item.context_kind !== "ccat_spatial") {
+    button.textContent = value;
+    return;
+  }
+  const spec = getCcatSpatialPresentation(item).options[optionIndex];
+  button.classList.add("ccat-spatial-answer-option");
+  button.setAttribute("aria-label", `Option ${optionIndex + 1}`);
+  button.appendChild(renderCcatSpatialSvg(spec || { shape: "missing" }));
+}
+
 function renderContext(container, item) {
   container.innerHTML = "";
   const appendContinuePrompt = () => {};
@@ -1616,6 +1916,8 @@ function normalizePlayerQuestion(item) {
     words: [],
     letter_pairs: [],
     shapes: {},
+    spatial_stimulus: [],
+    option_visuals: [],
     question_text: "",
     options: [],
     reveal_mode: "context_then_question",
@@ -1629,6 +1931,8 @@ function normalizePlayerQuestion(item) {
     ...preview,
     ...item,
     options: Array.isArray(item.options) ? item.options.map((option) => String(option)) : [],
+    spatial_stimulus: Array.isArray(item.spatial_stimulus) ? item.spatial_stimulus : [],
+    option_visuals: Array.isArray(item.option_visuals) ? item.option_visuals : [],
   };
 
   if (!("payload" in item)) {
@@ -1703,7 +2007,19 @@ function normalizePlayerQuestion(item) {
     };
   }
 
-  if (sectionType === "ccat_numerical" || sectionType === "ccat_verbal" || sectionType === "ccat_spatial") {
+  if (sectionType === "ccat_spatial") {
+    return {
+      ...fromPayload,
+      context_kind: "ccat_spatial",
+      instruction: String(prompt.instruction || ""),
+      spatial_stimulus: Array.isArray(prompt.stimulus) ? prompt.stimulus : [],
+      option_visuals: Array.isArray(payload.option_visuals) ? payload.option_visuals : [],
+      question_text: String(prompt.question || "Choose the missing figure."),
+      reveal_mode: "question_only",
+    };
+  }
+
+  if (sectionType === "ccat_numerical" || sectionType === "ccat_verbal") {
     return {
       ...fromPayload,
       instruction: String(prompt.instruction || ""),

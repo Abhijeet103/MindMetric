@@ -10,52 +10,13 @@
             <p class="section-copy section-detail-copy">{{ section.description }}</p>
         </div>
 
-        <div class="section-help-wrap">
-            <button
-                type="button"
-                class="section-help-button"
-                data-section-help-toggle
-                aria-expanded="false"
-                aria-controls="section-help-panel"
-            >
-                How this works <span class="section-help-chevron" aria-hidden="true">&#9662;</span>
-            </button>
-            <aside class="section-help-popover" id="section-help-panel" data-section-help-panel role="dialog" aria-label="{{ section.title }} module guide" hidden>
-                <div class="section-help-heading">
-                    <span class="section-help-eyebrow">Module guide</span>
-                    <h2>{{ section.title }}</h2>
-                </div>
-                <section class="section-help-block">
-                    <h3>What you will do</h3>
-                    <p>{{ section.help.task|default:section.instruction }}</p>
-                </section>
-                {% if section.help.steps %}
-                    <section class="section-help-block">
-                        <h3>Best approach</h3>
-                        <ol class="section-help-steps">
-                            {% for step in section.help.steps %}
-                                <li>{{ step }}</li>
-                            {% endfor %}
-                        </ol>
-                    </section>
-                {% endif %}
-                <div class="section-help-callouts">
-                    <section class="section-help-callout section-help-callout-warning">
-                        <h3>Watch out</h3>
-                        <p>{{ section.help.watch_out }}</p>
-                    </section>
-                    <section class="section-help-callout section-help-callout-tip">
-                        <h3>Quick tip</h3>
-                        <p>{{ section.help.tip }}</p>
-                    </section>
-                </div>
-                <div class="section-help-meta">
-                    <span>{{ section.duration_minutes }} minute{{ section.duration_minutes|pluralize }} total</span>
-                    <span>No per-question timer</span>
-                    <span>Practice gives instant feedback</span>
-                </div>
-            </aside>
-        </div>
+        {% if section.guide_url %}
+            <div class="section-help-wrap">
+                <a href="{{ section.guide_url }}" class="section-help-button" data-show-loader>
+                    How this works <span aria-hidden="true">&#8594;</span>
+                </a>
+            </div>
+        {% endif %}
     </div>
 
     {% if section.practice_previews %}

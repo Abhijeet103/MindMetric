@@ -7,6 +7,7 @@ from django.contrib.sitemaps import Sitemap
 from django.urls import reverse
 
 from backend.apps.assessments.config import ASSESSMENT_CONFIG, PRACTICE_TRACK_LIBRARY
+from backend.apps.pages.guides import iter_assessment_guides, iter_module_guides
 from backend.apps.pages.seo import canonical_site_url
 
 
@@ -38,6 +39,14 @@ class PublicPageSitemap(Sitemap):
                 )
                 for module in assessment["modules"]
             )
+        pages.extend(
+            ("pages:assessment-guide", (guide["slug"],))
+            for guide in iter_assessment_guides()
+        )
+        pages.extend(
+            ("pages:module-guide", (assessment_slug, module_slug))
+            for assessment_slug, module_slug in iter_module_guides()
+        )
         return pages
 
     def location(self, item):
@@ -55,6 +64,8 @@ class PublicPageSitemap(Sitemap):
             "pages:practice": 0.9,
             "pages:assessment-practice": 0.8,
             "pages:assessment-section-detail": 0.7,
+            "pages:assessment-guide": 0.85,
+            "pages:module-guide": 0.75,
             "pages:pricing": 0.5,
         }
         return priorities.get(route_name, 0.5)

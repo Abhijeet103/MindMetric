@@ -19,6 +19,8 @@ ASSESSMENT_CONFIG = {
         "full_test_meta_tail": "",
         "full_test_intro_copy": "Each section is shown one by one. First you get instructions, then eight practice questions with instant feedback, then the timed test for that section.",
         "full_test_practice_count": 8,
+        "full_test_mode": "staged",
+        "full_test_duration_minutes": 45,
         "module_label": "Modules",
         "modules": [
             {
@@ -114,10 +116,17 @@ ASSESSMENT_CONFIG = {
         "eyebrow": "CCAT aptitude practice platform",
         "description": "Criteria Cognitive Aptitude Test (CCAT) practice for numerical, verbal, logic, and spatial reasoning.",
         "full_test_title": "Full test",
-        "full_test_description": "Three CCAT-style modules in one focused run: math, verbal, and abstract reasoning.",
-        "full_test_meta_tail": "mixed aptitude practice",
-        "full_test_intro_copy": "Move through the CCAT-style modules in order. Practice questions come first, followed by the timed test for each module.",
-        "full_test_practice_count": 6,
+        "full_test_description": "A realistic 50-question mixed aptitude test with one 15-minute time limit.",
+        "full_test_meta_tail": "50 mixed questions",
+        "full_test_intro_copy": "Answer 50 mixed numerical, verbal, logic, and spatial questions in 15 minutes. Questions appear in one continuous flow, just like the CCAT format.",
+        "full_test_practice_count": 0,
+        "full_test_mode": "mixed",
+        "full_test_duration_minutes": 15,
+        "full_test_question_counts": {
+            SectionType.CCAT_NUMERICAL: 17,
+            SectionType.CCAT_VERBAL: 17,
+            SectionType.CCAT_SPATIAL: 16,
+        },
         "module_label": "Modules",
         "modules": [
             {
@@ -156,7 +165,7 @@ ASSESSMENT_CONFIG = {
             },
             {
                 "key": SectionType.CCAT_SPATIAL,
-                "title": "Spatial & Abstract Reasoning",
+                "title": "Spatial and Abstract Reasoning",
                 "description": "Pattern recognition, transformations, and non-verbal logic questions.",
                 "instruction": "Look for the transformation rule or pattern first, then choose the option that completes it best.",
                 "time_limit_seconds": 180,
@@ -246,6 +255,12 @@ def get_module_assessment_type(section_type: str) -> str:
 
 def get_time_limit_seconds(section_type: str) -> int:
     return int(get_module_meta(section_type)["time_limit_seconds"])
+
+
+def get_full_test_question_count(assessment_type: str, section_type: str) -> int:
+    config = get_assessment_config(assessment_type)
+    configured_counts = config.get("full_test_question_counts", {})
+    return int(configured_counts.get(section_type, get_time_limit_seconds(section_type)))
 
 
 def get_assessment_cards() -> list[dict]:

@@ -17,6 +17,7 @@ from backend.apps.assessments.config import (
     ASSESSMENT_PREPGIA,
     get_assessment_config,
     get_assessment_module_keys,
+    get_full_test_question_count,
     get_module_assessment_type,
     get_time_limit_seconds,
 )
@@ -236,7 +237,7 @@ def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMEN
     session_sections = []
     existing_sections = {section.section_type: section for section in attempt.sections.all()}
     for index, section_key in enumerate(get_assessment_module_keys(assessment_type)):
-        test_count = get_time_limit_seconds(section_key)
+        test_count = get_full_test_question_count(assessment_type, section_key)
 
         section = existing_sections.get(section_key)
         if section is None:
@@ -486,7 +487,7 @@ def _ensure_full_test_section_phase_generated(
 ) -> None:
     generated_flag = f"{phase}_generated"
     question_key = f"{phase}_questions"
-    if section.get(generated_flag) and section.get(question_key):
+    if section.get(generated_flag):
         return
 
     section_type = section.get("section_type", "")
@@ -495,8 +496,13 @@ def _ensure_full_test_section_phase_generated(
 
     count_key = f"{phase}_count"
     count = int(section.get(count_key) or 0)
-    if count <= 0:
+    if count < 0:
         raise FullTestSessionError("Active test session is missing question counts.")
+    if count == 0:
+        section[question_key] = []
+        section[generated_flag] = True
+        _save_full_test_session(attempt.id, session)
+        return
 
     difficulty = "easy" if phase == "practice" else "medium"
     logger.info(
@@ -923,6 +929,8 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
         "numbers": [],
         "words": [],
         "shapes": {},
+        "spatial_stimulus": [],
+        "option_visuals": [],
         "question_text": "",
         "options": options,
         "reveal_mode": "context_then_question",
@@ -987,7 +995,20 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
         )
         return preview
 
-    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL, SectionType.CCAT_SPATIAL}:
+    if section_type == SectionType.CCAT_SPATIAL:
+        preview.update(
+            {
+                "context_kind": "ccat_spatial",
+                "instruction": prompt.get("instruction", ""),
+                "spatial_stimulus": prompt.get("stimulus", []),
+                "option_visuals": payload.get("option_visuals", []),
+                "question_text": prompt.get("question", "Choose the missing figure."),
+                "reveal_mode": "question_only",
+            }
+        )
+        return preview
+
+    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL}:
         preview.update(
             {
                 "context_kind": "generic",

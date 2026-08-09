@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="guide-page">
+    <a class="guide-back" href="{{ practice_url }}" data-show-loader>&larr; Back to {{ assessment.title }} practice</a>
+
+    <section class="guide-hero">
+        <div class="guide-hero-copy">
+            <p class="guide-eyebrow">{{ guide.eyebrow }}</p>
+            <h1>{{ guide.title }}</h1>
+            <p class="guide-intro">{{ guide.intro }}</p>
+            <div class="guide-actions">
+                <a class="button" href="{{ practice_url }}" data-show-loader>Start practising <span aria-hidden="true">&rarr;</span></a>
+                <a class="guide-text-link" href="#test-format">See the test format</a>
+            </div>
+        </div>
+        <div class="guide-facts" aria-label="Assessment format summary">
+            {% for value, label in guide.facts %}
+                <div class="guide-fact">
+                    <strong>{{ value }}</strong>
+                    <span>{{ label }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div class="guide-layout">
+        <main class="guide-main">
+            <section class="guide-content-card" id="test-format">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Test overview</p>
+                    <h2>What to expect</h2>
+                </div>
+                <p>{{ guide.overview }}</p>
+                <ul class="guide-list">
+                    {% for point in guide.format_points %}<li>{{ point }}</li>{% endfor %}
+                </ul>
+            </section>
+
+            <section class="guide-content-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Question areas</p>
+                    <h2>Explore every section</h2>
+                    <p>Learn the mechanic first, then practise it without leaving the guide.</p>
+                </div>
+                <div class="guide-modules">
+                    {% for module in modules %}
+                        <article class="guide-module-card">
+                            <p class="guide-module-index">Section {{ forloop.counter }}</p>
+                            <h3>{{ module.display_title }}</h3>
+                            <p>{{ module.subtitle }}</p>
+                            <ul class="guide-list guide-list-compact">
+                                {% for point in module.pattern %}<li>{{ point }}</li>{% endfor %}
+                            </ul>
+                            <div class="guide-module-actions">
+                                <a href="{{ module.guide_url }}" data-show-loader>Read section guide</a>
+                                <a href="{{ module.practice_url }}" data-show-loader>Practise now <span aria-hidden="true">&rarr;</span></a>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="guide-content-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Scoring</p>
+                    <h2>How results are interpreted</h2>
+                </div>
+                <p>{{ guide.scoring }}</p>
+            </section>
+
+            <section class="guide-content-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Preparation plan</p>
+                    <h2>Build speed without losing accuracy</h2>
+                </div>
+                <ol class="guide-numbered-list">
+                    {% for step in guide.preparation_steps %}<li>{{ step }}</li>{% endfor %}
+                </ol>
+            </section>
+
+            <section class="guide-content-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Common questions</p>
+                    <h2>{{ guide.title }} FAQ</h2>
+                </div>
+                <div class="guide-faq-list">
+                    {% for question, answer in guide.faqs %}
+                        <details>
+                            <summary>{{ question }}</summary>
+                            <p>{{ answer }}</p>
+                        </details>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+
+        <aside class="guide-aside">
+            <div class="guide-aside-card">
+                <p class="guide-section-label">Ready to practise?</p>
+                <h2>Put the format into action</h2>
+                <p>Start with a module drill, then use the full-test flow when the question styles feel familiar.</p>
+                <a class="button" href="{{ practice_url }}" data-show-loader>Open {{ assessment.title }}</a>
+            </div>
+            <div class="guide-aside-card guide-source-card">
+                <p class="guide-section-label">Official references</p>
+                <ul class="guide-source-list">
+                    {% for label, url in guide.sources %}
+                        <li><a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ label }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    <p class="guide-disclaimer">MindMetric is an independent preparation platform and is not affiliated with or endorsed by the assessment publisher. Test details can change; follow the instructions supplied with your invitation.</p>
+</div>
+{% endblock %}

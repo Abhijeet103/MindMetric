@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="guide-page">
+    <a class="guide-back" href="{{ assessment_guide_url }}" data-show-loader>&larr; Back to {{ guide.title }}</a>
+
+    <section class="guide-hero guide-module-hero">
+        <div class="guide-hero-copy">
+            <p class="guide-eyebrow">{{ guide.eyebrow }} section guide</p>
+            <h1>{{ module.title }}</h1>
+            <p class="guide-intro">{{ module.subtitle }}</p>
+            <div class="guide-actions">
+                <a class="button" href="{{ practice_url }}" data-show-loader>Start this module <span aria-hidden="true">&rarr;</span></a>
+                <a class="guide-text-link" href="#question-pattern">See the question pattern</a>
+            </div>
+        </div>
+        <div class="guide-facts guide-facts-compact" aria-label="Assessment context">
+            {% for value, label in guide.facts %}
+                <div class="guide-fact">
+                    <strong>{{ value }}</strong>
+                    <span>{{ label }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div class="guide-layout">
+        <main class="guide-main">
+            <section class="guide-content-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">What this section tests</p>
+                    <h2>The ability behind the questions</h2>
+                </div>
+                <p>{{ module.official_task }}</p>
+            </section>
+
+            <section class="guide-content-card" id="question-pattern">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Typical question pattern</p>
+                    <h2>How to approach each item</h2>
+                </div>
+                <ol class="guide-numbered-list">
+                    {% for step in module.pattern %}<li>{{ step }}</li>{% endfor %}
+                </ol>
+            </section>
+
+            <section class="guide-content-card guide-example-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Worked example</p>
+                    <h2>A simple version of the rule</h2>
+                </div>
+                <p>{{ module.example }}</p>
+            </section>
+
+            <section class="guide-content-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">Preparation strategies</p>
+                    <h2>Practise the skill efficiently</h2>
+                </div>
+                <ul class="guide-list">
+                    {% for strategy in module.strategies %}<li>{{ strategy }}</li>{% endfor %}
+                </ul>
+                <div class="guide-callouts">
+                    <div class="guide-callout guide-callout-warning">
+                        <strong>Watch out</strong>
+                        <p>{{ module.watch_out }}</p>
+                    </div>
+                    <div class="guide-callout guide-callout-tip">
+                        <strong>Quick tip</strong>
+                        <p>{{ module.quick_tip }}</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="guide-content-card">
+                <div class="guide-content-header">
+                    <p class="guide-section-label">More {{ assessment.title }} guides</p>
+                    <h2>Continue through the test</h2>
+                </div>
+                <div class="guide-related-links">
+                    {% for related in related_modules %}
+                        <a href="{{ related.guide_url }}" data-show-loader>
+                            <strong>{{ related.title }}</strong>
+                            <span>{{ related.subtitle }}</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+
+        <aside class="guide-aside">
+            <div class="guide-aside-card">
+                <p class="guide-section-label">Try the format</p>
+                <h2>{{ module_meta.title|default:module.title }}</h2>
+                <p>Use practice mode for immediate feedback, then switch to test mode when you are ready for timed conditions.</p>
+                <a class="button" href="{{ practice_url }}" data-show-loader>Open module practice</a>
+            </div>
+            <div class="guide-aside-card guide-source-card">
+                <p class="guide-section-label">Official references</p>
+                <ul class="guide-source-list">
+                    {% for label, url in guide.sources %}
+                        <li><a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ label }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    <p class="guide-disclaimer">This guide uses representative examples for preparation. It does not reproduce proprietary live assessment questions and is not endorsed by the assessment publisher.</p>
+</div>
+{% endblock %}

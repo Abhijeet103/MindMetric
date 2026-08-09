@@ -62,6 +62,13 @@ from backend.apps.assessments.services import (
 )
 from .emails import send_sale_inquiry_notification
 from .forms import SaleInquiryForm, TestSuggestionForm, TrackWaitlistForm
+from .guides import (
+    MODULE_GUIDES,
+    get_assessment_guide_url,
+    get_module_guide_url,
+    resolve_assessment_guide,
+    resolve_module_guide,
+)
 from .seo import assessment_seo_metadata, module_seo_metadata
 from prepgia.generators import generate_question
 from prepgia.preview_data import get_questions
@@ -585,6 +592,99 @@ class TrackWaitlistCreateView(LoginRequiredMixin, FormView):
         return reverse("pages:practice")
 
 
+class AssessmentGuidePageView(TemplateView):
+    template_name = "pages/guides/assessment.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        guide = resolve_assessment_guide(self.kwargs["assessment_guide_slug"])
+        if not guide:
+            raise Http404("Assessment guide not found.")
+
+        assessment_type = guide["assessment_type"]
+        assessment = get_assessment_config(assessment_type)
+        modules = []
+        for configured_module in assessment["modules"]:
+            module_key = str(configured_module["key"])
+            module_guide = MODULE_GUIDES.get(assessment_type, {}).get(module_key)
+            if not module_guide:
+                continue
+            modules.append(
+                {
+                    **module_guide,
+                    "key": module_key,
+                    "display_title": configured_module["title"],
+                    "description": configured_module["description"],
+                    "guide_url": get_module_guide_url(assessment_type, module_key),
+                    "practice_url": reverse(
+                        "pages:assessment-section-detail",
+                        args=[assessment_type, module_key],
+                    ),
+                }
+            )
+
+        context.update(
+            {
+                "page_title": guide["page_title"],
+                "meta_description": guide["meta_description"],
+                "guide": guide,
+                "assessment": assessment,
+                "modules": modules,
+                "practice_url": reverse("pages:assessment-practice", args=[assessment_type]),
+            }
+        )
+        return context
+
+
+class ModuleGuidePageView(TemplateView):
+    template_name = "pages/guides/module.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        resolved = resolve_module_guide(
+            self.kwargs["assessment_guide_slug"],
+            self.kwargs["module_guide_slug"],
+        )
+        if not resolved:
+            raise Http404("Module guide not found.")
+
+        guide, module = resolved
+        assessment_type = guide["assessment_type"]
+        assessment = get_assessment_config(assessment_type)
+        meta = get_module_meta(module["key"])
+        related_modules = []
+        for module_key, related in MODULE_GUIDES.get(assessment_type, {}).items():
+            if module_key == module["key"]:
+                continue
+            related_modules.append(
+                {
+                    **related,
+                    "guide_url": get_module_guide_url(assessment_type, module_key),
+                }
+            )
+
+        context.update(
+            {
+                "page_title": f"{module['title']} | MindMetric",
+                "meta_description": (
+                    f"{module['subtitle']} Learn the question pattern, worked example, "
+                    "timing context and practical preparation strategies."
+                ),
+                "guide": guide,
+                "module": module,
+                "module_meta": meta,
+                "assessment": assessment,
+                "assessment_guide_url": get_assessment_guide_url(assessment_type),
+                "practice_url": reverse(
+                    "pages:assessment-section-detail",
+                    args=[assessment_type, module["key"]],
+                ),
+                "related_modules": related_modules,
+            }
+        )
+        return context
+
+
 class AssessmentPracticePageView(TemplateView):
     template_name = "pages/practice.html"
 
@@ -629,6 +729,7 @@ class AssessmentPracticePageView(TemplateView):
                 "sections_started": sum(1 for section in sections if section["status_class"] != "status-not-started"),
                 "sections_total": len(sections),
                 "full_test_attempts_left": full_test_attempts_left,
+                "assessment_guide_url": get_assessment_guide_url(assessment_type),
             }
         )
         return context
@@ -693,7 +794,7 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
         context.update(
             {
                 "page_title": f"{assessment_config['title']} Full Test | MindMetric",
-                "meta_description": f"Run through all {assessment_config['title']} modules in one guided flow with practice and timed test phases.",
+                "meta_description": assessment_config["full_test_intro_copy"],
                 "assessment": assessment_config,
                 "assessment_slug": assessment_type,
                 "full_test_data": full_test_data,
@@ -703,6 +804,8 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
                 "full_test_section_submit_url": f"/api/tests/full-tests/{full_test_attempt_id}/section-submit/" if full_test_attempt_id else "",
                 "full_test_submit_url": f"/api/tests/full-tests/{full_test_attempt_id}/submit/" if full_test_attempt_id else "",
                 "full_test_access_error": access_error,
+                "full_test_mode": assessment_config.get("full_test_mode", "staged"),
+                "full_test_duration_seconds": int(assessment_config.get("full_test_duration_minutes", 45)) * 60,
             }
         )
         return context
@@ -793,6 +896,7 @@ class SectionDetailPageView(TemplateView):
                     "free_test_attempt_limit": limits.test_attempt_limit,
                     "mode": mode,
                     "test_setup_url": reverse("pages:assessment-section-test-setup", args=[assessment_type, section_type]),
+                    "guide_url": get_module_guide_url(assessment_type, str(section_type)),
                 },
             }
         )
@@ -1303,6 +1407,8 @@ def _build_preview(item: dict, section_type: str) -> dict:
         "numbers": [],
         "words": [],
         "shapes": {},
+        "spatial_stimulus": [],
+        "option_visuals": [],
         "question_text": "",
         "options": [],
         "correct_answer": "",
@@ -1380,7 +1486,21 @@ def _build_preview(item: dict, section_type: str) -> dict:
         )
         return preview
 
-    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL, SectionType.CCAT_SPATIAL}:
+    if section_type == SectionType.CCAT_SPATIAL:
+        preview.update(
+            {
+                "context_kind": "ccat_spatial",
+                "instruction": prompt.get("instruction", ""),
+                "spatial_stimulus": prompt.get("stimulus", []),
+                "option_visuals": payload.get("option_visuals", []),
+                "question_text": prompt.get("question", "Choose the missing figure."),
+                "reveal_mode": "question_only",
+                "options": options,
+            }
+        )
+        return preview
+
+    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL}:
         preview.update(
             {
                 "context_kind": "generic",
@@ -1412,6 +1532,8 @@ def _build_generated_preview(item: dict) -> dict:
         "numbers": [],
         "words": [],
         "shapes": {},
+        "spatial_stimulus": [],
+        "option_visuals": [],
         "question_text": "",
         "options": options,
         "correct_answer": correct_answer,
@@ -1474,7 +1596,20 @@ def _build_generated_preview(item: dict) -> dict:
         )
         return preview
 
-    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL, SectionType.CCAT_SPATIAL}:
+    if section_type == SectionType.CCAT_SPATIAL:
+        preview.update(
+            {
+                "context_kind": "ccat_spatial",
+                "instruction": prompt.get("instruction", ""),
+                "spatial_stimulus": prompt.get("stimulus", []),
+                "option_visuals": payload.get("option_visuals", []),
+                "question_text": prompt.get("question", "Choose the missing figure."),
+                "reveal_mode": "question_only",
+            }
+        )
+        return preview
+
+    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL}:
         preview.update(
             {
                 "context_kind": "generic",

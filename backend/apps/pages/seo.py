@@ -8,6 +8,10 @@ from django.conf import settings
 from django.urls import reverse
 
 from backend.apps.assessments.config import ASSESSMENT_CCAT, ASSESSMENT_PREPGIA
+from backend.apps.pages.guides import (
+    resolve_assessment_guide,
+    resolve_module_guide,
+)
 
 
 INDEXABLE_VIEWS = {
@@ -16,6 +20,8 @@ INDEXABLE_VIEWS = {
     "pages:practice",
     "pages:assessment-practice",
     "pages:assessment-section-detail",
+    "pages:assessment-guide",
+    "pages:module-guide",
 }
 
 GA4_MEASUREMENT_ID_PATTERN = re.compile(r"^G-[A-Z0-9]+$")
@@ -93,7 +99,7 @@ MODULE_SEO_METADATA = {
             ),
         },
         "ccat_spatial": {
-            "page_title": "CCAT Spatial & Abstract Reasoning Practice | MindMetric",
+            "page_title": "CCAT Spatial and Abstract Reasoning Practice | MindMetric",
             "meta_description": (
                 "Practice Criteria CCAT spatial and abstract reasoning questions "
                 "covering visual patterns, transformations and non-verbal logic."
@@ -269,6 +275,127 @@ def seo_context(request):
                 ],
             }
         )
+    elif view_name == "pages:assessment-guide":
+        assessment_slug = request.resolver_match.kwargs.get(
+            "assessment_guide_slug",
+            "",
+        )
+        guide = resolve_assessment_guide(assessment_slug)
+        if guide:
+            practice_url = (
+                f"{site_url}"
+                f"{reverse('pages:assessment-practice', args=[guide['assessment_type']])}"
+            )
+            graph.extend(
+                [
+                    {
+                        "@type": "BreadcrumbList",
+                        "@id": f"{canonical_url}#breadcrumb",
+                        "itemListElement": [
+                            {
+                                "@type": "ListItem",
+                                "position": 1,
+                                "name": "Practice Tests",
+                                "item": f"{site_url}{reverse('pages:practice')}",
+                            },
+                            {
+                                "@type": "ListItem",
+                                "position": 2,
+                                "name": guide["title"],
+                                "item": canonical_url,
+                            },
+                        ],
+                    },
+                    {
+                        "@type": "Article",
+                        "@id": f"{canonical_url}#article",
+                        "headline": guide["page_title"].split(" | ", 1)[0],
+                        "description": guide["meta_description"],
+                        "mainEntityOfPage": canonical_url,
+                        "about": {"@type": "Thing", "name": guide["eyebrow"]},
+                        "author": {"@id": f"{site_url}/#organization"},
+                        "publisher": {"@id": f"{site_url}/#organization"},
+                        "isPartOf": {"@id": f"{site_url}/#website"},
+                        "potentialAction": {
+                            "@type": "ReadAction",
+                            "target": practice_url,
+                        },
+                    },
+                ]
+            )
+            if guide.get("faqs"):
+                graph.append(
+                    {
+                        "@type": "FAQPage",
+                        "@id": f"{canonical_url}#faq",
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "name": question,
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": answer,
+                                },
+                            }
+                            for question, answer in guide["faqs"]
+                        ],
+                    }
+                )
+    elif view_name == "pages:module-guide":
+        assessment_slug = request.resolver_match.kwargs.get(
+            "assessment_guide_slug",
+            "",
+        )
+        module_slug = request.resolver_match.kwargs.get(
+            "module_guide_slug",
+            "",
+        )
+        resolved = resolve_module_guide(assessment_slug, module_slug)
+        if resolved:
+            guide, module = resolved
+            assessment_guide_url = (
+                f"{site_url}"
+                f"{reverse('pages:assessment-guide', args=[assessment_slug])}"
+            )
+            graph.extend(
+                [
+                    {
+                        "@type": "BreadcrumbList",
+                        "@id": f"{canonical_url}#breadcrumb",
+                        "itemListElement": [
+                            {
+                                "@type": "ListItem",
+                                "position": 1,
+                                "name": "Practice Tests",
+                                "item": f"{site_url}{reverse('pages:practice')}",
+                            },
+                            {
+                                "@type": "ListItem",
+                                "position": 2,
+                                "name": guide["title"],
+                                "item": assessment_guide_url,
+                            },
+                            {
+                                "@type": "ListItem",
+                                "position": 3,
+                                "name": module["title"],
+                                "item": canonical_url,
+                            },
+                        ],
+                    },
+                    {
+                        "@type": "Article",
+                        "@id": f"{canonical_url}#article",
+                        "headline": module["title"],
+                        "description": module["subtitle"],
+                        "mainEntityOfPage": canonical_url,
+                        "about": {"@type": "Thing", "name": guide["eyebrow"]},
+                        "author": {"@id": f"{site_url}/#organization"},
+                        "publisher": {"@id": f"{site_url}/#organization"},
+                        "isPartOf": {"@id": f"{site_url}/#website"},
+                    },
+                ]
+            )
 
     return {
         "seo_canonical_url": canonical_url,

@@ -179,18 +179,53 @@ CCAT_SPATIAL_RULES = [
         "options": ["▲", "▶", "▼", "◀"],
         "answer": "◀",
         "instruction": "Track the direction change from one shape to the next.",
+        "stimulus": [
+            {"shape": "triangle", "rotation": 0},
+            {"shape": "triangle", "rotation": 90},
+            {"shape": "triangle", "rotation": 180},
+            {"shape": "missing"},
+        ],
+        "option_visuals": [
+            {"value": "▲", "shape": "triangle", "rotation": 0},
+            {"value": "▶", "shape": "triangle", "rotation": 90},
+            {"value": "▼", "shape": "triangle", "rotation": 180},
+            {"value": "◀", "shape": "triangle", "rotation": 270},
+        ],
     },
     {
         "question": "Which option is the mirrored version of the reference pattern?",
         "options": ["◧", "◨", "◩", "◪"],
         "answer": "◨",
         "instruction": "Compare the filled side of each figure to the reference rule.",
+        "stimulus": [
+            {"shape": "split_square", "fill": "left"},
+            {"shape": "mirror_axis"},
+            {"shape": "missing"},
+        ],
+        "option_visuals": [
+            {"value": "◧", "shape": "split_square", "fill": "left"},
+            {"value": "◨", "shape": "split_square", "fill": "right"},
+            {"value": "◩", "shape": "split_square", "fill": "top"},
+            {"value": "◪", "shape": "split_square", "fill": "bottom"},
+        ],
     },
     {
         "question": "Which option completes the abstract pattern by adding one new side each step?",
         "options": ["△", "□", "⬟", "⬢"],
         "answer": "⬢",
         "instruction": "Count the edges and follow the growth pattern.",
+        "stimulus": [
+            {"shape": "polygon", "sides": 3},
+            {"shape": "polygon", "sides": 4},
+            {"shape": "polygon", "sides": 5},
+            {"shape": "missing"},
+        ],
+        "option_visuals": [
+            {"value": "△", "shape": "polygon", "sides": 3},
+            {"value": "□", "shape": "polygon", "sides": 4},
+            {"value": "⬟", "shape": "polygon", "sides": 5},
+            {"value": "⬢", "shape": "polygon", "sides": 6},
+        ],
     },
 ]
 
@@ -517,8 +552,10 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
                 "prompt": {
                     "instruction": rule["instruction"],
                     "question": rule["question"],
+                    "stimulus": rule["stimulus"],
                 },
                 "options": rule["options"],
+                "option_visuals": rule["option_visuals"],
                 "metadata": {"difficulty": difficulty, "subtype": "abstract_pattern"},
             },
             {"answer": rule["answer"]},
