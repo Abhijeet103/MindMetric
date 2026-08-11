@@ -1764,13 +1764,108 @@ function renderCcatSpatialSvg(spec = {}) {
     return svg;
   }
 
-  const polygon = document.createElementNS(svgNS, "polygon");
-  polygon.setAttribute("points", polygonPoints(shape === "triangle" ? 3 : spec.sides));
-  polygon.setAttribute("class", "ccat-spatial-shape-outline");
-  if (shape === "triangle") {
-    polygon.setAttribute("transform", `rotate(${Number(spec.rotation) || 0} 50 50)`);
+  const group = document.createElementNS(svgNS, "g");
+  const scale = Math.max(0.35, Math.min(1, Number(spec.scale) || 1));
+  const shapeRotation = Number(spec.rotation) || 0;
+  if (scale !== 1 || shapeRotation) group.setAttribute("transform", `${shapeRotation ? `rotate(${shapeRotation} 50 50) ` : ""}${scale !== 1 ? `translate(50 50) scale(${scale}) translate(-50 -50)` : ""}`);
+
+  if (shape === "circle_dot") {
+    const outline = document.createElementNS(svgNS, "circle");
+    outline.setAttribute("cx", "50"); outline.setAttribute("cy", "50"); outline.setAttribute("r", "31");
+    outline.setAttribute("class", "ccat-spatial-shape-outline");
+    const positions = { top: [50, 30], right: [70, 50], bottom: [50, 70], left: [30, 50] };
+    const [cx, cy] = positions[String(spec.position)] || positions.top;
+    const dot = document.createElementNS(svgNS, "circle");
+    dot.setAttribute("cx", String(cx)); dot.setAttribute("cy", String(cy)); dot.setAttribute("r", "8");
+    dot.setAttribute("class", "ccat-spatial-shape-fill");
+    group.append(outline, dot); svg.appendChild(group); return svg;
   }
-  svg.appendChild(polygon);
+
+  if (shape === "dot_grid") {
+    const count = Math.max(1, Math.min(9, Number(spec.count) || 1));
+    const positions = [30, 50, 70];
+    positions.forEach((y) => positions.forEach((x) => {
+      const index = positions.indexOf(y) * 3 + positions.indexOf(x);
+      if (index >= count) return;
+      const dot = document.createElementNS(svgNS, "circle");
+      dot.setAttribute("cx", String(x)); dot.setAttribute("cy", String(y)); dot.setAttribute("r", "7");
+      dot.setAttribute("class", "ccat-spatial-shape-fill"); group.appendChild(dot);
+    }));
+    svg.appendChild(group); return svg;
+  }
+
+  if (shape === "quadrant_square") {
+    const rects = { top_left: [20, 20], top_right: [50, 20], bottom_left: [20, 50], bottom_right: [50, 50] };
+    const [x, y] = rects[String(spec.fill)] || rects.top_left;
+    const filled = document.createElementNS(svgNS, "rect");
+    filled.setAttribute("x", String(x)); filled.setAttribute("y", String(y)); filled.setAttribute("width", "30"); filled.setAttribute("height", "30");
+    filled.setAttribute("class", "ccat-spatial-shape-fill");
+    const outline = document.createElementNS(svgNS, "rect");
+    outline.setAttribute("x", "20"); outline.setAttribute("y", "20"); outline.setAttribute("width", "60"); outline.setAttribute("height", "60"); outline.setAttribute("class", "ccat-spatial-shape-outline");
+    const vertical = document.createElementNS(svgNS, "line"); vertical.setAttribute("x1", "50"); vertical.setAttribute("y1", "20"); vertical.setAttribute("x2", "50"); vertical.setAttribute("y2", "80"); vertical.setAttribute("class", "ccat-spatial-shape-outline");
+    const horizontal = document.createElementNS(svgNS, "line"); horizontal.setAttribute("x1", "20"); horizontal.setAttribute("y1", "50"); horizontal.setAttribute("x2", "80"); horizontal.setAttribute("y2", "50"); horizontal.setAttribute("class", "ccat-spatial-shape-outline");
+    group.append(filled, outline, vertical, horizontal); svg.appendChild(group); return svg;
+  }
+
+  if (shape === "bars") {
+    const count = Math.max(1, Math.min(5, Number(spec.count) || 1));
+    const horizontal = spec.orientation === "horizontal";
+    for (let index = 0; index < count; index += 1) {
+      const line = document.createElementNS(svgNS, "line");
+      const offset = 50 + (index - (count - 1) / 2) * 15;
+      line.setAttribute("x1", horizontal ? "22" : String(offset)); line.setAttribute("y1", horizontal ? String(offset) : "22");
+      line.setAttribute("x2", horizontal ? "78" : String(offset)); line.setAttribute("y2", horizontal ? String(offset) : "78");
+      line.setAttribute("class", "ccat-spatial-shape-outline"); group.appendChild(line);
+    }
+    svg.appendChild(group); return svg;
+  }
+
+  if (["plus", "cross", "l_shape", "chevron"].includes(shape)) {
+    const line = (x1, y1, x2, y2) => {
+      const segment = document.createElementNS(svgNS, "line");
+      segment.setAttribute("x1", String(x1)); segment.setAttribute("y1", String(y1)); segment.setAttribute("x2", String(x2)); segment.setAttribute("y2", String(y2)); segment.setAttribute("class", "ccat-spatial-shape-outline"); group.appendChild(segment);
+    };
+    if (shape === "plus") { line(50, 20, 50, 80); line(20, 50, 80, 50); }
+    if (shape === "cross") { line(25, 25, 75, 75); line(75, 25, 25, 75); }
+    if (shape === "l_shape") { line(30, 20, 30, 72); line(30, 72, 78, 72); }
+    if (shape === "chevron") { line(25, 28, 50, 55); line(50, 55, 75, 28); }
+    svg.appendChild(group); return svg;
+  }
+
+  if (shape === "star") {
+    const points = Array.from({ length: 10 }, (_, index) => {
+      const angle = -Math.PI / 2 + index * Math.PI / 5;
+      const radius = index % 2 ? 15 : 32;
+      return `${50 + radius * Math.cos(angle)},${50 + radius * Math.sin(angle)}`;
+    }).join(" ");
+    const star = document.createElementNS(svgNS, "polygon"); star.setAttribute("points", points); star.setAttribute("class", "ccat-spatial-shape-outline"); group.appendChild(star); svg.appendChild(group); return svg;
+  }
+
+  if (shape === "arrow" || shape === "kite" || shape === "trapezoid") {
+    const points = {
+      arrow: "50,16 82,50 64,50 64,82 36,82 36,50 18,50",
+      kite: "50,15 75,50 50,85 32,50",
+      trapezoid: "30,22 70,22 82,78 18,78",
+    };
+    const polygon = document.createElementNS(svgNS, "polygon"); polygon.setAttribute("points", points[shape]); polygon.setAttribute("class", "ccat-spatial-shape-outline"); group.appendChild(polygon); svg.appendChild(group); return svg;
+  }
+
+  if (shape === "circle") {
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", "50"); circle.setAttribute("cy", "50"); circle.setAttribute("r", "31");
+    circle.setAttribute("class", "ccat-spatial-shape-outline");
+    group.appendChild(circle); svg.appendChild(group); return svg;
+  }
+
+  const polygon = document.createElementNS(svgNS, "polygon");
+  const sideMap = { triangle: 3, square: 4, diamond: 4, pentagon: 5, hexagon: 6, octagon: 8 };
+  const sides = sideMap[shape] || spec.sides;
+  polygon.setAttribute("points", polygonPoints(sides));
+  polygon.setAttribute("class", "ccat-spatial-shape-outline");
+  const rotation = shape === "diamond" ? 45 : 0;
+  if (rotation) polygon.setAttribute("transform", `rotate(${rotation} 50 50)`);
+  group.appendChild(polygon);
+  svg.appendChild(group);
   return svg;
 }
 

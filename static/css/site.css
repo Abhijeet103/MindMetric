@@ -4021,7 +4021,7 @@ body.has-open-modal {
 }
 
 .ccat-spatial-stimulus-cell {
-  width: clamp(78px, 9vw, 112px);
+  width: clamp(92px, 11vw, 132px);
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -4039,8 +4039,8 @@ body.has-open-modal {
 }
 
 .ccat-spatial-svg {
-  width: clamp(58px, 7vw, 82px);
-  height: clamp(58px, 7vw, 82px);
+  width: clamp(72px, 8vw, 98px);
+  height: clamp(72px, 8vw, 98px);
   overflow: visible;
 }
 
@@ -4089,8 +4089,8 @@ body.has-open-modal {
 }
 
 .ccat-spatial-answer-option .ccat-spatial-svg {
-  width: 72px;
-  height: 72px;
+  width: 84px;
+  height: 84px;
 }
 
 .full-test-answer-options .answer-option.is-selected-correct,

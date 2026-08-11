@@ -50,9 +50,13 @@ class CCATQuestionVariationTests(SimpleTestCase):
                 "average",
                 "equation",
                 "distance",
+                "fraction",
+                "profit_loss",
+                "conversion",
+                "compound_change",
             },
         )
-        self.assertGreater(len({question_signature(question) for question in questions}), 175)
+        self.assertGreater(len({question_signature(question) for question in questions}), 210)
 
     def test_verbal_questions_cover_all_problem_families(self):
         questions = self.generate_sample(CCATVerbalGenerator())
@@ -60,9 +64,9 @@ class CCATQuestionVariationTests(SimpleTestCase):
         self.assert_valid_options(questions)
         self.assertEqual(
             {question.payload["metadata"]["subtype"] for question in questions},
-            {"analogy", "sentence_completion", "odd_one_out", "synonym", "antonym", "category"},
+            {"analogy", "sentence_completion", "odd_one_out", "synonym", "antonym", "category", "definition", "cause_effect"},
         )
-        self.assertGreater(len({question_signature(question) for question in questions}), 45)
+        self.assertGreater(len({question_signature(question) for question in questions}), 75)
 
     def test_spatial_questions_cover_parameterized_visual_rules(self):
         questions = self.generate_sample(CCATSpatialGenerator())
@@ -70,9 +74,40 @@ class CCATQuestionVariationTests(SimpleTestCase):
         self.assert_valid_options(questions)
         self.assertEqual(
             {question.payload["metadata"]["subtype"] for question in questions},
-            {"rotation", "fill_rotation", "mirror", "polygon_growth"},
+            {"rotation", "fill_rotation", "mirror", "polygon_growth", "shape_cycle", "dot_movement", "dot_count", "quadrant_fill", "size_growth", "bar_growth"},
         )
-        self.assertGreater(len({question_signature(question) for question in questions}), 20)
+        self.assertGreater(len({question_signature(question) for question in questions}), 55)
+        shapes = {
+            visual["shape"]
+            for question in questions
+            for visual in [
+                *question.payload["prompt"].get("stimulus", []),
+                *question.payload.get("option_visuals", []),
+            ]
+            if visual["shape"] not in {"missing", "mirror_axis"}
+        }
+        self.assertGreaterEqual(len(shapes), 20)
+
+    def test_practice_sized_batches_cycle_families_before_repeating(self):
+        cases = (
+            (CCATNumericalGenerator(), 12),
+            (CCATVerbalGenerator(), 8),
+            (CCATSpatialGenerator(), 10),
+        )
+
+        for generator, family_count in cases:
+            with self.subTest(section=generator.section_type):
+                questions = [
+                    generator.generate(
+                        "easy",
+                        f"section:{generator.section_type}:practice:easy:session:{index}",
+                    )
+                    for index in range(family_count)
+                ]
+                subtypes = [
+                    question.payload["metadata"]["subtype"] for question in questions
+                ]
+                self.assertEqual(family_count, len(set(subtypes)))
 
     def test_seeded_content_is_reproducible(self):
         for generator in (
