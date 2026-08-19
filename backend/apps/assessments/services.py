@@ -1001,6 +1001,7 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
                 "context_kind": "ccat_spatial",
                 "instruction": prompt.get("instruction", ""),
                 "spatial_stimulus": prompt.get("stimulus", []),
+                "spatial_stimulus_layout": prompt.get("stimulus_layout", "sequence"),
                 "option_visuals": payload.get("option_visuals", []),
                 "question_text": prompt.get("question", "Choose the missing figure."),
                 "reveal_mode": "question_only",

@@ -4020,6 +4020,23 @@ body.has-open-modal {
   gap: clamp(8px, 1.5vw, 18px);
 }
 
+.ccat-spatial-stimulus.ccat-spatial-matrix {
+  width: min(540px, 100%);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(92px, 1fr));
+  gap: clamp(7px, 1.2vw, 14px);
+}
+
+.ccat-spatial-matrix .ccat-spatial-stimulus-cell {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.ccat-spatial-matrix .ccat-spatial-svg {
+  width: min(100%, 112px);
+  height: min(100%, 112px);
+}
+
 .ccat-spatial-stimulus-cell {
   width: clamp(92px, 11vw, 132px);
   aspect-ratio: 1;
@@ -4724,6 +4741,16 @@ body.has-open-modal {
   .ccat-spatial-stimulus-cell .ccat-spatial-svg {
     width: 52px;
     height: 52px;
+  }
+
+  .ccat-spatial-stimulus.ccat-spatial-matrix {
+    width: min(330px, 100%);
+    gap: 5px;
+  }
+
+  .ccat-spatial-matrix .ccat-spatial-stimulus-cell .ccat-spatial-svg {
+    width: 100%;
+    height: 100%;
   }
 
   .ccat-spatial-answer-options {

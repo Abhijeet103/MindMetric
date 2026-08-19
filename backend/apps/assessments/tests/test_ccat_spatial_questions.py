@@ -28,3 +28,14 @@ class CCATSpatialQuestionTests(SimpleTestCase):
         self.assertTrue(preview["option_visuals"])
         self.assertEqual(preview["reveal_mode"], "question_only")
         self.assertIn(preview["correct_answer"], preview["options"])
+
+    def test_matrix_completion_question_has_a_complete_grid_and_visual_answer(self):
+        generator = CCATSpatialGenerator()
+        rule = generator._matrix_completion_rule(generator.rng("matrix-regression"))
+
+        self.assertEqual(rule["stimulus_layout"], "matrix")
+        self.assertEqual(len(rule["stimulus"]), 9)
+        self.assertEqual(sum(cell["shape"] == "missing" for cell in rule["stimulus"]), 1)
+        self.assertEqual(len(rule["option_visuals"]), 4)
+        self.assertIn(rule["answer"], [option["value"] for option in rule["option_visuals"]])
+        self.assertTrue(all(option["shape"] == "symbol_box" for option in rule["option_visuals"]))

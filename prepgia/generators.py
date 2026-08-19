@@ -1004,6 +1004,63 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
             "answer": "4 bars",
         }
 
+    def _matrix_completion_rule(self, rng: random.Random) -> dict:
+        """Generate a multi-feature 3×3 matrix like standard CCAT abstract items."""
+        shapes = rng.choice([
+            [("triangle", "Triangles"), ("circle", "Circles"), ("square", "Squares")],
+            [("star", "Stars"), ("diamond", "Diamonds"), ("hexagon", "Hexagons")],
+        ])
+        counts = rng.choice([[4, 3, 2], [3, 2, 1]])
+        positions_by_count = {
+            1: ["center"],
+            2: ["top_right", "bottom_left"],
+            3: ["top_left", "center", "bottom_right"],
+            4: ["top_left", "top_right", "bottom_left", "bottom_right"],
+        }
+
+        def cell(shape: str, count: int, filled_offset: int = 0) -> dict:
+            positions = positions_by_count[count]
+            return {
+                "shape": "symbol_box",
+                "marks": [
+                    {
+                        "shape": shape,
+                        "position": position,
+                        # Filled symbols move diagonally through the matrix;
+                        # count and symbol type must both be considered.
+                        "filled": index in {filled_offset % count, (filled_offset + 2) % count} if count > 2 else index == filled_offset % count,
+                    }
+                    for index, position in enumerate(positions)
+                ],
+            }
+
+        matrix = []
+        for row, (shape, _label) in enumerate(shapes):
+            for column, count in enumerate(counts):
+                matrix.append(cell(shape, count, row + column))
+        answer_spec = matrix.pop(4)
+        matrix.insert(4, {"shape": "missing"})
+        answer = "Option 1"
+        wrong_specs = [
+            cell(shapes[1][0], counts[0], 1),
+            cell(shapes[0][0], counts[1], 1),
+            cell(shapes[1][0], counts[1], 0),
+        ]
+        option_visuals = [{"value": answer, **answer_spec}] + [
+            {"value": f"Option {index}", **spec}
+            for index, spec in enumerate(wrong_specs, start=2)
+        ]
+        rng.shuffle(option_visuals)
+        return {
+            "subtype": "matrix_completion",
+            "question": "Which option replaces the missing box to complete the pattern?",
+            "instruction": "Use both directions of the matrix: each row fixes the symbol type, while each column changes the number and placement of filled symbols.",
+            "stimulus": matrix,
+            "stimulus_layout": "matrix",
+            "option_visuals": option_visuals,
+            "answer": answer,
+        }
+
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
         rule_factory = _choose_batch_balanced_variant(
@@ -1020,6 +1077,7 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
                 self._quadrant_fill_rule,
                 self._size_growth_rule,
                 self._bar_growth_rule,
+                self._matrix_completion_rule,
             ],
         )
         rule = rule_factory(rng)
@@ -1035,6 +1093,7 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
                     "instruction": rule["instruction"],
                     "question": rule["question"],
                     "stimulus": rule["stimulus"],
+                    "stimulus_layout": rule.get("stimulus_layout", "sequence"),
                 },
                 "options": options,
                 "option_visuals": rule["option_visuals"],

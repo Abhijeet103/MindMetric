@@ -74,7 +74,7 @@ class CCATQuestionVariationTests(SimpleTestCase):
         self.assert_valid_options(questions)
         self.assertEqual(
             {question.payload["metadata"]["subtype"] for question in questions},
-            {"rotation", "fill_rotation", "mirror", "polygon_growth", "shape_cycle", "dot_movement", "dot_count", "quadrant_fill", "size_growth", "bar_growth"},
+            {"rotation", "fill_rotation", "mirror", "polygon_growth", "shape_cycle", "dot_movement", "dot_count", "quadrant_fill", "size_growth", "bar_growth", "matrix_completion"},
         )
         self.assertGreater(len({question_signature(question) for question in questions}), 55)
         shapes = {
@@ -92,7 +92,7 @@ class CCATQuestionVariationTests(SimpleTestCase):
         cases = (
             (CCATNumericalGenerator(), 12),
             (CCATVerbalGenerator(), 8),
-            (CCATSpatialGenerator(), 10),
+            (CCATSpatialGenerator(), 11),
         )
 
         for generator, family_count in cases:

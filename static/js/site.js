@@ -1764,6 +1764,38 @@ function renderCcatSpatialSvg(spec = {}) {
     return svg;
   }
 
+  if (shape === "symbol_box") {
+    const box = document.createElementNS(svgNS, "rect");
+    box.setAttribute("x", "8"); box.setAttribute("y", "8"); box.setAttribute("width", "84"); box.setAttribute("height", "84");
+    box.setAttribute("class", "ccat-spatial-shape-outline"); svg.appendChild(box);
+    const positions = { top_left: [28, 28], top_right: [72, 28], bottom_left: [28, 72], bottom_right: [72, 72], center: [50, 50] };
+    const sideMap = { triangle: 3, square: 4, diamond: 4, pentagon: 5, hexagon: 6, octagon: 8 };
+    (Array.isArray(spec.marks) ? spec.marks : []).forEach((mark) => {
+      const [cx, cy] = positions[mark.position] || positions.center;
+      const markShape = String(mark.shape || "circle");
+      if (markShape === "circle") {
+        const circle = document.createElementNS(svgNS, "circle"); circle.setAttribute("cx", String(cx)); circle.setAttribute("cy", String(cy)); circle.setAttribute("r", "9");
+        circle.setAttribute("class", mark.filled ? "ccat-spatial-shape-fill" : "ccat-spatial-shape-outline"); svg.appendChild(circle); return;
+      }
+      if (markShape === "star") {
+        const points = Array.from({ length: 10 }, (_, index) => {
+          const angle = -Math.PI / 2 + index * Math.PI / 5; const radius = index % 2 ? 4.5 : 10;
+          return `${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`;
+        }).join(" ");
+        const star = document.createElementNS(svgNS, "polygon"); star.setAttribute("points", points); star.setAttribute("class", mark.filled ? "ccat-spatial-shape-fill" : "ccat-spatial-shape-outline"); svg.appendChild(star); return;
+      }
+      const sides = sideMap[markShape] || 3;
+      const points = Array.from({ length: sides }, (_, index) => {
+        const angle = -Math.PI / 2 + index * 2 * Math.PI / sides; const radius = 10;
+        return `${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`;
+      }).join(" ");
+      const polygon = document.createElementNS(svgNS, "polygon"); polygon.setAttribute("points", points); polygon.setAttribute("class", mark.filled ? "ccat-spatial-shape-fill" : "ccat-spatial-shape-outline");
+      if (markShape === "diamond") polygon.setAttribute("transform", `rotate(45 ${cx} ${cy})`);
+      svg.appendChild(polygon);
+    });
+    return svg;
+  }
+
   const group = document.createElementNS(svgNS, "g");
   const scale = Math.max(0.35, Math.min(1, Number(spec.scale) || 1));
   const shapeRotation = Number(spec.rotation) || 0;
@@ -1878,6 +1910,8 @@ function renderCcatSpatialStimulus(questionEl, item) {
 
   const stimulus = document.createElement("div");
   stimulus.className = "ccat-spatial-stimulus";
+  const isMatrix = item.spatial_stimulus_layout === "matrix";
+  stimulus.classList.toggle("ccat-spatial-matrix", isMatrix);
   stimulus.dataset.ccatSpatialStimulus = "";
   stimulus.setAttribute("aria-label", "Spatial pattern to complete");
   getCcatSpatialPresentation(item).stimulus.forEach((spec, index, values) => {
@@ -1885,7 +1919,7 @@ function renderCcatSpatialStimulus(questionEl, item) {
     cell.className = "ccat-spatial-stimulus-cell";
     cell.appendChild(renderCcatSpatialSvg(spec));
     stimulus.appendChild(cell);
-    if (index < values.length - 1) {
+    if (!isMatrix && index < values.length - 1) {
       const arrow = document.createElement("span");
       arrow.className = "ccat-spatial-sequence-arrow";
       arrow.textContent = "→";
@@ -2013,6 +2047,7 @@ function normalizePlayerQuestion(item) {
     letter_pairs: [],
     shapes: {},
     spatial_stimulus: [],
+    spatial_stimulus_layout: "sequence",
     option_visuals: [],
     question_text: "",
     options: [],
@@ -2028,6 +2063,7 @@ function normalizePlayerQuestion(item) {
     ...item,
     options: Array.isArray(item.options) ? item.options.map((option) => String(option)) : [],
     spatial_stimulus: Array.isArray(item.spatial_stimulus) ? item.spatial_stimulus : [],
+    spatial_stimulus_layout: item.spatial_stimulus_layout === "matrix" ? "matrix" : "sequence",
     option_visuals: Array.isArray(item.option_visuals) ? item.option_visuals : [],
   };
 
