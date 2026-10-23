@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from datetime import timedelta
 
 from django.contrib import admin, messages
@@ -12,10 +13,13 @@ from backend.apps.assessments.models import Attempt, AttemptStatus, SectionProgr
 from backend.apps.assessments.services import recompute_section_progress_for_user
 from backend.apps.billing.models import Subscription, SubscriptionStatus
 from backend.apps.billing.services import calculate_expiry, sync_user_subscription_access
+from backend.apps.pages.emails import build_branded_email
 from backend.apps.tenants.services import get_or_create_tenant_user
 from backend.apps.tenants.utils import get_default_tenant
 
 from .models import User, UserRole
+
+logger = logging.getLogger(__name__)
 
 
 def _activate_manual_subscription_for_user(user: User, plan_code: str) -> None:
@@ -48,6 +52,7 @@ class UserAdmin(DjangoUserAdmin):
     list_display = ("email", "tenant", "first_name", "last_name", "role", "is_tenant_admin", "subscription_expires_at", "is_staff")
     search_fields = ("email", "first_name", "last_name")
     actions = (
+        "gift_one_month_access",
         "mark_selected_users_as_paid",
         "grant_yearly_access",
         "extend_selected_subscriptions_by_30_days",
@@ -80,6 +85,12 @@ class UserAdmin(DjangoUserAdmin):
         if request.user.tenant_id:
             return queryset.filter(tenant=request.user.tenant)
         return queryset.none()
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not request.user.is_superuser:
+            actions.pop("gift_one_month_access", None)
+        return actions
 
     def get_fieldsets(self, request, obj=None):
         if request.user.is_superuser:
@@ -118,6 +129,70 @@ class UserAdmin(DjangoUserAdmin):
             _activate_manual_subscription_for_user(user, "monthly")
             updated += 1
         self.message_user(request, f"Marked {updated} user(s) as paid on a monthly admin plan.", level=messages.SUCCESS)
+
+    @admin.action(description="Gift one month of paid access and email users")
+    def gift_one_month_access(self, request, queryset):
+        if not request.user.is_superuser:
+            self.message_user(request, "Only a superuser can gift paid access.", level=messages.ERROR)
+            return
+
+        now = timezone.now()
+        granted = 0
+        email_sent = 0
+        email_failed = 0
+        for user in queryset:
+            base = user.subscription_expires_at if user.subscription_expires_at and user.subscription_expires_at > now else now
+            expiry = calculate_expiry(base, "monthly")
+            tenant_user = get_or_create_tenant_user(tenant=user.tenant, user=user)
+            subscription = (
+                Subscription.objects.filter(user=user, provider="admin")
+                .order_by("-updated_at")
+                .first()
+            )
+            if subscription is None:
+                subscription = Subscription(user=user, provider="admin")
+            subscription.tenant = user.tenant
+            subscription.tenant_user = tenant_user
+            subscription.plan_code = "monthly"
+            subscription.status = SubscriptionStatus.ACTIVE
+            subscription.provider_customer_id = ""
+            subscription.provider_subscription_id = f"admin-{user.id}-monthly-gift"
+            subscription.current_period_start = base
+            subscription.current_period_end = expiry
+            subscription.save()
+            user.role = UserRole.PAID
+            user.subscription_expires_at = expiry
+            user.save(update_fields=["role", "subscription_expires_at"])
+            granted += 1
+
+            try:
+                gift_email = build_branded_email(
+                    subject="A month of MindMetric access, on us",
+                    body=(
+                        f"Hi {user.first_name or 'there'},\n\n"
+                        "We’ve gifted you one month of paid MindMetric access. It’s a gift from us, "
+                        "so there’s nothing to pay and it won’t renew automatically.\n\n"
+                        f"Your access is available until {timezone.localtime(expiry).strftime('%B %-d, %Y')}. "
+                        "Enjoy practising with full tests and section drills!\n\n"
+                        "If you have any questions, just reply to this email.\n\n"
+                        "The MindMetric team"
+                    ),
+                    recipient=user.email,
+                )
+                if gift_email.send(fail_silently=False) == 1:
+                    email_sent += 1
+                else:
+                    email_failed += 1
+            except Exception:
+                email_failed += 1
+                logger.exception("Failed to send paid-access gift email to user=%s", user.pk)
+
+        level = messages.SUCCESS if not email_failed else messages.WARNING
+        self.message_user(
+            request,
+            f"Gifted one month of paid access to {granted} user(s). Gift email sent to {email_sent}; failed for {email_failed}.",
+            level=level,
+        )
 
     @admin.action(description="Grant yearly access")
     def grant_yearly_access(self, request, queryset):

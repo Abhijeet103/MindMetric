@@ -135,6 +135,8 @@ Add these values to `.env`:
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 - `RAZORPAY_WEBHOOK_SECRET`
+- `RAZORPAY_ENABLED` (set to `True` to enable Razorpay; defaults to `False`)
+- `STRIPE_ENABLED` (set to `True` to enable Stripe; defaults to `False`)
 
 In Razorpay Dashboard, enable international payments and add a webhook for
 `payment.captured` pointing to:

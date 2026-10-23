@@ -1044,7 +1044,7 @@ body.is-loading .page-main-content {
 
 .pricing-card-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(320px, 348px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 348px));
   gap: 24px;
   align-items: stretch;
   justify-content: center;
@@ -1102,6 +1102,20 @@ body.is-loading .page-main-content {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.03em;
+}
+
+.pricing-plan-price-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pricing-plan-period {
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .pricing-plan-price-row {

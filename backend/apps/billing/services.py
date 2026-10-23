@@ -383,7 +383,7 @@ def get_plan_definition(plan_code: str, country_code: str | None = None) -> Plan
 
 
 def stripe_is_configured() -> bool:
-    return bool(settings.STRIPE_SECRET_KEY and settings.STRIPE_WEBHOOK_SECRET)
+    return bool(settings.STRIPE_ENABLED and settings.STRIPE_SECRET_KEY and settings.STRIPE_WEBHOOK_SECRET)
 
 
 def get_purchasable_plan(plan_code: str, country_code: str | None = None) -> PlanDefinition:
@@ -397,7 +397,11 @@ RAZORPAY_SUPPORTED_CURRENCIES = frozenset({"USD", "INR", "EUR", "GBP", "CHF"})
 
 
 def razorpay_is_configured() -> bool:
-    return bool(settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET)
+    return bool(
+        settings.RAZORPAY_ENABLED
+        and settings.RAZORPAY_KEY_ID
+        and settings.RAZORPAY_KEY_SECRET
+    )
 
 
 def razorpay_webhook_is_configured() -> bool:
