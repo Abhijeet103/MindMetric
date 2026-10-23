@@ -186,6 +186,7 @@ def create_paypal_order(
             "payment_source": {
                 "paypal": {
                     "experience_context": {
+                        "landing_page": "GUEST_CHECKOUT",
                         "return_url": return_url,
                         "cancel_url": cancel_url,
                         "brand_name": settings.PAYPAL_BRAND_NAME,

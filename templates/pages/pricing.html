@@ -55,9 +55,9 @@
                 {% if request.user.is_authenticated and plan.show_action %}
                     <div class="pricing-plan-actions">
                         {% if paypal_enabled and plan.currency != "INR" %}
-                        <form method="post" action="{% url 'billing-paypal-checkout' plan.code %}" data-show-loader>
+                        <form method="post" action="{% url 'billing-paypal-checkout' plan.code %}" data-show-loader class="pricing-plan-action">
                             {% csrf_token %}
-                            <button type="submit" class="button" {% if plan.is_disabled %}disabled{% endif %}>{% if plan.is_current %}Current plan{% else %}Buy now with PayPal{% endif %}</button>
+                            <button type="submit" class="button pricing-plan-button" {% if plan.is_disabled %}disabled{% endif %}>{% if plan.is_current %}Current plan{% else %}Buy now{% endif %}</button>
                         </form>
                         {% endif %}
                         {% if razorpay_enabled %}
