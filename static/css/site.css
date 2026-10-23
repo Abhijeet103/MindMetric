@@ -1700,6 +1700,12 @@ body.has-open-modal {
   grid-column: 1 / -1;
 }
 
+.dashboard-feedback-card {
+  max-width: 760px;
+  margin: 2rem auto 0;
+  width: 100%;
+}
+
 .dashboard-chart-card {
   grid-column: 1 / -1;
   display: flex;

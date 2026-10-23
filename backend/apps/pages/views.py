@@ -64,7 +64,8 @@ from prepgia.generators import generate_question
 from prepgia.preview_data import get_questions
 
 from .emails import send_sale_inquiry_notification
-from .forms import SaleInquiryForm, TestSuggestionForm, TrackWaitlistForm
+from .forms import PortalFeedbackForm, SaleInquiryForm, TestSuggestionForm, TrackWaitlistForm
+from .models import PortalFeedback
 from .guides import (
     MODULE_GUIDES,
     get_assessment_guide_url,
@@ -546,6 +547,25 @@ class TestSuggestionCreateView(FormView):
         if with_modal:
             return f"{url}?suggest_test=open"
         return url
+
+
+class PortalFeedbackCreateView(LoginRequiredMixin, FormView):
+    form_class = PortalFeedbackForm
+    http_method_names = ["post"]
+    login_url = "/login/"
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.email = self.request.user.email
+        form.instance.tenant = _current_tenant(self.request)
+        form.instance.source_page = self.request.POST.get("source_page", "")[:255]
+        form.save()
+        messages.success(self.request, "Thanks for your feedback. We appreciate you helping us improve MindMetric.")
+        return redirect("pages:dashboard")
+
+    def form_invalid(self, form):
+        messages.error(self.request, "Please check your feedback and try again.")
+        return redirect("pages:dashboard")
 
 
 class TrackWaitlistCreateView(LoginRequiredMixin, FormView):
@@ -1247,6 +1267,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                 "chart_data": chart_data,
                 "section_tabs": section_tabs,
                 "default_assessment_key": visible_dashboard_assessment_keys[0] if visible_dashboard_assessment_keys else "",
+                "feedback_form": PortalFeedbackForm(),
             }
         )
         return context

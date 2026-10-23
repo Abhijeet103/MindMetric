@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import SaleInquiry, TestSuggestion
+from .models import PortalFeedback, SaleInquiry, TestSuggestion
 
 
 class SaleInquiryForm(forms.ModelForm):
@@ -51,3 +51,22 @@ class TestSuggestionForm(forms.ModelForm):
         self.fields["email"].widget.attrs.setdefault("placeholder", "you@example.com")
         self.fields["requested_test"].widget.attrs.setdefault("placeholder", "e.g. Watson-Glaser, SHL Verify, Raven's Progressive Matrices")
         self.fields["message"].widget.attrs.setdefault("placeholder", "Anything specific you want in this test?")
+
+
+class PortalFeedbackForm(forms.ModelForm):
+    class Meta:
+        model = PortalFeedback
+        fields = ("category", "message")
+        widgets = {
+            "category": forms.Select(attrs={"class": "form-input"}),
+            "message": forms.Textarea(attrs={
+                "class": "form-input", "rows": 4, "maxlength": 4000,
+                "placeholder": "Tell us what worked well or what we could improve…",
+            }),
+        }
+
+    def clean_message(self):
+        message = self.cleaned_data["message"].strip()
+        if len(message) < 5:
+            raise forms.ValidationError("Please enter at least 5 characters.")
+        return message

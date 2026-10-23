@@ -129,3 +129,32 @@ class TestSuggestion(models.Model):
 
     def __str__(self) -> str:
         return f"{self.requested_test} ({self.email})"
+
+
+class PortalFeedback(models.Model):
+    class Category(models.TextChoices):
+        GENERAL = "general", "General feedback"
+        QUESTION = "question", "Question"
+        ISSUE = "issue", "Report a problem"
+        SUGGESTION = "suggestion", "Suggestion"
+
+    class Status(models.TextChoices):
+        NEW = "new", "New"
+        REVIEWED = "reviewed", "Reviewed"
+
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.SET_NULL, related_name="portal_feedback", blank=True, null=True)
+    user = models.ForeignKey("accounts.User", on_delete=models.SET_NULL, related_name="portal_feedback", blank=True, null=True)
+    email = models.EmailField()
+    category = models.CharField(max_length=16, choices=Category.choices, default=Category.GENERAL)
+    message = models.TextField()
+    source_page = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.NEW)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        verbose_name = "portal feedback"
+        verbose_name_plural = "portal feedback"
+
+    def __str__(self) -> str:
+        return f"{self.get_category_display()} from {self.email}"

@@ -100,3 +100,39 @@ class AudienceContactTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["subscribed@example.com"])
         subscribed.refresh_from_db()
         self.assertIsNotNone(subscribed.last_campaign_sent_at)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        SITE_URL="https://mindmetric.test",
+    )
+    def test_admin_can_gift_trial_access_to_mailing_list_user_with_portal_links(self):
+        admin_user = User.objects.create_superuser(email="admin@example.com", password="secret")
+        user = User.objects.create_user(email="candidate@example.com", password="secret", first_name="Ada")
+        contact = user.audience_contact
+        contact.marketing_opt_in = True
+        contact.save(update_fields=["marketing_opt_in", "updated_at"])
+        self.client.force_login(admin_user)
+        changelist_url = reverse("admin:pages_audiencecontact_changelist")
+
+        confirmation = self.client.post(
+            changelist_url,
+            {"action": "gift_one_month_access", "_selected_action": [contact.pk]},
+        )
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertContains(confirmation, "Grant access and email recipients")
+
+        response = self.client.post(
+            changelist_url,
+            {
+                "action": "gift_one_month_access",
+                "_selected_action": [contact.pk],
+                "grant_gifts": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        user.refresh_from_db()
+        self.assertEqual(user.role, "paid")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("trial mode", mail.outbox[0].body)
+        self.assertIn("https://mindmetric.test/practice/", mail.outbox[0].body)
+        self.assertIn("https://mindmetric.test/dashboard/#portal-feedback", mail.outbox[0].body)

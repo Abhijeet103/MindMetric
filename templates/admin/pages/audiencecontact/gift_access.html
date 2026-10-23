@@ -1,0 +1,17 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<p>This grants a non-renewing month of paid trial access to contacts who have marketing consent and an active MindMetric account.</p>
+<p><strong>{{ recipient_count }}</strong> account{{ recipient_count|pluralize }} will receive access and a personal email. {{ skipped_count }} selected contact{{ skipped_count|pluralize }} will be skipped because they are unsubscribed or do not have an active account.</p>
+<form method="post">
+    {% csrf_token %}
+    {% for contact in contacts %}
+        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ contact.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="grant_gifts" value="1">
+    <input type="submit" value="Grant access and email recipients" class="default" {% if not recipient_count %}disabled{% endif %}>
+    <a href="{{ cancel_url }}" class="button cancel-link">Cancel</a>
+</form>
+{% endblock %}

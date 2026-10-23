@@ -11,6 +11,7 @@ from .views import (
     ModuleGuidePageView,
     PracticePageView,
     PricingPageView,
+    PortalFeedbackCreateView,
     SectionDetailPageView,
     SectionsPageView,
     SectionTestSetupView,
@@ -44,4 +45,5 @@ urlpatterns = [
     path("sections/<slug:slug>/", SectionDetailPageView.as_view(), {"assessment_slug": "prepgia"}, name="section-detail"),
     path("login/", LoginPageView.as_view(), name="login"),
     path("dashboard/", DashboardPageView.as_view(), name="dashboard"),
+    path("feedback/", PortalFeedbackCreateView.as_view(), name="feedback"),
 ]

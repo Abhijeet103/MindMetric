@@ -230,6 +230,24 @@
             </article>
         </div>
     </div>
+
+    <article id="portal-feedback" class="card dashboard-feedback-card">
+        <h2>Share feedback</h2>
+        <p class="muted">Tell us what you think, ask a question, or report a problem. Our team will review it.</p>
+        <form method="post" action="{% url 'pages:feedback' %}">
+            {% csrf_token %}
+            <input type="hidden" name="source_page" value="{{ request.path }}">
+            <div class="form-field">
+                <label for="id_category">What is this about?</label>
+                {{ feedback_form.category }}
+            </div>
+            <div class="form-field">
+                <label for="id_message">Your feedback</label>
+                {{ feedback_form.message }}
+            </div>
+            <button type="submit" class="button">Send feedback</button>
+        </form>
+    </article>
 </section>
 {% endblock %}
 

@@ -13,10 +13,10 @@ from backend.apps.assessments.models import Attempt, AttemptStatus, SectionProgr
 from backend.apps.assessments.services import recompute_section_progress_for_user
 from backend.apps.billing.models import Subscription, SubscriptionStatus
 from backend.apps.billing.services import calculate_expiry, sync_user_subscription_access
-from backend.apps.pages.emails import build_branded_email
 from backend.apps.tenants.services import get_or_create_tenant_user
 from backend.apps.tenants.utils import get_default_tenant
 
+from .gifts import grant_one_month_gift, send_one_month_gift_email
 from .models import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -136,50 +136,15 @@ class UserAdmin(DjangoUserAdmin):
             self.message_user(request, "Only a superuser can gift paid access.", level=messages.ERROR)
             return
 
-        now = timezone.now()
         granted = 0
         email_sent = 0
         email_failed = 0
         for user in queryset:
-            base = user.subscription_expires_at if user.subscription_expires_at and user.subscription_expires_at > now else now
-            expiry = calculate_expiry(base, "monthly")
-            tenant_user = get_or_create_tenant_user(tenant=user.tenant, user=user)
-            subscription = (
-                Subscription.objects.filter(user=user, provider="admin")
-                .order_by("-updated_at")
-                .first()
-            )
-            if subscription is None:
-                subscription = Subscription(user=user, provider="admin")
-            subscription.tenant = user.tenant
-            subscription.tenant_user = tenant_user
-            subscription.plan_code = "monthly"
-            subscription.status = SubscriptionStatus.ACTIVE
-            subscription.provider_customer_id = ""
-            subscription.provider_subscription_id = f"admin-{user.id}-monthly-gift"
-            subscription.current_period_start = base
-            subscription.current_period_end = expiry
-            subscription.save()
-            user.role = UserRole.PAID
-            user.subscription_expires_at = expiry
-            user.save(update_fields=["role", "subscription_expires_at"])
+            expiry = grant_one_month_gift(user)
             granted += 1
 
             try:
-                gift_email = build_branded_email(
-                    subject="A month of MindMetric access, on us",
-                    body=(
-                        f"Hi {user.first_name or 'there'},\n\n"
-                        "We’ve gifted you one month of paid MindMetric access. It’s a gift from us, "
-                        "so there’s nothing to pay and it won’t renew automatically.\n\n"
-                        f"Your access is available until {timezone.localtime(expiry).strftime('%B %-d, %Y')}. "
-                        "Enjoy practising with full tests and section drills!\n\n"
-                        "If you have any questions, just reply to this email.\n\n"
-                        "The MindMetric team"
-                    ),
-                    recipient=user.email,
-                )
-                if gift_email.send(fail_silently=False) == 1:
+                if send_one_month_gift_email(email=user.email, first_name=user.first_name, expires_at=expiry):
                     email_sent += 1
                 else:
                     email_failed += 1

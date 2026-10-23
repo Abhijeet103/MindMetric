@@ -1,3 +1,5 @@
+import logging
+
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
@@ -8,10 +10,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 
+from backend.apps.accounts.gifts import grant_one_month_gift, send_one_month_gift_email
+from backend.apps.accounts.models import User
 from backend.apps.tenants.admin_mixins import TenantScopedAdminMixin
 
-from .models import AdminEmail, AudienceContact, SaleInquiry, TestSuggestion
+from .models import AdminEmail, AudienceContact, PortalFeedback, SaleInquiry, TestSuggestion
 from .emails import build_branded_email
+
+logger = logging.getLogger(__name__)
 
 
 class MarketingEmailForm(forms.Form):
@@ -129,7 +135,12 @@ class AudienceContactAdmin(admin.ModelAdmin):
     list_filter = ("marketing_opt_in", "source", "tenant", "updated_at")
     search_fields = ("email", "full_name")
     readonly_fields = ("created_at", "updated_at", "last_campaign_sent_at")
-    actions = ("send_marketing_email", "subscribe_selected_contacts", "unsubscribe_selected_contacts")
+    actions = (
+        "send_marketing_email",
+        "gift_one_month_access",
+        "subscribe_selected_contacts",
+        "unsubscribe_selected_contacts",
+    )
 
     def has_module_permission(self, request):
         return bool(request.user.is_superuser)
@@ -188,6 +199,67 @@ class AudienceContactAdmin(admin.ModelAdmin):
                 "contacts": recipients,
                 "form": form,
                 "action_name": "send_marketing_email",
+                "action_checkbox_name": helpers.ACTION_CHECKBOX_NAME,
+                "cancel_url": reverse("admin:pages_audiencecontact_changelist"),
+            },
+        )
+
+    @admin.action(description="Gift one month of paid trial access to selected subscribed contacts")
+    def gift_one_month_access(self, request, queryset):
+        if not request.user.is_superuser:
+            self.message_user(request, "Only a superuser can gift paid access.", level=messages.ERROR)
+            return None
+
+        contacts = list(queryset.filter(marketing_opt_in=True, unsubscribed_at__isnull=True).select_related("user"))
+        account_by_email = {
+            user.email.lower(): user
+            for user in User.objects.filter(
+                email__in=[contact.email for contact in contacts],
+                is_active=True,
+            )
+        }
+        recipients = []
+        for contact in contacts:
+            user = contact.user if contact.user and contact.user.is_active else account_by_email.get(contact.email.lower())
+            if user:
+                recipients.append((contact, user))
+
+        if "grant_gifts" in request.POST:
+            granted = email_sent = email_failed = 0
+            for _contact, user in recipients:
+                expiry = grant_one_month_gift(user)
+                granted += 1
+                try:
+                    if send_one_month_gift_email(email=user.email, first_name=user.first_name, expires_at=expiry):
+                        email_sent += 1
+                    else:
+                        email_failed += 1
+                except Exception:
+                    email_failed += 1
+                    logger.exception("Failed to send paid-access gift email to user=%s", user.pk)
+
+            skipped = len(contacts) - len(recipients)
+            level = messages.SUCCESS if not email_failed and not skipped else messages.WARNING
+            self.message_user(
+                request,
+                f"Gifted one month of paid trial access to {granted} account(s). "
+                f"Email sent to {email_sent}; failed for {email_failed}; skipped {skipped} contact(s) "
+                "without an active account or marketing consent.",
+                level=level,
+            )
+            return None
+
+        return render(
+            request,
+            "admin/pages/audiencecontact/gift_access.html",
+            {
+                **self.admin_site.each_context(request),
+                "opts": self.model._meta,
+                "title": "Gift one month of paid trial access",
+                "contacts": [contact for contact, _user in recipients],
+                "recipient_count": len(recipients),
+                "skipped_count": len(queryset) - len(recipients),
+                "action_name": "gift_one_month_access",
                 "action_checkbox_name": helpers.ACTION_CHECKBOX_NAME,
                 "cancel_url": reverse("admin:pages_audiencecontact_changelist"),
             },
@@ -267,3 +339,12 @@ class TestSuggestionAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+@admin.register(PortalFeedback)
+class PortalFeedbackAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    list_display = ("created_at", "category", "email", "tenant", "status")
+    list_filter = ("status", "category", "tenant", "created_at")
+    search_fields = ("email", "message", "user__first_name", "user__last_name")
+    readonly_fields = ("user", "email", "message", "source_page", "created_at")
+    fields = ("tenant", "user", "email", "category", "message", "source_page", "status", "created_at")
