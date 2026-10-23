@@ -151,7 +151,7 @@ def create_paypal_order(
     if not paypal_is_configured():
         raise BillingConfigurationError("PayPal is not configured yet.")
 
-    plan = get_plan_definition(plan_code, country_code)
+    plan = get_purchasable_plan(plan_code, country_code)
     if plan.currency not in {"USD", "EUR", "GBP", "CHF"}:
         raise BillingConfigurationError("Use Razorpay for INR payments. PayPal is available for USD, EUR, GBP and CHF.")
     return_url = _build_absolute_url(reverse("billing-paypal-return"), base_url=base_url)
@@ -386,6 +386,12 @@ def stripe_is_configured() -> bool:
     return bool(settings.STRIPE_SECRET_KEY and settings.STRIPE_WEBHOOK_SECRET)
 
 
+def get_purchasable_plan(plan_code: str, country_code: str | None = None) -> PlanDefinition:
+    if plan_code != "monthly":
+        raise BillingConfigurationError("Only the monthly plan is available for purchase.")
+    return get_plan_definition(plan_code, country_code)
+
+
 RAZORPAY_API_BASE = "https://api.razorpay.com/v1"
 RAZORPAY_SUPPORTED_CURRENCIES = frozenset({"USD", "INR", "EUR", "GBP", "CHF"})
 
@@ -591,7 +597,7 @@ def create_checkout_session(
     if not stripe_is_configured():
         raise BillingConfigurationError("Stripe is not configured yet.")
 
-    plan = get_plan_definition(plan_code, country_code)
+    plan = get_purchasable_plan(plan_code, country_code)
     stripe.api_key = settings.STRIPE_SECRET_KEY
     success_url = _build_absolute_url(f"{reverse('pages:subscription')}?checkout=processing", base_url=base_url)
     cancel_url = _build_absolute_url(f"{reverse('pages:subscription')}?checkout=cancelled", base_url=base_url)
@@ -656,7 +662,7 @@ def create_razorpay_order(
     if not razorpay_is_configured():
         raise BillingConfigurationError("Razorpay is not configured yet.")
 
-    plan = get_plan_definition(plan_code, country_code)
+    plan = get_purchasable_plan(plan_code, country_code)
     currency = plan.currency.upper()
     if currency not in RAZORPAY_SUPPORTED_CURRENCIES:
         raise BillingConfigurationError(f"Razorpay checkout does not support {currency} on MindMetric.")

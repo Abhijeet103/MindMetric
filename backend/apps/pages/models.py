@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from django.utils import timezone
 
 
@@ -82,6 +83,23 @@ class SaleInquiry(models.Model):
     def __str__(self) -> str:
         label = self.full_name or self.email
         return f"{label} ({self.email})"
+
+
+class AdminEmail(models.Model):
+    recipient = models.EmailField()
+    subject = models.CharField(max_length=180)
+    body = models.TextField()
+    inquiry = models.ForeignKey(SaleInquiry, on_delete=models.SET_NULL, null=True, blank=True, related_name="replies")
+    sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    sent_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ("-sent_at",)
+        verbose_name = "sent email"
+        verbose_name_plural = "sent emails"
+
+    def __str__(self):
+        return f"{self.subject} — {self.recipient}"
 
 
 class TestSuggestion(models.Model):

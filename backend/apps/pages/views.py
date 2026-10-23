@@ -152,7 +152,7 @@ def _visible_frontend_plans(request, active_subscription):
             active_subscription,
             country_code=country_code,
         )
-        if plan["code"] != "yearly"
+        if plan["code"] == "monthly"
     ]
 
 

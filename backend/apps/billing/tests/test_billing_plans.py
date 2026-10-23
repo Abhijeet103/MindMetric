@@ -88,7 +88,7 @@ class BillingPlanTests(TestCase):
     @override_settings(BILLING_TRUST_PROXY_COUNTRY_HEADERS=True)
     def test_pricing_page_uses_proxy_country_header(self):
         regional_price = BillingPlanCountryPrice.objects.get(
-            plan__code="weekly",
+            plan__code="monthly",
             country_code="GB",
         )
         regional_price.price = Decimal("6.75")
@@ -292,7 +292,7 @@ class BillingPlanTests(TestCase):
     )
     @patch("backend.apps.billing.services._razorpay_request")
     def test_razorpay_checkout_charges_sale_price(self, razorpay_request):
-        plan = BillingPlan.objects.get(code="weekly")
+        plan = BillingPlan.objects.get(code="monthly")
         plan.sale_price = Decimal("7.50")
         plan.save(update_fields=("sale_price", "updated_at"))
         user = User.objects.create_user(
@@ -303,7 +303,7 @@ class BillingPlanTests(TestCase):
 
         checkout = create_razorpay_order(
             user,
-            "weekly",
+            "monthly",
             base_url="https://mindmetric.store",
         )
 

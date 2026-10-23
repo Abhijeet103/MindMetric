@@ -1,0 +1,5 @@
+{% extends "admin/change_form.html" %}
+{% block object-tools-items %}
+{% if original and has_change_permission %}<li><a href="{% url 'admin:pages_saleinquiry_reply' original.pk %}">Reply by email</a></li>{% endif %}
+{{ block.super }}
+{% endblock %}
