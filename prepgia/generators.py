@@ -20,43 +20,31 @@ SECTION_TYPES = [
     "ccat_spatial",
 ]
 
-TRAITS = [
-    "fast",
-    "happy",
-    "strong",
-    "smart",
-    "tall",
-    "rich",
-    "calm",
-    "brave",
-    "careful",
-    "creative",
-    "curious",
-    "focused",
-    "friendly",
-    "generous",
-    "kind",
-    "organized",
-    "patient",
-    "quick",
-    "sharp",
-    "steady",
-    "alert",
-    "ambitious",
-    "balanced",
-    "cheerful",
-    "confident",
-    "dependable",
-    "diligent",
-    "efficient",
-    "gentle",
-    "honest",
-    "inventive",
-    "logical",
-    "observant",
-    "polite",
-    "reliable",
-    "thoughtful",
+# (greater comparative, lesser comparative, greater adjective, lesser adjective).
+# The lesser adjective is None where "not as ... as" would read unnaturally.
+COMPARATIVE_TRAITS = [
+    ("taller", "shorter", "tall", "short"),
+    ("heavier", "lighter", "heavy", "light"),
+    ("stronger", "weaker", "strong", "weak"),
+    ("faster", "slower", "fast", "slow"),
+    ("older", "younger", "old", "young"),
+    ("happier", "sadder", "happy", "sad"),
+    ("richer", "poorer", "rich", "poor"),
+    ("louder", "quieter", "loud", "quiet"),
+    ("brighter", "duller", "bright", "dull"),
+    ("busier", "less busy", "busy", None),
+    ("calmer", "less calm", "calm", None),
+    ("braver", "less brave", "brave", None),
+    ("kinder", "less kind", "kind", None),
+    ("more careful", "less careful", "careful", None),
+    ("more creative", "less creative", "creative", None),
+    ("more curious", "less curious", "curious", None),
+    ("more generous", "less generous", "generous", None),
+    ("more organized", "less organized", "organized", None),
+    ("more patient", "less patient", "patient", None),
+    ("more confident", "less confident", "confident", None),
+    ("more reliable", "less reliable", "reliable", None),
+    ("more thoughtful", "less thoughtful", "thoughtful", None),
 ]
 NAMES = [
     "Tom",
@@ -117,26 +105,18 @@ NAMES = [
     "Yash",
     "Zane",
 ]
+# Each template names who is "first" in the sentence and whether that person
+# has more ("greater") or less ("lesser") of the trait.
 REASONING_COMPARISON_TEMPLATES = [
-    "{left} is more {trait} than {right}.",
-    "{left} is less {trait} than {right}.",
-    "Compared with {right}, {left} is more {trait}.",
-    "Compared with {right}, {left} is less {trait}.",
-    "{right} is less {trait} than {left}.",
-    "{right} is more {trait} than {left}.",
+    ("{first} is {greater} than {second}.", "greater"),
+    ("{first} is {lesser} than {second}.", "lesser"),
+    ("{first} is not as {greater_base} as {second}.", "lesser"),
+    ("{first} is not as {lesser_base} as {second}.", "greater"),
 ]
-REASONING_QUESTION_TEMPLATES = {
-    "most": [
-        "Who is the most {trait}?",
-        "Which person is more {trait}?",
-        "Who appears to be the most {trait}?",
-    ],
-    "least": [
-        "Who is the least {trait}?",
-        "Which person is less {trait}?",
-        "Who appears to be the least {trait}?",
-    ],
-}
+REASONING_QUESTION_TEMPLATES = [
+    "Who is {comparative}?",
+    "Which of them is {comparative}?",
+]
 PERCEPTUAL_SPEED_LETTER_POOLS = {
     "easy": list("ABCDEFGHJKLMNPRSTUVWXYZ"),
     "medium": list("BCDEFGHJKMNPRSTUVWXYZ"),
@@ -336,37 +316,42 @@ class ReasoningGenerator(BaseQuestionGenerator):
 
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
-        entity_count = 2
-        names = rng.sample(NAMES, entity_count)
-        trait = rng.choice(TRAITS)
-        stronger, weaker = rng.sample(names, 2)
-        ask_for = rng.choice(["most", "least"])
-        answer = stronger if ask_for == "most" else weaker
-        statement_template = rng.choice(REASONING_COMPARISON_TEMPLATES)
-        if "less" in statement_template:
-            if statement_template.startswith("{left}") or "Compared with {right}, {left}" in statement_template:
-                left, right = weaker, stronger
-            else:
-                left, right = stronger, weaker
-        else:
-            if statement_template.startswith("{left}") or "Compared with {right}, {left}" in statement_template:
-                left, right = stronger, weaker
-            else:
-                left, right = weaker, stronger
-        statements = [statement_template.format(left=left, right=right, trait=trait)]
-        question = rng.choice(REASONING_QUESTION_TEMPLATES[ask_for]).format(trait=trait)
+        names = rng.sample(NAMES, 2)
+        greater_word, lesser_word, greater_base, lesser_base = rng.choice(COMPARATIVE_TRAITS)
+        templates = [
+            (template, role)
+            for template, role in REASONING_COMPARISON_TEMPLATES
+            if lesser_base is not None or "{lesser_base}" not in template
+        ]
+        statement_template, first_role = rng.choice(templates)
+        greater, lesser = rng.sample(names, 2)
+        first, second = (greater, lesser) if first_role == "greater" else (lesser, greater)
+        statement = statement_template.format(
+            first=first,
+            second=second,
+            greater=greater_word,
+            lesser=lesser_word,
+            greater_base=greater_base,
+            lesser_base=lesser_base,
+        )
+
+        ask_for_greater = rng.choice([True, False])
+        answer = greater if ask_for_greater else lesser
+        question = rng.choice(REASONING_QUESTION_TEMPLATES).format(
+            comparative=greater_word if ask_for_greater else lesser_word,
+        )
 
         payload = {
             "question_id": str(uuid.uuid4()),
             "section_type": self.section_type,
             "prompt": {
-                "statements": statements,
+                "statements": [statement],
                 "question": question,
             },
             "options": names,
             "metadata": {
                 "difficulty": difficulty,
-                "trait": trait,
+                "trait": greater_base,
                 "comparison_template": statement_template,
             },
         }
@@ -474,7 +459,10 @@ class WordMeaningGenerator(BaseQuestionGenerator):
 
 class SpatialVisualizationGenerator(BaseQuestionGenerator):
     section_type = "spatial_visualization"
-    LETTERS = ["b", "d", "f", "g", "j", "k", "n", "p", "q", "r", "y"]
+    # Every glyph must lack reflection symmetry; otherwise its mirror image is
+    # just a rotation of itself and the "different" answer becomes ambiguous.
+    LETTERS = ["b", "d", "f", "g", "j", "k", "p", "q", "r", "y", "F", "G", "J", "L", "P", "R"]
+    ROTATIONS = [90, 180, 270]
 
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
@@ -485,7 +473,9 @@ class SpatialVisualizationGenerator(BaseQuestionGenerator):
             is_same = rng.choice([True, False])
             if is_same:
                 match_count += 1
-            pairs.append({"letter": letter, "same": is_same})
+            # As in the GIA, the second figure is always turned, so a match
+            # has to be confirmed by mental rotation rather than by sight.
+            pairs.append({"letter": letter, "same": is_same, "rotation": rng.choice(self.ROTATIONS)})
 
         payload = {
             "question_id": str(uuid.uuid4()),
@@ -1039,11 +1029,24 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
         answer_spec = matrix.pop(4)
         matrix.insert(4, {"shape": "missing"})
         answer = "Option 1"
-        wrong_specs = [
+        # Some fill offsets render identically for small counts, so keep only
+        # distractors that differ visually from the answer and from each other.
+        candidate_specs = [
             cell(shapes[1][0], counts[0], 1),
             cell(shapes[0][0], counts[1], 1),
             cell(shapes[1][0], counts[1], 0),
+            cell(shapes[1][0], counts[1], 1),
+            cell(shapes[2][0], counts[1], 2),
+            cell(shapes[1][0], counts[2], 2),
         ]
+        seen = {json.dumps(answer_spec, sort_keys=True)}
+        wrong_specs = []
+        for spec in candidate_specs:
+            key = json.dumps(spec, sort_keys=True)
+            if key not in seen:
+                seen.add(key)
+                wrong_specs.append(spec)
+        wrong_specs = wrong_specs[:3]
         option_visuals = [{"value": answer, **answer_spec}] + [
             {"value": f"Option {index}", **spec}
             for index, spec in enumerate(wrong_specs, start=2)

@@ -29,7 +29,9 @@ from .services import (
 
 
 from .services import (create_paypal_order, capture_paypal_order, get_paypal_order,
-    activate_subscription_from_paypal_order, paypal_webhook_is_configured, verify_paypal_webhook)
+    activate_subscription_from_paypal_order, paypal_webhook_is_configured, verify_paypal_webhook,
+    PAYPAL_REVOKING_EVENTS, PayPalPaymentPendingError, paypal_capture_is_fully_reversed,
+    paypal_order_id_from_event, revoke_paypal_subscription)
 
 class StartPayPalCheckoutView(View):
     def post(self, request, plan_code: str):
@@ -65,6 +67,9 @@ class PayPalReturnView(View):
                 raise BillingWebhookError("This checkout does not belong to your account.")
             capture_payload = capture_paypal_order(order_id)
             activate_subscription_from_paypal_order(capture_payload)
+        except PayPalPaymentPendingError as exc:
+            messages.info(request, str(exc))
+            return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=processing")
         except (BillingConfigurationError, BillingWebhookError) as exc:
             messages.error(request, str(exc))
             return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=cancelled")
@@ -93,16 +98,17 @@ class PayPalWebhookView(View):
             return HttpResponseBadRequest("Invalid PayPal webhook signature.")
 
         event_type = event_payload.get("event_type", "")
-        if event_type == "PAYMENT.CAPTURE.COMPLETED":
-            order_id = (
-                (((event_payload.get("resource") or {}).get("supplementary_data") or {}).get("related_ids") or {}).get("order_id", "")
-            )
-            if order_id:
-                try:
-                    order_payload = get_paypal_order(order_id)
-                    activate_subscription_from_paypal_order(order_payload)
-                except (BillingConfigurationError, BillingWebhookError) as exc:
-                    return HttpResponseBadRequest(str(exc))
+        try:
+            if event_type == "PAYMENT.CAPTURE.COMPLETED":
+                order_id = paypal_order_id_from_event(event_payload)
+                if order_id:
+                    activate_subscription_from_paypal_order(get_paypal_order(order_id))
+            elif event_type in PAYPAL_REVOKING_EVENTS:
+                order_id = paypal_order_id_from_event(event_payload)
+                if order_id and paypal_capture_is_fully_reversed(event_payload):
+                    revoke_paypal_subscription(order_id, reason=event_type)
+        except (BillingConfigurationError, BillingWebhookError) as exc:
+            return HttpResponseBadRequest(str(exc))
 
         return JsonResponse({"received": True, "type": event_type})
 class BillingStatusView(View):

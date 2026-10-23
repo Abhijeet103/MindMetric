@@ -2044,8 +2044,8 @@ function renderContext(container, item) {
     (item.letter_pairs || []).forEach((pair) => {
       const pairEl = document.createElement("div");
       pairEl.className = "spatial-pair";
-      pairEl.appendChild(renderLetterSvg(pair.letter, false));
-      pairEl.appendChild(renderLetterSvg(pair.letter, !pair.same));
+      pairEl.appendChild(renderLetterSvg(pair.letter, false, 0));
+      pairEl.appendChild(renderLetterSvg(pair.letter, !pair.same, Number(pair.rotation) || 0));
       pairsWrap.appendChild(pairEl);
     });
     container.appendChild(pairsWrap);
@@ -2239,23 +2239,26 @@ function waitForNextPaint() {
   });
 }
 
-function renderLetterSvg(letter, mirrored) {
+function renderLetterSvg(letter, mirrored, rotation = 0) {
   const svgNS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(svgNS, "svg");
   svg.setAttribute("viewBox", "0 0 100 100");
   svg.setAttribute("class", "shape-svg");
 
+  // Centre the glyph on (50, 50) so rotation turns it in place.
   const text = document.createElementNS(svgNS, "text");
   text.setAttribute("x", "50");
-  text.setAttribute("y", "78");
+  text.setAttribute("y", "50");
   text.setAttribute("text-anchor", "middle");
-  text.setAttribute("font-size", "80");
+  text.setAttribute("dominant-baseline", "central");
+  text.setAttribute("font-size", "70");
   text.setAttribute("font-family", "Georgia, serif");
   text.setAttribute("font-weight", "bold");
   text.setAttribute("fill", "#0f766e");
-  if (mirrored) {
-    text.setAttribute("transform", "scale(-1,1) translate(-100,0)");
-  }
+  const transforms = [];
+  if (rotation) transforms.push(`rotate(${rotation} 50 50)`);
+  if (mirrored) transforms.push("scale(-1,1) translate(-100,0)");
+  if (transforms.length) text.setAttribute("transform", transforms.join(" "));
   text.textContent = letter;
   svg.appendChild(text);
   return svg;

@@ -234,7 +234,40 @@ def get_paypal_order(order_id: str) -> dict:
 def capture_paypal_order(order_id: str) -> dict:
     if not order_id:
         raise BillingWebhookError("Missing PayPal order id.")
-    return _paypal_request("POST", f"/v2/checkout/orders/{order_id}/capture", {})
+    try:
+        return _paypal_request("POST", f"/v2/checkout/orders/{order_id}/capture", {})
+    except BillingWebhookError as exc:
+        # Revisiting the return URL, or a webhook arriving first, means the
+        # order was already captured; read it back instead of failing a paid user.
+        if "ORDER_ALREADY_CAPTURED" not in str(exc):
+            raise
+        logger.info("PayPal order %s was already captured; loading it instead.", order_id)
+        return get_paypal_order(order_id)
+
+
+def _completed_paypal_capture(purchase_unit: dict) -> dict:
+    captures = ((purchase_unit.get("payments") or {}).get("captures")) or []
+    if not captures:
+        raise BillingWebhookError("PayPal order has no captured payment.")
+    capture = captures[0]
+    status = capture.get("status", "")
+    if status == "PENDING":
+        reason = (capture.get("status_details") or {}).get("reason", "")
+        raise PayPalPaymentPendingError(
+            f"PayPal is still processing this payment{f' ({reason})' if reason else ''}. "
+            "Your access will activate automatically once PayPal confirms it."
+        )
+    if status != "COMPLETED":
+        raise BillingWebhookError(f"PayPal payment was not completed (status: {status or 'unknown'}).")
+
+    expected_amount = purchase_unit.get("amount") or {}
+    captured_amount = capture.get("amount") or {}
+    if (
+        captured_amount.get("currency_code") != expected_amount.get("currency_code")
+        or Decimal(captured_amount.get("value") or "0") != Decimal(expected_amount.get("value") or "0")
+    ):
+        raise BillingWebhookError("PayPal captured amount does not match the order amount.")
+    return capture
 
 
 def activate_subscription_from_paypal_order(order_payload: dict) -> Subscription:
@@ -244,6 +277,9 @@ def activate_subscription_from_paypal_order(order_payload: dict) -> Subscription
     if not purchase_units:
         raise BillingWebhookError("PayPal order payload is missing purchase units.")
 
+    # An order can be COMPLETED while its capture is still PENDING (e.g. under
+    # review), so access depends on the capture itself having settled.
+    _completed_paypal_capture(purchase_units[0])
     metadata = _parse_paypal_custom_id(purchase_units[0].get("custom_id"))
     try:
         user = User.objects.get(pk=int(metadata["user_id"]))
@@ -285,6 +321,76 @@ def verify_paypal_webhook(*, headers: dict[str, str], event_payload: dict) -> bo
     return verification.get("verification_status") == "SUCCESS"
 
 
+PAYPAL_REVOKING_EVENTS = frozenset({"PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED", "PAYMENT.CAPTURE.DENIED"})
+
+
+def _paypal_capture_id_from_links(resource: dict) -> str:
+    for link in resource.get("links") or []:
+        href = link.get("href", "")
+        if link.get("rel") == "up" and "/captures/" in href:
+            return href.rstrip("/").rsplit("/", 1)[-1]
+    return ""
+
+
+def paypal_order_id_from_event(event_payload: dict) -> str:
+    """Find the order behind a capture or refund webhook resource."""
+    resource = event_payload.get("resource") or {}
+    order_id = ((resource.get("supplementary_data") or {}).get("related_ids") or {}).get("order_id", "")
+    if order_id:
+        return order_id
+    # Refund resources point at their capture rather than the order.
+    capture_id = _paypal_capture_id_from_links(resource)
+    if not capture_id:
+        return ""
+    capture = _paypal_request("GET", f"/v2/payments/captures/{capture_id}")
+    return ((capture.get("supplementary_data") or {}).get("related_ids") or {}).get("order_id", "")
+
+
+def paypal_capture_is_fully_reversed(event_payload: dict) -> bool:
+    """Partial refunds keep access; only full refunds, reversals and denials revoke it."""
+    event_type = event_payload.get("event_type", "")
+    if event_type != "PAYMENT.CAPTURE.REFUNDED":
+        return event_type in PAYPAL_REVOKING_EVENTS
+    resource = event_payload.get("resource") or {}
+    capture_id = _paypal_capture_id_from_links(resource)
+    if not capture_id:
+        return False
+    capture = _paypal_request("GET", f"/v2/payments/captures/{capture_id}")
+    return capture.get("status") == "REFUNDED"
+
+
+def revoke_paypal_subscription(order_id: str, reason: str) -> Subscription | None:
+    subscription = (
+        Subscription.objects.select_related("user")
+        .filter(provider="paypal", provider_subscription_id=order_id)
+        .first()
+    )
+    if subscription is None:
+        logger.warning("PayPal %s for unknown order=%s; nothing to revoke.", reason, order_id)
+        return None
+    if subscription.status == SubscriptionStatus.CANCELED:
+        return subscription
+
+    now = timezone.now()
+    subscription.status = SubscriptionStatus.CANCELED
+    subscription.current_period_end = now
+    subscription.save(update_fields=["status", "current_period_end", "updated_at"])
+
+    user = subscription.user
+    remaining = (
+        user.subscriptions.filter(status=SubscriptionStatus.ACTIVE, current_period_end__gt=now)
+        .order_by("-current_period_end")
+        .first()
+    )
+    if remaining:
+        user.subscription_expires_at = remaining.current_period_end
+    else:
+        user.role = UserRole.FREE
+        user.subscription_expires_at = None
+    user.save(update_fields=["role", "subscription_expires_at"])
+    logger.info("Revoked PayPal access for user=%s order=%s reason=%s", user.id, order_id, reason)
+    return subscription
+
 
 class BillingConfigurationError(Exception):
     pass
@@ -292,6 +398,10 @@ class BillingConfigurationError(Exception):
 
 class BillingWebhookError(Exception):
     pass
+
+
+class PayPalPaymentPendingError(BillingWebhookError):
+    """The buyer approved the payment but PayPal has not settled the capture yet."""
 
 
 @dataclass(frozen=True)
