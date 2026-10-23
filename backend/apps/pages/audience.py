@@ -22,7 +22,7 @@ def upsert_audience_contact(
             "tenant": tenant,
             "user": user,
             "full_name": full_name.strip(),
-            "marketing_opt_in": bool(marketing_opt_in),
+            "marketing_opt_in": True if marketing_opt_in is None else marketing_opt_in,
         },
     )
     if created:
@@ -38,7 +38,7 @@ def upsert_audience_contact(
     if full_name.strip() and not contact.full_name:
         contact.full_name = full_name.strip()
         updates.append("full_name")
-    if marketing_opt_in is True and not contact.marketing_opt_in:
+    if marketing_opt_in is True and not contact.marketing_opt_in and contact.unsubscribed_at is None:
         contact.marketing_opt_in = True
         contact.unsubscribed_at = None
         updates.extend(("marketing_opt_in", "unsubscribed_at"))

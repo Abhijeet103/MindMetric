@@ -1,6 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% block content %}
 <p>From: {{ sender }}</p>
+<p>Your message will use the MindMetric logo and branded email layout automatically. Enter plain text below; paragraphs are preserved.</p>
 {% if inquiry %}
 <h2>Original enquiry from {{ inquiry.full_name|default:inquiry.email }}</h2>
 <div>{{ inquiry.message|linebreaks }}</div>

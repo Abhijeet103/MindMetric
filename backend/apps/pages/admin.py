@@ -2,7 +2,7 @@ from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
-from django.core.mail import EmailMessage, get_connection
+from django.core.mail import get_connection
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
@@ -11,6 +11,7 @@ from django.utils import timezone
 from backend.apps.tenants.admin_mixins import TenantScopedAdminMixin
 
 from .models import AdminEmail, AudienceContact, SaleInquiry, TestSuggestion
+from .emails import build_branded_email
 
 
 class MarketingEmailForm(forms.Form):
@@ -31,9 +32,9 @@ def compose_email(model_admin, request, inquiry=None):
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
-            count = EmailMessage(
+            count = build_branded_email(
                 subject=data["subject"], body=data["body"],
-                from_email=settings.DEFAULT_FROM_EMAIL, to=[data["recipient"]],
+                recipient=data["recipient"],
             ).send(fail_silently=False)
             if count != 1:
                 raise RuntimeError("Email backend did not accept the message")
@@ -42,10 +43,11 @@ def compose_email(model_admin, request, inquiry=None):
         else:
             AdminEmail.objects.create(**data, inquiry=inquiry, sent_by=request.user)
             if inquiry:
+                inquiry.contacted_back = True
                 inquiry.contacted_at = timezone.now()
                 if inquiry.status == SaleInquiry.Status.NEW:
                     inquiry.status = SaleInquiry.Status.CONTACTED
-                inquiry.save(update_fields=("contacted_at", "status", "updated_at"))
+                inquiry.save(update_fields=("contacted_back", "contacted_at", "status", "updated_at"))
             model_admin.message_user(request, "Email accepted by the configured email service and saved in sent history.", messages.SUCCESS)
             return redirect(cancel_url)
     return render(request, "admin/pages/compose_email.html", {
@@ -127,7 +129,7 @@ class AudienceContactAdmin(admin.ModelAdmin):
     list_filter = ("marketing_opt_in", "source", "tenant", "updated_at")
     search_fields = ("email", "full_name")
     readonly_fields = ("created_at", "updated_at", "last_campaign_sent_at")
-    actions = ("send_marketing_email", "unsubscribe_selected_contacts")
+    actions = ("send_marketing_email", "subscribe_selected_contacts", "unsubscribe_selected_contacts")
 
     def has_module_permission(self, request):
         return bool(request.user.is_superuser)
@@ -157,11 +159,10 @@ class AudienceContactAdmin(admin.ModelAdmin):
                     return None
                 connection = get_connection(fail_silently=False)
                 email_messages = [
-                    EmailMessage(
+                    build_branded_email(
                         subject=form.cleaned_data["subject"],
                         body=form.cleaned_data["body"],
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        to=[contact.email],
+                        recipient=contact.email,
                         connection=connection,
                     )
                     for contact in recipient_list
@@ -192,11 +193,19 @@ class AudienceContactAdmin(admin.ModelAdmin):
             },
         )
 
-    @admin.action(description="Unsubscribe selected contacts from marketing")
+    @admin.action(description="Opt in selected contacts to marketing", permissions=["change"])
+    def subscribe_selected_contacts(self, request, queryset):
+        updated = queryset.update(
+            marketing_opt_in=True, unsubscribed_at=None, updated_at=timezone.now(),
+        )
+        self.message_user(request, f"Opted {updated} contact(s) in to marketing.", messages.SUCCESS)
+
+    @admin.action(description="Opt out selected contacts from marketing", permissions=["change"])
     def unsubscribe_selected_contacts(self, request, queryset):
         updated = queryset.filter(marketing_opt_in=True).update(
             marketing_opt_in=False,
             unsubscribed_at=timezone.now(),
+            updated_at=timezone.now(),
         )
         self.message_user(
             request,
@@ -219,8 +228,8 @@ class SaleInquiryAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
             raise PermissionDenied
         return compose_email(self, request, inquiry)
 
-    list_display = ("tenant", "full_name", "email", "phone", "marketing_opt_in", "source_page", "status", "created_at")
-    list_filter = ("status", "marketing_opt_in", "source_page", "created_at")
+    list_display = ("tenant", "full_name", "email", "phone", "marketing_opt_in", "source_page", "status", "contacted_back", "created_at")
+    list_filter = ("contacted_back", "status", "marketing_opt_in", "source_page", "created_at")
     search_fields = ("full_name", "email", "phone", "message")
     readonly_fields = ("created_at", "updated_at")
     fields = (
@@ -233,6 +242,7 @@ class SaleInquiryAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
         "message",
         "marketing_opt_in",
         "notes",
+        "contacted_back",
         "contacted_at",
         "created_at",
         "updated_at",

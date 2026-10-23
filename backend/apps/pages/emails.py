@@ -1,5 +1,28 @@
 from django.conf import settings
-from django.core.mail import send_mail
+from urllib.parse import urljoin
+
+from django.core.mail import EmailMultiAlternatives, send_mail
+from django.templatetags.static import static
+from django.template.loader import render_to_string
+
+
+def build_branded_email(*, subject, body, recipient, connection=None):
+    """Keep admin-authored content plain text and escape it in the HTML layout."""
+    site_url = settings.SITE_URL.rstrip("/") + "/"
+    message = EmailMultiAlternatives(
+        subject=subject,
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[recipient],
+        connection=connection,
+    )
+    message.attach_alternative(render_to_string("emails/branded_message.html", {
+        "subject": subject,
+        "body": body,
+        "site_url": site_url,
+        "logo_url": urljoin(site_url, static("favicons/android-chrome-192x192.png")),
+    }), "text/html")
+    return message
 
 
 def send_sale_inquiry_notification(inquiry) -> None:

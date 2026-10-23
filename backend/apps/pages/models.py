@@ -29,7 +29,7 @@ class AudienceContact(models.Model):
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255, blank=True)
     source = models.CharField(max_length=32, choices=Source.choices, default=Source.ADMIN)
-    marketing_opt_in = models.BooleanField(default=False)
+    marketing_opt_in = models.BooleanField(default=True)
     unsubscribed_at = models.DateTimeField(blank=True, null=True)
     last_campaign_sent_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -72,6 +72,10 @@ class SaleInquiry(models.Model):
     marketing_opt_in = models.BooleanField(
         default=False,
         help_text="The contact has agreed to receive MindMetric product updates and offers.",
+    )
+    contacted_back = models.BooleanField(
+        default=False,
+        help_text="Whether we have responded to this enquiry. Set automatically after an admin email reply, or manually for other channels.",
     )
     contacted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

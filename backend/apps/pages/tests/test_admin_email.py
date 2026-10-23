@@ -37,23 +37,25 @@ class AdminEmailTests(TestCase):
         self.assertEqual(AdminEmail.objects.get().inquiry, self.inquiry)
         self.inquiry.refresh_from_db()
         self.assertEqual(self.inquiry.status, SaleInquiry.Status.CONTACTED)
+        self.assertTrue(self.inquiry.contacted_back)
         self.assertIsNotNone(self.inquiry.contacted_at)
         response = self.client.get(reverse("admin:pages_saleinquiry_change", args=[self.inquiry.pk]))
         self.assertContains(response, "Happy to help.")
         self.assertContains(response, "Reply by email")
 
     def test_failed_delivery_preserves_message_and_status(self):
-        with patch("backend.apps.pages.admin.EmailMessage.send", side_effect=OSError("SMTP failure")):
+        with patch("backend.apps.pages.emails.EmailMultiAlternatives.send", side_effect=OSError("SMTP failure")):
             response = self.client.post(self.reply_url, self.data)
         self.assertContains(response, "did not confirm sending")
         self.assertContains(response, "Happy to help.")
         self.assertFalse(AdminEmail.objects.exists())
         self.inquiry.refresh_from_db()
         self.assertEqual(self.inquiry.status, SaleInquiry.Status.NEW)
+        self.assertFalse(self.inquiry.contacted_back)
         self.assertIsNone(self.inquiry.contacted_at)
 
     def test_zero_delivery_is_not_logged_as_sent(self):
-        with patch("backend.apps.pages.admin.EmailMessage.send", return_value=0):
+        with patch("backend.apps.pages.emails.EmailMultiAlternatives.send", return_value=0):
             self.assertEqual(self.client.post(self.compose_url, self.data).status_code, 200)
         self.assertFalse(AdminEmail.objects.exists())
 
@@ -76,6 +78,24 @@ class AdminEmailTests(TestCase):
         self.client.post(self.reply_url, self.data)
         self.inquiry.refresh_from_db()
         self.assertEqual(self.inquiry.status, SaleInquiry.Status.CLOSED)
+        self.assertTrue(self.inquiry.contacted_back)
+
+    def test_contacted_back_defaults_false_and_is_editable_in_admin(self):
+        from django.contrib import admin
+        from django.test import RequestFactory
+
+        self.assertFalse(self.inquiry.contacted_back)
+        request = RequestFactory().get("/admin/")
+        request.user = self.admin
+        model_admin = admin.site._registry[SaleInquiry]
+        form = model_admin.get_form(request, self.inquiry)
+        self.assertIn("contacted_back", form.base_fields)
+        self.assertIn("contacted_back", model_admin.list_display)
+        self.assertIn("contacted_back", model_admin.list_filter)
+        self.inquiry.contacted_back = True
+        self.inquiry.save()
+        self.inquiry.refresh_from_db()
+        self.assertTrue(self.inquiry.contacted_back)
 
     def test_tenant_staff_can_reply_only_to_own_inquiries(self):
         tenant = Tenant.objects.create(name="School", slug="school", primary_domain="school.example.com")

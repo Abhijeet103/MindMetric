@@ -9,6 +9,30 @@ User = get_user_model()
 
 
 class AudienceContactTests(TestCase):
+    def test_new_contacts_default_to_opted_in_but_explicit_choice_is_preserved(self):
+        contact = AudienceContact.objects.create(email="default@example.com")
+        self.assertTrue(contact.marketing_opt_in)
+        user = User.objects.create_user(email="new@example.com", password="secret")
+        self.assertTrue(user.audience_contact.marketing_opt_in)
+        SaleInquiry.objects.create(email="declined@example.com", message="Hi", marketing_opt_in=False)
+        self.assertFalse(AudienceContact.objects.get(email="declined@example.com").marketing_opt_in)
+
+    def test_admin_opt_in_and_out_and_unsubscribe_survives_inquiry_save(self):
+        admin_user = User.objects.create_superuser(email="admin@example.com", password="secret")
+        inquiry = SaleInquiry.objects.create(email="contact@example.com", message="Hi", marketing_opt_in=True)
+        contact = AudienceContact.objects.get(email=inquiry.email)
+        self.client.force_login(admin_user)
+        url = reverse("admin:pages_audiencecontact_changelist")
+        self.client.post(url, {"action": "unsubscribe_selected_contacts", "_selected_action": [contact.pk]})
+        inquiry.save()
+        contact.refresh_from_db()
+        self.assertFalse(contact.marketing_opt_in)
+        self.assertIsNotNone(contact.unsubscribed_at)
+        self.client.post(url, {"action": "subscribe_selected_contacts", "_selected_action": [contact.pk]})
+        contact.refresh_from_db()
+        self.assertTrue(contact.marketing_opt_in)
+        self.assertIsNone(contact.unsubscribed_at)
+
     def test_user_and_inquiry_emails_are_collected_once(self):
         user = User.objects.create_user(
             email="Candidate@Example.com",
