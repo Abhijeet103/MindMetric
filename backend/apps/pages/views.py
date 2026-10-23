@@ -51,6 +51,7 @@ from backend.apps.assessments.services import (
 from backend.apps.billing.models import BillingCurrency, format_money
 from backend.apps.billing.regions import get_request_country_code
 from backend.apps.billing.services import (
+    PAYPAL_SUPPORTED_CURRENCIES,
     build_plan_cards,
     razorpay_is_configured,
     paypal_is_configured,
@@ -145,15 +146,12 @@ def _contact_form_initial(request, source_page: str) -> dict[str, str]:
 
 def _visible_frontend_plans(request, active_subscription):
     country_code = get_request_country_code(request)
-    return [
-        plan
-        for plan in build_plan_cards(
-            request.user,
-            active_subscription,
-            country_code=country_code,
-        )
-        if plan["code"] == "monthly"
-    ]
+    plans = build_plan_cards(request.user, active_subscription, country_code=country_code)
+    monthly_plan = next((plan for plan in plans if plan["code"] == "monthly"), None)
+    paypal_only = paypal_is_configured() and not razorpay_is_configured() and not stripe_is_configured()
+    if paypal_only and monthly_plan and monthly_plan["currency"] not in PAYPAL_SUPPORTED_CURRENCIES:
+        plans = build_plan_cards(request.user, active_subscription, country_code="US")
+    return [plan for plan in plans if plan["code"] == "monthly"]
 
 
 def _contact_sales_open_url(request) -> str:

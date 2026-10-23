@@ -6,7 +6,7 @@ import hmac
 import json
 import logging
 from base64 import b64encode
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from decimal import Decimal
 from urllib.error import HTTPError, URLError
@@ -28,6 +28,7 @@ from .models import BillingPlan, BillingPlanCountryPrice, Subscription, Subscrip
 from .regions import normalize_country_code, price_override_codes
 
 logger = logging.getLogger(__name__)
+PAYPAL_SUPPORTED_CURRENCIES = frozenset({"USD", "EUR", "GBP", "CHF"})
 
 
 def paypal_is_configured() -> bool:
@@ -152,8 +153,12 @@ def create_paypal_order(
         raise BillingConfigurationError("PayPal is not configured yet.")
 
     plan = get_purchasable_plan(plan_code, country_code)
-    if plan.currency not in {"USD", "EUR", "GBP", "CHF"}:
-        raise BillingConfigurationError("Use Razorpay for INR payments. PayPal is available for USD, EUR, GBP and CHF.")
+    if plan.currency not in PAYPAL_SUPPORTED_CURRENCIES:
+        regional_country_code = plan.country_code
+        plan = get_purchasable_plan(plan_code, country_code="US")
+        if plan.currency != "USD":
+            raise BillingConfigurationError("PayPal checkout is unavailable for this currency.")
+        plan = replace(plan, country_code=regional_country_code)
     return_url = _build_absolute_url(reverse("billing-paypal-return"), base_url=base_url)
     cancel_url = _build_absolute_url(f"{reverse('pages:subscription')}?checkout=cancelled", base_url=base_url)
 
