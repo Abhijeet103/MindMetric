@@ -208,6 +208,7 @@ class SearchMetadataTests(SimpleTestCase):
             metadata["meta_description"],
         )
         self.assertIn("free", metadata["meta_description"].lower())
+        self.assertIn("assessment", metadata["meta_description"].lower())
 
     def test_thomas_gia_module_title_is_assessment_specific(self):
         metadata = module_seo_metadata(
@@ -229,3 +230,15 @@ class SearchMetadataTests(SimpleTestCase):
             metadata["meta_description"],
         )
         self.assertIn("aptitude", metadata["page_title"].lower())
+        self.assertIn("explanations", metadata["meta_description"].lower())
+
+    def test_perceptual_speed_title_targets_aptitude_test_intent(self):
+        metadata = module_seo_metadata(
+            "prepgia",
+            "perceptual_speed",
+            "Thomas GIA",
+            "Perceptual Speed",
+            "Fallback",
+        )
+
+        self.assertIn("Aptitude Test", metadata["page_title"])

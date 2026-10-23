@@ -7,8 +7,8 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 
-from .services import get_tenant_access, is_institution_tenant, redeem_enrollment_code
 from .models import EnrollmentMode
+from .services import get_tenant_access, is_institution_tenant, redeem_enrollment_code
 
 
 class TenantAccessActivationView(LoginRequiredMixin, View):

@@ -12,16 +12,15 @@ from backend.apps.billing.regions import get_request_country_code, pricing_regio
 from backend.apps.billing.services import (
     build_plan_cards,
     create_checkout_session,
-    create_paypal_order,
+    create_razorpay_order,
     get_plan_definition,
 )
-
 
 User = get_user_model()
 
 
 class BillingPlanTests(TestCase):
-    def test_india_uses_independent_usd_price(self):
+    def test_india_uses_independent_inr_price(self):
         plan = BillingPlan.objects.get(code="weekly")
         plan.price = Decimal("10.00")
         plan.sale_price = None
@@ -30,8 +29,8 @@ class BillingPlanTests(TestCase):
             plan__code="weekly",
             country_code="IN",
         )
-        regional_price.currency = "USD"
-        regional_price.price = Decimal("5.00")
+        regional_price.currency = "INR"
+        regional_price.price = Decimal("500.00")
         regional_price.sale_price = None
         regional_price.save(
             update_fields=("currency", "price", "sale_price", "updated_at")
@@ -39,24 +38,20 @@ class BillingPlanTests(TestCase):
 
         definition = get_plan_definition("weekly", country_code="IN")
 
-        self.assertEqual(definition.currency, "USD")
-        self.assertEqual(definition.price_display, "$5.00")
-        self.assertEqual(definition.regular_price_display, "$5.00")
+        self.assertEqual(definition.currency, "INR")
+        self.assertEqual(definition.price_display, "₹500.00")
+        self.assertEqual(definition.regular_price_display, "₹500.00")
         self.assertEqual(definition.country_code, "IN")
         self.assertEqual(definition.pricing_region, "IN")
 
-    def test_india_country_price_rejects_non_usd_currency(self):
+    def test_india_country_price_accepts_inr_currency(self):
         regional_price = BillingPlanCountryPrice.objects.get(
             plan__code="weekly",
             country_code="IN",
         )
         regional_price.currency = "INR"
 
-        with self.assertRaisesMessage(
-            ValidationError,
-            "Indian regional prices must use USD",
-        ):
-            regional_price.full_clean()
+        regional_price.full_clean()
 
     def test_exact_country_override_takes_priority_over_europe_price(self):
         plan = BillingPlan.objects.get(code="monthly")
@@ -71,6 +66,13 @@ class BillingPlanTests(TestCase):
 
         self.assertEqual(definition.price_display, "€17.25")
         self.assertEqual(definition.pricing_region, "DE")
+
+    def test_switzerland_uses_swiss_franc_price(self):
+        definition = get_plan_definition("weekly", country_code="CH")
+
+        self.assertEqual(definition.currency, "CHF")
+        self.assertTrue(definition.price_display.startswith("CHF "))
+        self.assertEqual(definition.pricing_region, "CH")
 
     def test_rest_of_world_uses_global_usd_plan(self):
         plan = BillingPlan.objects.get(code="weekly")
@@ -109,7 +111,7 @@ class BillingPlanTests(TestCase):
             "US": "$0",
             "GB": "£0",
             "DE": "€0",
-            "IN": "$0",
+            "IN": "₹0",
         }
 
         for country_code, expected_price in expected_prices.items():
@@ -174,6 +176,7 @@ class BillingPlanTests(TestCase):
         self.assertEqual(card["regular_price_display"], "$19.99")
         self.assertEqual(card["price_display"], "$14.99")
         self.assertEqual(card["discount_percent"], 25)
+        self.assertEqual(card["discount_amount_display"], "$5.00")
 
     def test_sale_price_cannot_exceed_regular_price(self):
         plan = BillingPlan.objects.get(code="weekly")
@@ -193,7 +196,7 @@ class BillingPlanTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "$19.99")
         self.assertContains(response, "$14.99")
-        self.assertContains(response, "Save 25%")
+        self.assertContains(response, "Save $5.00 (25%)")
 
     @override_settings(
         STRIPE_SECRET_KEY="sk_test",
@@ -284,39 +287,31 @@ class BillingPlanTests(TestCase):
         self.assertEqual(checkout_payload["metadata"]["pricing_region"], "GB")
 
     @override_settings(
-        PAYPAL_CLIENT_ID="paypal-client",
-        PAYPAL_CLIENT_SECRET="paypal-secret",
+        RAZORPAY_KEY_ID="rzp_test_key",
+        RAZORPAY_KEY_SECRET="razorpay-secret",
     )
-    @patch("backend.apps.billing.services._paypal_request")
-    def test_paypal_checkout_charges_sale_price(self, paypal_request):
+    @patch("backend.apps.billing.services._razorpay_request")
+    def test_razorpay_checkout_charges_sale_price(self, razorpay_request):
         plan = BillingPlan.objects.get(code="weekly")
         plan.sale_price = Decimal("7.50")
         plan.save(update_fields=("sale_price", "updated_at"))
         user = User.objects.create_user(
-            email="paypal-sale@example.com",
+            email="razorpay-sale@example.com",
             password="secret",
         )
-        paypal_request.return_value = {
-            "links": [
-                {
-                    "rel": "approve",
-                    "href": "https://paypal.test/approve",
-                }
-            ]
-        }
+        razorpay_request.return_value = {"id": "order_razorpay"}
 
-        approval_url = create_paypal_order(
+        checkout = create_razorpay_order(
             user,
             "weekly",
             base_url="https://mindmetric.store",
         )
 
-        self.assertEqual(approval_url, "https://paypal.test/approve")
-        payload = paypal_request.call_args.args[2]
-        self.assertEqual(
-            payload["purchase_units"][0]["amount"]["value"],
-            "7.50",
-        )
+        self.assertEqual(checkout["order_id"], "order_razorpay")
+        self.assertEqual(checkout["amount"], 750)
+        payload = razorpay_request.call_args.args[2]
+        self.assertEqual(payload["amount"], 750)
+        self.assertEqual(payload["currency"], "USD")
 
     def test_admin_action_applies_percentage_discount(self):
         admin_user = User.objects.create_superuser(

@@ -45,6 +45,21 @@ Run Django:
 PYTHONPATH=. .venv/bin/python manage.py runserver
 ```
 
+Run the automated checks used in CI:
+
+```bash
+DJANGO_SETTINGS_MODULE=backend.config.test_settings .venv/bin/python manage.py check
+DJANGO_SETTINGS_MODULE=backend.config.test_settings .venv/bin/coverage run manage.py test
+.venv/bin/coverage report
+```
+
+`requirements.txt` is the hashed production lockfile. Change dependencies only
+in `requirements.in`, then regenerate it with:
+
+```bash
+.venv/bin/pip-compile --generate-hashes --output-file requirements.txt requirements.in
+```
+
 Copy environment variables first:
 
 ```bash
@@ -113,22 +128,23 @@ The Django page structure is set up to support:
 - Paid users can take unlimited section-wise tests
 - After purchase, the backend upgrades the role from `free` to `paid`
 
-## Stripe setup
+## Razorpay setup
 
 Add these values to `.env`:
 
-- `STRIPE_SECRET_KEY`
-- `STRIPE_PUBLISHABLE_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_WEEKLY`
-- `STRIPE_PRICE_MONTHLY`
-- `STRIPE_PRICE_YEARLY`
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
 
-Local webhook forwarding example:
+In Razorpay Dashboard, enable international payments and add a webhook for
+`payment.captured` pointing to:
 
-```bash
-stripe listen --forward-to http://127.0.0.1:8000/api/billing/stripe/webhook/
-```
+`https://mindmetric.store/api/billing/razorpay/webhook/`
+
+MindMetric supports USD, INR, EUR, GBP and CHF storefront prices. Prices are
+managed in Django admin; the initial migration creates INR pricing for India and
+CHF pricing for Switzerland. Confirm that international payments are activated
+on the Razorpay account before accepting live USD, EUR, GBP or CHF payments.
 ## Production HTTPS on EC2
 
 This repo includes nginx and Certbot deployment helpers in [`deploy/`](./deploy):

@@ -6,13 +6,14 @@ import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.utils.decorators import method_decorator
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 
 from backend.apps.assessments.config import ASSESSMENT_CONFIG, ASSESSMENT_PREPGIA
 from backend.apps.tenants.utils import get_current_tenant
+
 from .models import Attempt, AttemptMode, AttemptStatus, SectionType
 from .services import (
     SECTION_TIME_LIMITS,
@@ -21,16 +22,15 @@ from .services import (
     create_attempt,
     expire_stale_attempts,
     finalize_attempt_from_saved_progress,
-    get_full_test_section_payload,
     get_full_test_question,
+    get_full_test_section_payload,
     get_module_free_tier_limits,
     record_practice_progress,
     save_attempt_progress,
+    submit_full_test_attempt,
     submit_full_test_section,
     submit_section_attempt,
-    submit_full_test_attempt,
 )
-
 
 logger = logging.getLogger(__name__)
 

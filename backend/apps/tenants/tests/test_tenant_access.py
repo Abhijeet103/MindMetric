@@ -23,7 +23,6 @@ from backend.apps.tenants.models import (
 )
 from backend.apps.tenants.utils import reset_current_tenant_slug, set_current_tenant_slug
 
-
 User = get_user_model()
 
 

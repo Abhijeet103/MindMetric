@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timedelta
 from dataclasses import asdict, dataclass
+from datetime import timedelta
 from typing import Any
 
 from django.conf import settings
@@ -21,7 +21,6 @@ from backend.apps.assessments.config import (
     get_module_assessment_type,
     get_time_limit_seconds,
 )
-from prepgia.generators import SECTION_TYPES, generate_question
 from backend.apps.tenants.services import (
     get_or_create_tenant_user,
     get_tenant_access,
@@ -29,8 +28,17 @@ from backend.apps.tenants.services import (
     tenant_allows_assessment,
 )
 from backend.apps.tenants.utils import get_current_tenant, get_current_tenant_slug
+from prepgia.generators import SECTION_TYPES, generate_question
 
-from .models import Attempt, AttemptMode, AttemptSection, AttemptStatus, FreeTierModuleLimit, SectionProgress, SectionType
+from .models import (
+    Attempt,
+    AttemptMode,
+    AttemptSection,
+    AttemptStatus,
+    FreeTierModuleLimit,
+    SectionProgress,
+    SectionType,
+)
 
 ACTIVE_ATTEMPT_EXPIRY_SECONDS = 2 * 60 * 60
 _redis_client: Redis | None = None
@@ -938,6 +946,7 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
 
     if include_correct_answer:
         preview["correct_answer"] = correct_answer
+        preview["explanation"] = prompt.get("explanation", "")
 
     if section_type == SectionType.REASONING:
         preview.update(

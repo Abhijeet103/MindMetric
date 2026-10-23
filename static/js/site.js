@@ -672,7 +672,7 @@ function initSectionPlayer() {
         button.addEventListener("click", () => {
           if (!isTestMode()) {
             optionsEl.querySelectorAll(".answer-option").forEach((node) => {
-              node.classList.remove("is-selected-correct", "is-selected-wrong");
+              node.classList.remove("is-selected-correct", "is-selected-wrong", "is-correct-answer");
             });
           }
           const selected = String(option);
@@ -698,7 +698,12 @@ function initSectionPlayer() {
               }, 900);
             } else {
               button.classList.add("is-selected-wrong");
-              showFeedback("Wrong. Try again.", "wrong");
+              optionsEl.querySelectorAll(".answer-option").forEach((node) => {
+                if (String(node.dataset.optionValue || "") === String(item.correct_answer || "")) {
+                  node.classList.add("is-correct-answer");
+                }
+              });
+              showFeedback(wrongPracticeFeedback(item, selected), "wrong");
             }
           } else {
             const answerRow = { question_index: currentIndex, selected_option: selected };
@@ -1239,12 +1244,12 @@ function initFullTestPlayer() {
                   void renderQuestion();
                 }, 900);
               } else {
-                showInlineFeedback(`Wrong. The correct answer is ${activeQuestion.correct_answer || ""}.`, "wrong");
+                showInlineFeedback(wrongPracticeFeedback(activeQuestion, selected), "wrong");
                 window.setTimeout(() => {
                   hideInlineFeedback();
                   questionIndex += 1;
                   void renderQuestion();
-                }, 1200);
+                }, 2600);
               }
               return;
             }
@@ -1941,6 +1946,23 @@ function renderCcatSpatialOption(button, item, option, optionIndex) {
   button.classList.add("ccat-spatial-answer-option");
   button.setAttribute("aria-label", `Option ${optionIndex + 1}`);
   button.appendChild(renderCcatSpatialSvg(spec || { shape: "missing" }));
+}
+
+function practiceExplanation(item) {
+  if (item.explanation) return String(item.explanation);
+  const kind = String(item.context_kind || "");
+  if (kind === "pairs") return "Count only pairs whose letters match apart from upper- and lower-case.";
+  if (kind === "numbers") return "Order the three values, identify the middle one, then compare each outer value's distance from it.";
+  if (kind === "words") return "Look for the category shared by three words; the correct answer is the one that does not fit it.";
+  if (kind === "letter_pairs") return "A figure can be rotated and still match, but a mirror image reverses its handedness.";
+  if (kind === "statements") return "Use the comparison statement to determine the relationship before choosing the named person or thing.";
+  if (kind === "ccat_spatial") return "Check every visual property—shape, position, count, fill, and rotation—before selecting an option.";
+  return "Re-read the condition and eliminate any option that does not satisfy every part of it.";
+}
+
+function wrongPracticeFeedback(item, selected) {
+  const correct = String(item.correct_answer || "");
+  return `Wrong: “${selected}” does not satisfy the rule. ${practiceExplanation(item)} The correct answer is ${correct}.`;
 }
 
 function renderContext(container, item) {

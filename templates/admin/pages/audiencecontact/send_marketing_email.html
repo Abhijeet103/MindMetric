@@ -1,0 +1,18 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<p>Only contacts with marketing consent are included. This sends one individual email per selected contact.</p>
+<p><strong>{{ contacts|length }}</strong> subscribed contact{{ contacts|length|pluralize }} selected.</p>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    {% for contact in contacts %}
+        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ contact.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="send_campaign" value="1">
+    <input type="submit" value="Send email" class="default">
+    <a href="{{ cancel_url }}" class="button cancel-link">Cancel</a>
+</form>
+{% endblock %}

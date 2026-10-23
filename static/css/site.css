@@ -1608,6 +1608,22 @@ body.is-loading .page-main-content {
   grid-column: 1 / -1;
 }
 
+.form-field-checkbox {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.form-field-checkbox input[type="checkbox"] {
+  width: 16px;
+  min-height: 16px;
+  margin: 2px 0 0;
+  padding: 0;
+  border-radius: 4px;
+}
+
 .form-input {
   width: 100%;
   min-height: 48px;

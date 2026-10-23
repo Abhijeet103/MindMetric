@@ -28,6 +28,7 @@ class CCATSpatialQuestionTests(SimpleTestCase):
         self.assertTrue(preview["option_visuals"])
         self.assertEqual(preview["reveal_mode"], "question_only")
         self.assertIn(preview["correct_answer"], preview["options"])
+        self.assertTrue(preview["explanation"])
 
     def test_matrix_completion_question_has_a_complete_grid_and_visual_answer(self):
         generator = CCATSpatialGenerator()

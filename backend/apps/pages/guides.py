@@ -4,11 +4,10 @@ from django.urls import reverse
 
 from backend.apps.assessments.config import ASSESSMENT_CCAT, ASSESSMENT_PREPGIA
 
-
 ASSESSMENT_GUIDES = {
     "thomas-gia": {
         "assessment_type": ASSESSMENT_PREPGIA,
-        "title": "Thomas GIA test guide",
+        "title": "Thomas GIA assessment test guide",
         "page_title": "Thomas GIA Test Guide: Format, Sections & Practice | MindMetric",
         "meta_description": (
             "Learn the Thomas GIA test format, five sections, timing, practice pattern "
@@ -48,6 +47,7 @@ ASSESSMENT_GUIDES = {
             "Read every official instruction screen carefully because the interaction changes by section.",
         ],
         "faqs": [
+            ("What is the Thomas GIA assessment?", "The Thomas General Intelligence Assessment, commonly called the Thomas GIA, is a timed cognitive aptitude assessment with five short sections. It measures reasoning, perceptual speed, number speed and accuracy, word meaning, and spatial visualisation."),
             ("How long is the Thomas GIA?", "Thomas says the complete session, including instructions, usually takes 30 to 45 minutes; each of the five tests lasts about two to five minutes."),
             ("How many sections are in the GIA?", "There are five: Reasoning, Perceptual Speed, Number Speed and Accuracy, Word Meaning, and Spatial Visualisation."),
             ("Is there one fixed pass score?", "No universal pass mark is published. Employers interpret results for their role and selection process."),
@@ -59,7 +59,7 @@ ASSESSMENT_GUIDES = {
     },
     "ccat": {
         "assessment_type": ASSESSMENT_CCAT,
-        "title": "CCAT test guide",
+        "title": "CCAT assessment test guide",
         "page_title": "CCAT Test Guide: 50 Questions, 15 Minutes & Practice | MindMetric",
         "meta_description": (
             "Learn the Criteria Cognitive Aptitude Test format, 50-question and 15-minute "
@@ -99,6 +99,7 @@ ASSESSMENT_GUIDES = {
             "Complete full 15-minute simulations after learning each category separately.",
         ],
         "faqs": [
+            ("How should I use a CCAT practice test?", "Use untimed practice questions to learn each question type, review why an answer was incorrect, then complete a timed 15-minute practice test to build pacing and confidence."),
             ("How many questions are on the CCAT?", "The official CCAT has 50 questions to be attempted in 15 minutes."),
             ("Do I need to finish all 50 questions?", "No. Criteria says fewer than one percent of candidates answer all 50, so focus on efficient, accurate progress."),
             ("Can I use a calculator?", "No. Criteria's candidate guidance says calculators are not permitted."),

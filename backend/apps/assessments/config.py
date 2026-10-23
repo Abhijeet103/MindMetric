@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from backend.apps.assessments.models import SectionType
 
-
 ASSESSMENT_PREPGIA = "prepgia"
 ASSESSMENT_CCAT = "ccat"
 ASSESSMENT_WATSON_GLASER = "watson_glaser"

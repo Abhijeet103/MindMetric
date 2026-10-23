@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -20,6 +20,7 @@ class BillingCurrency(models.TextChoices):
     GBP = "GBP", "British pound"
     EUR = "EUR", "Euro"
     INR = "INR", "Indian rupee"
+    CHF = "CHF", "Swiss franc"
 
 
 def format_money(currency: str, amount: Decimal) -> str:
@@ -28,6 +29,7 @@ def format_money(currency: str, amount: Decimal) -> str:
         BillingCurrency.GBP: "£",
         BillingCurrency.EUR: "€",
         BillingCurrency.INR: "₹",
+        BillingCurrency.CHF: "CHF ",
     }
     symbol = symbols.get(currency.upper())
     return f"{symbol}{amount:.2f}" if symbol else f"{currency.upper()} {amount:.2f}"
@@ -150,10 +152,6 @@ class BillingPlanCountryPrice(models.Model):
                 condition=Q(sale_price__isnull=True) | Q(sale_price__lte=F("price")),
                 name="billing_country_sale_lte_price",
             ),
-            models.CheckConstraint(
-                condition=~Q(country_code="IN") | Q(currency=BillingCurrency.USD),
-                name="billing_india_price_uses_usd",
-            ),
         ]
 
     def clean(self):
@@ -163,10 +161,6 @@ class BillingPlanCountryPrice(models.Model):
         if len(self.country_code) != 2 or not self.country_code.isalpha():
             raise ValidationError(
                 {"country_code": "Enter a two-letter country code, or EU."}
-            )
-        if self.country_code == "IN" and self.currency != BillingCurrency.USD:
-            raise ValidationError(
-                {"currency": "Indian regional prices must use USD for PayPal compatibility."}
             )
         if self.sale_price is not None and self.sale_price > self.price:
             raise ValidationError(

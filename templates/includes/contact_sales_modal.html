@@ -22,6 +22,10 @@
                     <span>Ask anything</span>
                     {{ contact_form.message }}
                 </label>
+                <label class="form-field form-field-wide form-field-checkbox">
+                    {{ contact_form.marketing_opt_in }}
+                    <span>{{ contact_form.marketing_opt_in.label }}</span>
+                </label>
             </div>
             <div class="modal-actions">
                 <button type="submit" class="button">Send inquiry</button>

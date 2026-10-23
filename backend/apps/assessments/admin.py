@@ -16,8 +16,8 @@ from .models import (
     Attempt,
     AttemptAnswer,
     AttemptSection,
-    PracticeTrackVisibility,
     FreeTierModuleLimit,
+    PracticeTrackVisibility,
     SectionProgress,
     WordMeaningItem,
 )

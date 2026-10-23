@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 SESSION_TENANT_KEY = "_mindmetric_auth_tenant_id"
 
 

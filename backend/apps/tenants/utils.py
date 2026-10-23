@@ -7,7 +7,6 @@ from django.conf import settings
 
 from .models import Tenant
 
-
 LOCAL_TENANT_HOSTS = {"127.0.0.1", "localhost", "testserver"}
 _current_tenant_slug: ContextVar[str | None] = ContextVar("current_tenant_slug", default=None)
 

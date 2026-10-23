@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 EXPORT_PATH = Path("data/generated_questions.json")
 
 

@@ -1,0 +1,13 @@
+# Production dependencies. Run `pip-compile --generate-hashes requirements.in`
+# after deliberately changing this file.
+Django==5.1.4
+django-allauth==65.3.1
+stripe==11.6.0
+gunicorn==23.0.0
+uvicorn[standard]==0.34.0
+whitenoise==6.8.2
+python-dotenv==1.0.1
+psycopg[binary]==3.2.9
+PyJWT==2.9.0
+cryptography==43.0.1
+redis==5.2.1

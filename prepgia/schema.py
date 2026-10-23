@@ -4,7 +4,6 @@ import os
 import sqlite3
 from pathlib import Path
 
-
 DEFAULT_DB_PATH = Path(os.getenv("QUESTION_BANK_DB_PATH", "data/prepgia.sqlite3"))
 
 

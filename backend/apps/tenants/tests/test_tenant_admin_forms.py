@@ -8,7 +8,6 @@ from backend.apps.tenants.admin import TenantAdmin
 from backend.apps.tenants.forms import TenantAdminForm
 from backend.apps.tenants.models import Tenant, TenantEnrollmentCode, TenantType
 
-
 User = get_user_model()
 
 

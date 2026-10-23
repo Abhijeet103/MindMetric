@@ -7,8 +7,7 @@ from django.db import transaction
 from backend.apps.assessments.config import PRACTICE_TRACK_LIBRARY
 from backend.apps.assessments.models import AssessmentTrack, PracticeTrackVisibility
 
-from .models import EnrollmentMode, Tenant, TenantPlan, TenantType
-
+from .models import Tenant, TenantPlan, TenantType
 
 NOT_ALLOCATED = "not_allocated"
 ASSESSMENT_STATE_CHOICES = (

@@ -9,26 +9,16 @@ from allauth.account.forms import LoginForm
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.urls import reverse
+from django.db.models import Count, Prefetch
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.generic import TemplateView
-from django.db.models import Count, Prefetch
 from django.views import View
+from django.views.generic import TemplateView
 from django.views.generic.edit import FormView
 
-from backend.apps.billing.services import (
-    build_plan_cards,
-    paypal_is_configured,
-    stripe_is_configured,
-    sync_user_subscription_access,
-)
-from backend.apps.billing.models import BillingCurrency, format_money
-from backend.apps.billing.regions import get_request_country_code
-from backend.apps.tenants.utils import get_default_tenant
-from backend.apps.tenants.services import is_institution_tenant, tenant_allows_assessment
 from backend.apps.assessments.config import (
     ASSESSMENT_CCAT,
     ASSESSMENT_PREPGIA,
@@ -51,15 +41,27 @@ from backend.apps.assessments.models import (
 )
 from backend.apps.assessments.services import (
     FullTestSessionError,
-    can_start_attempt,
-    expire_stale_attempts,
+    get_module_free_tier_limits,
     get_or_create_full_test_attempt,
     get_or_create_section_attempt,
-    get_module_free_tier_limits,
     get_section_test_previews,
     has_unlimited_module_access,
     serialize_full_test_attempt_for_frontend,
 )
+from backend.apps.billing.models import BillingCurrency, format_money
+from backend.apps.billing.regions import get_request_country_code
+from backend.apps.billing.services import (
+    build_plan_cards,
+    razorpay_is_configured,
+    paypal_is_configured,
+    stripe_is_configured,
+    sync_user_subscription_access,
+)
+from backend.apps.tenants.services import is_institution_tenant, tenant_allows_assessment
+from backend.apps.tenants.utils import get_default_tenant
+from prepgia.generators import generate_question
+from prepgia.preview_data import get_questions
+
 from .emails import send_sale_inquiry_notification
 from .forms import SaleInquiryForm, TestSuggestionForm, TrackWaitlistForm
 from .guides import (
@@ -70,8 +72,6 @@ from .guides import (
     resolve_module_guide,
 )
 from .seo import assessment_seo_metadata, module_seo_metadata
-from prepgia.generators import generate_question
-from prepgia.preview_data import get_questions
 
 SECTION_PRACTICE_GENERATION_COUNT = 40
 SECTION_PRACTICE_PAID_COUNT = 100
@@ -338,10 +338,10 @@ class HomePageView(TemplateView):
         all_questions = get_questions()
         context.update(
             {
-                "page_title": "Free Aptitude & Psychometric Practice Tests | MindMetric",
+                "page_title": "Free Cognitive Aptitude Test Practice | GIA & CCAT | MindMetric",
                 "meta_description": (
-                    "Practise free aptitude and psychometric tests for Thomas GIA and "
-                    "Criteria CCAT, and explore upcoming SHL and Watson-Glaser preparation."
+                    "Take free cognitive aptitude test practice for Thomas GIA and CCAT, "
+                    "with numerical, verbal, abstract and spatial reasoning questions."
                 ),
                 "question_count": len(all_questions),
                 "sections": _section_cards(ASSESSMENT_PREPGIA),
@@ -374,6 +374,7 @@ class PricingPageView(TemplateView):
                 "active_subscription": active_subscription,
                 "plans": plans,
                 "free_price_display": free_price_display,
+                "razorpay_enabled": razorpay_is_configured(),
                 "paypal_enabled": paypal_is_configured(),
                 "stripe_enabled": stripe_is_configured(),
                 "contact_form": SaleInquiryForm(initial={**_contact_form_initial(self.request, "pricing"), "next": self.request.path}),
@@ -420,9 +421,9 @@ class SubscriptionPageView(LoginRequiredMixin, TemplateView):
                 "page_title": "Subscription | MindMetric",
                 "meta_description": "View your MindMetric subscription status and manage cancellation.",
                 "active_subscription": active_subscription,
-                "subscription_expires_at": self.request.user.subscription_expires_at,
                 "plans": visible_plans,
                 "extension_cards": extension_cards,
+                "razorpay_enabled": razorpay_is_configured(),
                 "paypal_enabled": paypal_is_configured(),
                 "stripe_enabled": stripe_is_configured(),
                 "checkout_state": self.request.GET.get("checkout", ""),
@@ -465,7 +466,7 @@ class ContactInquiryCreateView(FormView):
         logger.info("Saved sales inquiry id=%s source=%s email=%s", inquiry.id, inquiry.source_page, inquiry.email)
         try:
             send_sale_inquiry_notification(inquiry)
-        except Exception as exc:
+        except Exception:
             logger.exception("Failed to send sale inquiry notification for inquiry id=%s", inquiry.id)
             messages.warning(
                 self.request,
@@ -500,10 +501,10 @@ class PracticePageView(TemplateView):
         context = super().get_context_data(**kwargs)
         context.update(
             {
-                "page_title": "Free Aptitude & Psychometric Practice Tests | MindMetric",
+                "page_title": "Free Aptitude Test Practice: Thomas GIA & CCAT | MindMetric",
                 "meta_description": (
-                    "Choose free Thomas GIA and CCAT practice tests, sample aptitude "
-                    "questions, and upcoming SHL Verify and Watson-Glaser preparation."
+                    "Choose a free Thomas GIA or CCAT practice test, with sample cognitive "
+                    "aptitude questions, timed drills and full-test preparation."
                 ),
                 "assessments": _build_practice_assessment_cards(self.request),
                 "suggest_test_form": TestSuggestionForm(
@@ -689,9 +690,9 @@ class AssessmentPracticePageView(TemplateView):
     template_name = "pages/practice.html"
 
     def get_context_data(self, **kwargs):
-        from backend.apps.assessments.services import FREE_FULL_TEST_LIMIT
         from backend.apps.accounts.models import UserRole
         from backend.apps.assessments.models import Attempt, AttemptMode
+        from backend.apps.assessments.services import FREE_FULL_TEST_LIMIT
         context = super().get_context_data(**kwargs)
         assessment_type = self.kwargs["assessment_slug"]
         tenant = _current_tenant(self.request)
@@ -1412,6 +1413,7 @@ def _build_preview(item: dict, section_type: str) -> dict:
         "question_text": "",
         "options": [],
         "correct_answer": "",
+        "explanation": "",
     }
 
     try:
@@ -1423,6 +1425,7 @@ def _build_preview(item: dict, section_type: str) -> dict:
     prompt = payload.get("prompt", {})
     options = [str(option) for option in payload.get("options", [])]
     preview["correct_answer"] = str(correct_answer)
+    preview["explanation"] = prompt.get("explanation", "")
 
     if section_type == SectionType.REASONING:
         preview.update(
@@ -1538,6 +1541,7 @@ def _build_generated_preview(item: dict) -> dict:
         "question_text": "",
         "options": options,
         "correct_answer": correct_answer,
+        "explanation": prompt.get("explanation", ""),
         "reveal_mode": "context_then_question",
     }
 

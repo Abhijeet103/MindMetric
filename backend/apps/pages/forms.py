@@ -8,7 +8,7 @@ class SaleInquiryForm(forms.ModelForm):
 
     class Meta:
         model = SaleInquiry
-        fields = ("email", "phone", "message", "source_page")
+        fields = ("email", "phone", "message", "marketing_opt_in", "source_page")
         widgets = {
             "source_page": forms.HiddenInput(),
             "message": forms.Textarea(attrs={"rows": 4}),
@@ -23,6 +23,7 @@ class SaleInquiryForm(forms.ModelForm):
         self.fields["email"].widget.attrs.setdefault("placeholder", "you@company.com")
         self.fields["phone"].widget.attrs.setdefault("placeholder", "Phone number")
         self.fields["message"].widget.attrs.setdefault("placeholder", "Ask anything")
+        self.fields["marketing_opt_in"].label = "Send me MindMetric product updates and offers"
 
 
 class TrackWaitlistForm(forms.Form):

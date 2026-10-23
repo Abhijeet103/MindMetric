@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from datetime import timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from django import forms
 from django.contrib import admin, messages

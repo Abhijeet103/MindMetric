@@ -9,7 +9,6 @@ from dataclasses import dataclass
 
 from backend.apps.assessments.models import WordMeaningItem
 
-
 SECTION_TYPES = [
     "reasoning",
     "perceptual_speed",
@@ -980,7 +979,6 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
 
     def _size_growth_rule(self, rng: random.Random) -> dict:
         sizes = [0.45, 0.6, 0.75, 0.9]
-        answer = sizes[-1]
         option_visuals = [{"value": label, "shape": "diamond", "scale": size} for label, size in zip(["Small", "Medium", "Large", "Extra large"], sizes)]
         return {
             "subtype": "size_growth",
@@ -1081,6 +1079,19 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
             ],
         )
         rule = rule_factory(rng)
+        explanations = {
+            "rotation": "The same figure turns one quarter-turn at every step; continue the direction of rotation.",
+            "fill_rotation": "Only the shaded half changes, moving one side around the square at each step.",
+            "mirror": "A reflection swaps left and right (or top and bottom) across the displayed mirror line.",
+            "polygon_growth": "The number of sides increases by the same amount at every step.",
+            "shape_cycle": "The shapes repeat in a fixed order; continue that order rather than choosing a similar-looking shape.",
+            "dot_movement": "The dot advances around the circle by the same direction and distance each time.",
+            "dot_count": "Count the dots: the total changes by a constant amount in every step.",
+            "quadrant_fill": "The shaded quadrant moves around the square one corner at a time.",
+            "size_growth": "The shape grows by the same size increment at every step.",
+            "bar_growth": "Each figure contains one more parallel bar than the previous figure.",
+            "matrix_completion": "Read both directions: each row keeps one symbol type, while each column fixes the symbol count and filled-symbol arrangement.",
+        }
         options = [visual["value"] for visual in rule["option_visuals"]]
         return GeneratedQuestion(
             self.section_type,
@@ -1094,6 +1105,7 @@ class CCATSpatialGenerator(BaseQuestionGenerator):
                     "question": rule["question"],
                     "stimulus": rule["stimulus"],
                     "stimulus_layout": rule.get("stimulus_layout", "sequence"),
+                    "explanation": explanations[rule["subtype"]],
                 },
                 "options": options,
                 "option_visuals": rule["option_visuals"],

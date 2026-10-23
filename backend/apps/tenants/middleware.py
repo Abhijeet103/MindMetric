@@ -8,10 +8,10 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 
+from .auth import bind_session_to_tenant, session_tenant_id
 from .models import TenantUser, TenantUserStatus
 from .services import get_or_create_tenant_user, get_tenant_access, is_institution_tenant
 from .utils import reset_current_tenant_slug, resolve_tenant_from_host, set_current_tenant_slug
-from .auth import bind_session_to_tenant, session_tenant_id
 
 
 class TenantMiddleware:

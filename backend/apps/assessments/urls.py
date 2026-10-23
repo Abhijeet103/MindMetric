@@ -1,7 +1,17 @@
 from django.urls import path
 
-from .views import AttemptEndView, AttemptProgressSaveView, AttemptStartView, FullTestQuestionView, FullTestSectionSubmitView, FullTestSectionView, FullTestSubmitView, PracticeProgressUpdateView, SectionCatalogView, SectionTestSubmitView
-
+from .views import (
+    AttemptEndView,
+    AttemptProgressSaveView,
+    AttemptStartView,
+    FullTestQuestionView,
+    FullTestSectionSubmitView,
+    FullTestSectionView,
+    FullTestSubmitView,
+    PracticeProgressUpdateView,
+    SectionCatalogView,
+    SectionTestSubmitView,
+)
 
 urlpatterns = [
     path("sections/", SectionCatalogView.as_view(), name="sections"),

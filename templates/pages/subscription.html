@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
 <section class="pricing-shell subscription-shell">
@@ -80,19 +81,27 @@
                             {% endif %}
                             <strong>{{ plan.price_display }}</strong>
                             {% if plan.has_discount %}
-                                <span class="pricing-discount-badge">Save {{ plan.discount_percent }}%</span>
+                                <span class="pricing-discount-badge">Save {{ plan.discount_amount_display }} ({{ plan.discount_percent }}%)</span>
                             {% endif %}
                         </div>
                         <span>{{ plan.extension_copy }}</span>
                     </div>
                     {% if plan.show_action %}
                         <div class="subscription-extension-actions">
-                            <form method="post" action="{% url 'billing-paypal-checkout' plan.code %}" class="subscription-extension-action" data-show-loader>
+                        {% if paypal_enabled and plan.currency != "INR" %}
+                        <form method="post" action="{% url 'billing-paypal-checkout' plan.code %}" data-show-loader>
+                            {% csrf_token %}
+                            <button type="submit" class="button" {% if plan.is_disabled %}disabled{% endif %}>{{ plan.extension_title }} with PayPal</button>
+                        </form>
+                        {% endif %}
+                            {% if razorpay_enabled %}
+                            <form method="post" action="{% url 'billing-razorpay-checkout' plan.code %}" data-razorpay-checkout data-razorpay-verify-url="{% url 'billing-razorpay-verify' %}" class="subscription-extension-action">
                                 {% csrf_token %}
                                 <button type="submit" class="button">
-                                    {{ plan.extension_title }}
+                                    {{ plan.extension_title }} securely
                                 </button>
                             </form>
+                            {% endif %}
                             {% if stripe_enabled %}
                                 <form method="post" action="{% url 'billing-checkout' plan.code %}" class="subscription-extension-action" data-show-loader>
                                     {% csrf_token %}
@@ -119,4 +128,11 @@
 </section>
 
 {% include "includes/contact_sales_modal.html" with modal_id="contact-sales-modal" modal_title="Contact sales" modal_copy="Tell us about your cohort, institute, or team and we will follow up with the right access setup." %}
+{% endblock %}
+
+{% block extra_scripts %}
+    {% if razorpay_enabled %}
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <script src="{% static 'js/razorpay-checkout.js' %}" defer></script>
+    {% endif %}
 {% endblock %}

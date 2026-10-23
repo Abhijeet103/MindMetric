@@ -1,4 +1,55 @@
 from django.db import models
+from django.utils import timezone
+
+
+class AudienceContact(models.Model):
+    class Source(models.TextChoices):
+        USER_ACCOUNT = "user_account", "User account"
+        SALES_INQUIRY = "sales_inquiry", "Sales inquiry"
+        TEST_SUGGESTION = "test_suggestion", "Test suggestion"
+        ASSESSMENT_WAITLIST = "assessment_waitlist", "Assessment waitlist"
+        INSTITUTION_INVITE = "institution_invite", "Institution invite"
+        ADMIN = "admin", "Added by admin"
+
+    tenant = models.ForeignKey(
+        "tenants.Tenant",
+        on_delete=models.SET_NULL,
+        related_name="audience_contacts",
+        blank=True,
+        null=True,
+    )
+    user = models.OneToOneField(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        related_name="audience_contact",
+        blank=True,
+        null=True,
+    )
+    email = models.EmailField(unique=True)
+    full_name = models.CharField(max_length=255, blank=True)
+    source = models.CharField(max_length=32, choices=Source.choices, default=Source.ADMIN)
+    marketing_opt_in = models.BooleanField(default=False)
+    unsubscribed_at = models.DateTimeField(blank=True, null=True)
+    last_campaign_sent_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at",)
+
+    def save(self, *args, **kwargs):
+        self.email = self.email.strip().lower()
+        if self.marketing_opt_in:
+            self.unsubscribed_at = None
+        super().save(*args, **kwargs)
+
+    def unsubscribe(self) -> None:
+        self.marketing_opt_in = False
+        self.unsubscribed_at = timezone.now()
+        self.save(update_fields=("marketing_opt_in", "unsubscribed_at", "updated_at"))
+
+    def __str__(self) -> str:
+        return self.email
 
 
 class SaleInquiry(models.Model):
@@ -17,6 +68,10 @@ class SaleInquiry(models.Model):
     source_page = models.CharField(max_length=64, blank=True)
     status = models.CharField(max_length=24, choices=Status.choices, default=Status.NEW)
     notes = models.TextField(blank=True)
+    marketing_opt_in = models.BooleanField(
+        default=False,
+        help_text="The contact has agreed to receive MindMetric product updates and offers.",
+    )
     contacted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -6,3 +6,5 @@ class PagesConfig(AppConfig):
     name = "backend.apps.pages"
     label = "pages"
 
+    def ready(self):
+        from . import signals  # noqa: F401

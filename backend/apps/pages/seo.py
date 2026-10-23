@@ -13,7 +13,6 @@ from backend.apps.pages.guides import (
     resolve_module_guide,
 )
 
-
 INDEXABLE_VIEWS = {
     "pages:home",
     "pages:pricing",
@@ -28,18 +27,18 @@ GA4_MEASUREMENT_ID_PATTERN = re.compile(r"^G-[A-Z0-9]+$")
 
 ASSESSMENT_SEO_METADATA = {
     ASSESSMENT_PREPGIA: {
-        "page_title": "Free Thomas GIA Practice Test & Questions | MindMetric",
+        "page_title": "Free Thomas GIA Practice Test: Questions & Timed Prep | MindMetric",
         "meta_description": (
-            "Try a free Thomas GIA practice test with questions for all five sections "
-            "of the Thomas International General Intelligence Assessment (GIA)."
+            "Prepare for the Thomas International General Intelligence Assessment (GIA) "
+            "with free practice questions, timed section drills and a full-test simulation."
         ),
         "schema_name": "Thomas GIA Practice Test",
     },
     ASSESSMENT_CCAT: {
-        "page_title": "Free CCAT Practice Test & Aptitude Questions | MindMetric",
+        "page_title": "Free CCAT Practice Test & Aptitude Prep | MindMetric",
         "meta_description": (
-            "Try free CCAT practice questions for the Criteria Cognitive Aptitude Test, "
-            "including numerical, verbal, logic and spatial reasoning drills."
+            "Prepare for the Criteria Cognitive Aptitude Test (CCAT) with free practice "
+            "questions, answer explanations, timed drills and a 15-minute test simulation."
         ),
         "schema_name": "CCAT Practice Test",
     },
@@ -55,7 +54,7 @@ MODULE_SEO_METADATA = {
             ),
         },
         "perceptual_speed": {
-            "page_title": "Thomas GIA Perceptual Speed Practice Test | MindMetric",
+            "page_title": "Thomas GIA Perceptual Speed Aptitude Test Practice | MindMetric",
             "meta_description": (
                 "Practice Thomas GIA Perceptual Speed questions with timed letter-pair "
                 "matching exercises for the General Intelligence Assessment."

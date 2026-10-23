@@ -8,7 +8,6 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 
-
 logger = logging.getLogger(__name__)
 
 COUNTRY_SESSION_KEY = "billing_country_code"

@@ -12,13 +12,12 @@ from .views import (
     PracticePageView,
     PricingPageView,
     SectionDetailPageView,
-    SectionTestSetupView,
     SectionsPageView,
+    SectionTestSetupView,
     SubscriptionPageView,
     TestSuggestionCreateView,
     TrackWaitlistCreateView,
 )
-
 
 app_name = "pages"
 

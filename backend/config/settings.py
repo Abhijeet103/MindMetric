@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 from prepgia.schema import DEFAULT_DB_PATH, init_db
 
-
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(ROOT_DIR / ".env", override=True)
 DATA_DIR = ROOT_DIR / "data"
@@ -232,11 +231,14 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_WEEKLY = os.getenv("STRIPE_PRICE_WEEKLY", "")
 STRIPE_PRICE_MONTHLY = os.getenv("STRIPE_PRICE_MONTHLY", "")
 STRIPE_PRICE_YEARLY = os.getenv("STRIPE_PRICE_YEARLY", "")
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
 PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID", "")
 PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET", "")
 PAYPAL_ENV = os.getenv("PAYPAL_ENV", "sandbox").strip().lower()
 PAYPAL_WEBHOOK_ID = os.getenv("PAYPAL_WEBHOOK_ID", "")
 PAYPAL_BRAND_NAME = os.getenv("PAYPAL_BRAND_NAME", "MindMetric")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 
 BILLING_TRUST_PROXY_COUNTRY_HEADERS = (
     os.getenv("BILLING_TRUST_PROXY_COUNTRY_HEADERS", "False").lower() == "true"
