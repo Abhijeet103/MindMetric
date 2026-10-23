@@ -231,24 +231,41 @@
         </div>
     </div>
 
-    <article id="portal-feedback" class="card dashboard-feedback-card">
-        <h2>Share feedback</h2>
-        <p class="muted">Tell us what you think, ask a question, or report a problem. Our team will review it.</p>
-        <form method="post" action="{% url 'pages:feedback' %}">
-            {% csrf_token %}
-            <input type="hidden" name="source_page" value="{{ request.path }}">
-            <div class="form-field">
-                <label for="id_category">What is this about?</label>
-                {{ feedback_form.category }}
-            </div>
-            <div class="form-field">
-                <label for="id_message">Your feedback</label>
-                {{ feedback_form.message }}
-            </div>
-            <button type="submit" class="button">Send feedback</button>
-        </form>
+    <article class="card dashboard-feedback-card">
+        <div>
+            <h2>Have feedback?</h2>
+            <p class="muted">Share a suggestion, ask a question, or report a problem.</p>
+        </div>
+        <a href="#feedback-modal" class="button-secondary" data-modal-open="feedback-modal">Share feedback</a>
     </article>
 </section>
+
+<div class="modal-shell" id="feedback-modal" data-modal {% if request.GET.feedback != 'open' %}hidden{% endif %}>
+    <a href="{% url 'pages:dashboard' %}" class="modal-backdrop" data-modal-close aria-label="Close modal"></a>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title">
+        <a href="{% url 'pages:dashboard' %}" class="modal-close" aria-label="Close" data-modal-close>&times;</a>
+        <span class="kicker">Your feedback</span>
+        <h2 id="feedback-modal-title">Share feedback</h2>
+        <p class="modal-copy">Tell us what you think, ask a question, or report a problem. Our team will review it.</p>
+        <form method="post" action="{% url 'pages:feedback' %}" class="modal-form">
+            {% csrf_token %}
+            <input type="hidden" name="source_page" value="{{ request.path }}">
+            <div class="modal-form-grid">
+                <label class="form-field form-field-wide">
+                    <span>What is this about?</span>
+                    {{ feedback_form.category }}
+                </label>
+                <label class="form-field form-field-wide">
+                    <span>Your feedback</span>
+                    {{ feedback_form.message }}
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="button">Send feedback</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}

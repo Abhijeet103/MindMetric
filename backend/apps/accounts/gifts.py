@@ -38,7 +38,7 @@ def grant_one_month_gift(user):
 def send_one_month_gift_email(*, email: str, first_name: str, expires_at) -> bool:
     site_root = settings.SITE_URL.rstrip("/") + "/"
     practice_url = urljoin(site_root, "practice/")
-    dashboard_feedback_url = urljoin(site_root, "dashboard/#portal-feedback")
+    dashboard_feedback_url = urljoin(site_root, "dashboard/?feedback=open#feedback-modal")
     expiry_text = timezone.localtime(expires_at).strftime("%B %-d, %Y")
     message = build_branded_email(
         subject="A month of MindMetric access, on us",

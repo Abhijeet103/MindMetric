@@ -135,4 +135,4 @@ class AudienceContactTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("trial mode", mail.outbox[0].body)
         self.assertIn("https://mindmetric.test/practice/", mail.outbox[0].body)
-        self.assertIn("https://mindmetric.test/dashboard/#portal-feedback", mail.outbox[0].body)
+        self.assertIn("https://mindmetric.test/dashboard/?feedback=open#feedback-modal", mail.outbox[0].body)

@@ -1704,6 +1704,19 @@ body.has-open-modal {
   max-width: 760px;
   margin: 2rem auto 0;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.dashboard-feedback-card h2,
+.dashboard-feedback-card p {
+  margin-bottom: 0;
+}
+
+.dashboard-feedback-card p {
+  margin-top: 6px;
 }
 
 .dashboard-chart-card {
@@ -4731,6 +4744,15 @@ body.has-open-modal {
 
   .dashboard-span-2 {
     grid-column: auto;
+  }
+
+  .dashboard-feedback-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-feedback-card .button-secondary {
+    width: 100%;
   }
 
   .topbar {
