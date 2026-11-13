@@ -90,6 +90,7 @@
                     <span>{{ section.tests_taken }} tests given</span>
                     <span>{{ section.practice_solved }} practice solved</span>
                     <span>{{ section.free_test_attempt_limit }} free test{{ section.free_test_attempt_limit|pluralize }}</span>
+                    <span>{{ section.test_type|capfirst }} · {{ section.test_question_count }} test questions</span>
                 </div>
 
                 <div class="practice-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ section.progress_percent }}">
@@ -104,4 +105,11 @@
     </div>
 
 </section>
+{% if official_resources %}
+<article class="card top-gap">
+    <h2>Official samples and practice resources</h2>
+    <p>External publisher resources. Historical practice papers are labelled separately; their questions are not copied into our bank.</p>
+    <ul>{% for resource in official_resources %}<li><a href="{{ resource.url }}" target="_blank" rel="noopener noreferrer">{{ resource.title }}</a> — {{ resource.publisher }} · {{ resource.get_resource_type_display }}</li>{% endfor %}</ul>
+</article>
+{% endif %}
 {% endblock %}

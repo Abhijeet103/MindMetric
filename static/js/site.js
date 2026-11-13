@@ -303,19 +303,19 @@ function initSectionPlayer() {
   player.dataset.playerInitialized = "true";
   let currentIndex = 0;
   let correctCount = 0;
-  let feedbackTimeout = null;
   let activeMode = player.dataset.mode || "practice";
   const assessmentType = player.dataset.assessmentType || "prepgia";
   const sectionKey = player.dataset.sectionKey || "";
   const practiceTotal = Number(player.dataset.practiceTotal || 0);
   let practiceSolved = Number(player.dataset.practiceSolved || 0);
-  const timeLimitSeconds = Number(player.dataset.timeLimitSeconds || 0);
+  let timeLimitSeconds = Number(player.dataset.timeLimitSeconds || 0);
   let remainingSeconds = timeLimitSeconds;
   let timerInterval = null;
   let finished = false;
   let testStarted = false;
   let practiceStarted = false;
   let practiceElapsedSeconds = 0;
+  let practiceReviewing = false;
   let practiceTimerInterval = null;
   const submittedAnswers = [];
   let testSetupLoaded = testQuestions.length > 0;
@@ -525,12 +525,17 @@ function initSectionPlayer() {
     if (!response.ok) {
       throw new Error(payload.detail || "Could not start test mode.");
     }
+    if (payload.adaptive_url) {
+      window.location.assign(payload.adaptive_url);
+      return false;
+    }
     testQuestions = (payload.previews || []).map(normalizePlayerQuestion);
-    player.dataset.submitUrl = payload.submitUrl || "";
-    player.dataset.progressUrl = payload.progressUrl || "";
-    player.dataset.attemptId = payload.attemptId || "";
-    player.dataset.endUrl = payload.endUrl || "";
-    endUrl = payload.endUrl || "";
+    player.dataset.submitUrl = payload.submit_url || payload.submitUrl || "";
+    player.dataset.progressUrl = payload.progress_url || payload.progressUrl || "";
+    player.dataset.attemptId = payload.attempt_id || payload.attemptId || "";
+    player.dataset.endUrl = payload.end_url || payload.endUrl || "";
+    endUrl = payload.end_url || payload.endUrl || "";
+    timeLimitSeconds = Number(payload.time_limit_seconds || timeLimitSeconds);
     testSetupLoaded = true;
     return true;
   };
@@ -641,25 +646,17 @@ function initSectionPlayer() {
       return;
     }
 
+    practiceReviewing = false;
     updateProgress();
 
     if (seedEl) {
       seedEl.textContent = item.seed || "";
     }
-    if (contextEl) {
-      if (isTestMode() && item.reveal_mode === "question_only") {
-        contextEl.innerHTML = "";
-        const hiddenPrompt = document.createElement("p");
-        hiddenPrompt.className = "muted";
-        hiddenPrompt.textContent = "Question hidden. Click to reveal and answer from memory.";
-        contextEl.appendChild(hiddenPrompt);
-      } else {
-        renderContext(contextEl, item);
-      }
-    }
+    if (contextEl) renderContext(contextEl, item);
     if (questionEl) {
       questionEl.textContent = item.question_text || item.summary || "";
       renderCcatSpatialStimulus(questionEl, item);
+      renderQuestionTable(questionEl, item);
     }
     if (optionsEl) {
       optionsEl.innerHTML = "";
@@ -682,20 +679,19 @@ function initSectionPlayer() {
           }
 
           if (!isTestMode()) {
+            practiceReviewing = true;
             if (isCorrect) {
               button.classList.add("is-selected-correct");
               practiceSolved += 1;
               syncPracticeProgress();
               updateProgress();
-              showFeedback("Correct.", "correct");
-              if (feedbackTimeout) {
-                window.clearTimeout(feedbackTimeout);
-              }
-              feedbackTimeout = window.setTimeout(() => {
+              showFeedback(`Correct. ${practiceExplanation(item)}`, "correct");
+              optionsEl.querySelectorAll(".answer-option").forEach((node) => { node.disabled = true; });
+              appendFeedbackContinue(feedbackEl, () => {
                 hideFeedback();
                 currentIndex += 1;
                 renderQuestion();
-              }, 900);
+              });
             } else {
               button.classList.add("is-selected-wrong");
               optionsEl.querySelectorAll(".answer-option").forEach((node) => {
@@ -727,10 +723,6 @@ function initSectionPlayer() {
         isTestMode() && item.reveal_mode === "question_only"
           ? "Click to reveal the question."
           : "Click the context card to reveal the question.";
-    }
-    if (isTestMode()) {
-      showStage(contextStage);
-      return;
     }
     if (item.reveal_mode === "question_only") {
       showStage(questionStage);
@@ -764,7 +756,7 @@ function initSectionPlayer() {
   fullscreenStartButton?.addEventListener("click", async () => {
     window.showPageLoader?.();
     try {
-      await loadTestSetup();
+      if (!await loadTestSetup()) return;
     } catch (error) {
       window.hidePageLoader?.();
       showFeedback(error.message || "Could not start test mode.", "wrong");
@@ -814,7 +806,7 @@ function initSectionPlayer() {
     updateProgress();
     updateTimer();
     practiceTimerInterval = window.setInterval(() => {
-      practiceElapsedSeconds += 1;
+      if (!practiceReviewing) practiceElapsedSeconds += 1;
       updateTimer();
     }, 1000);
     renderQuestion();
@@ -1165,7 +1157,7 @@ function initFullTestPlayer() {
         });
         const payload = await response.json();
         if (!response.ok) {
-          throw new Error(payload.detail || `Could not load ${section.title || "a CCAT section"}.`);
+          throw new Error(payload.detail || `Could not load ${section.title || "an assessment section"}.`);
         }
         return (payload.test_questions || []).map((question, sourceQuestionIndex) => ({
           ...question,
@@ -1175,15 +1167,7 @@ function initFullTestPlayer() {
       }),
     );
 
-    mixedQuestions = [];
-    const longestSection = Math.max(0, ...sectionRuntimes.map((questions) => questions.length));
-    for (let index = 0; index < longestSection; index += 1) {
-      sectionRuntimes.forEach((questions) => {
-        if (questions[index]) {
-          mixedQuestions.push(questions[index]);
-        }
-      });
-    }
+    mixedQuestions = orderMixedQuestions(sectionRuntimes, Number(player.dataset.attemptId || 1));
     mixedRuntimeLoaded = true;
     return mixedQuestions;
   };
@@ -1208,6 +1192,7 @@ function initFullTestPlayer() {
       if (questionEl) {
         questionEl.textContent = activeQuestion.question_text || activeQuestion.summary || "";
         renderCcatSpatialStimulus(questionEl, activeQuestion);
+        renderQuestionTable(questionEl, activeQuestion);
       }
       if (optionsEl) {
         optionsEl.innerHTML = "";
@@ -1236,21 +1221,12 @@ function initFullTestPlayer() {
                   node.classList.add("is-correct-answer");
                 }
               });
-              if (isCorrect) {
-                showInlineFeedback("Correct.", "correct");
-                window.setTimeout(() => {
-                  hideInlineFeedback();
-                  questionIndex += 1;
-                  void renderQuestion();
-                }, 900);
-              } else {
-                showInlineFeedback(wrongPracticeFeedback(activeQuestion, selected), "wrong");
-                window.setTimeout(() => {
-                  hideInlineFeedback();
-                  questionIndex += 1;
-                  void renderQuestion();
-                }, 2600);
-              }
+              showInlineFeedback(isCorrect ? `Correct. ${practiceExplanation(activeQuestion)}` : wrongPracticeFeedback(activeQuestion, selected), isCorrect ? "correct" : "wrong");
+              appendFeedbackContinue(inlineFeedbackEl, () => {
+                hideInlineFeedback();
+                questionIndex += 1;
+                void renderQuestion();
+              });
               return;
             }
 
@@ -1935,6 +1911,103 @@ function renderCcatSpatialStimulus(questionEl, item) {
   shell.insertBefore(stimulus, questionEl);
 }
 
+function orderMixedQuestions(sectionRuntimes, attemptId) {
+  const blocks = [];
+  sectionRuntimes.forEach((questions) => {
+    let block = null;
+    questions.forEach((question) => {
+      const caseId = question.case_study?.id;
+      if (caseId && block?.caseId === caseId) {
+        block.questions.push(question);
+      } else {
+        block = {caseId, questions: [question]};
+        blocks.push(block);
+      }
+    });
+  });
+  let state = attemptId >>> 0;
+  for (let i = blocks.length - 1; i > 0; i -= 1) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    const j = state % (i + 1);
+    [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
+  }
+  return blocks.flatMap((block) => block.questions);
+}
+
+function renderQuestionTable(questionEl, item) {
+  const shell = questionEl.parentElement;
+  shell.querySelector("[data-question-table]")?.remove();
+  if (!item.data_table && !item.case_study && !item.chart) return;
+  const wrapper = document.createElement("div");
+  wrapper.dataset.questionTable = "";
+  wrapper.className = "question-data-table";
+  if (item.case_study) {
+    const heading = document.createElement("h3");
+    heading.textContent = `${item.case_study.title} · ${item.case_study.question_index}/${item.case_study.question_total}`;
+    const background = document.createElement("p");
+    background.textContent = item.case_study.background;
+    wrapper.append(heading, background);
+  }
+  if (item.chart) {
+    const chart = document.createElement("figure");
+    chart.className = "question-bar-chart";
+    const caption = document.createElement("figcaption");
+    caption.textContent = item.chart.title;
+    chart.appendChild(caption);
+    const maximum = Math.max(1, ...item.chart.values.map((value) => Math.abs(Number(value))));
+    item.chart.labels.forEach((label, index) => {
+      const row = document.createElement("div");
+      const name = document.createElement("span");
+      name.textContent = `${label}: ${item.chart.values[index]}`;
+      const bar = document.createElement("span");
+      bar.className = "question-chart-bar";
+      bar.style.width = `${Math.abs(Number(item.chart.values[index])) / maximum * 100}%`;
+      bar.setAttribute("aria-hidden", "true");
+      row.append(name, bar);
+      chart.appendChild(row);
+    });
+    wrapper.appendChild(chart);
+  }
+  if (item.instruction) {
+    const instruction = document.createElement("p");
+    instruction.className = "muted";
+    instruction.textContent = item.instruction;
+    wrapper.appendChild(instruction);
+  }
+  if (!item.data_table) {
+    shell.insertBefore(wrapper, questionEl);
+    return;
+  }
+  const table = document.createElement("table");
+  const caption = document.createElement("caption");
+  caption.textContent = item.data_table.caption || "Question data";
+  table.appendChild(caption);
+  const head = document.createElement("thead");
+  const headings = document.createElement("tr");
+  (item.data_table.columns || []).forEach((heading) => {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = String(heading);
+    headings.appendChild(cell);
+  });
+  head.appendChild(headings);
+  table.appendChild(head);
+  const body = document.createElement("tbody");
+  (item.data_table.rows || []).forEach((row) => {
+    const tr = document.createElement("tr");
+    row.forEach((value, index) => {
+      const cell = document.createElement(index === 0 ? "th" : "td");
+      if (index === 0) cell.scope = "row";
+      cell.textContent = String(value);
+      tr.appendChild(cell);
+    });
+    body.appendChild(tr);
+  });
+  table.appendChild(body);
+  wrapper.appendChild(table);
+  shell.insertBefore(wrapper, questionEl);
+}
+
 function renderCcatSpatialOption(button, item, option, optionIndex) {
   const value = String(option);
   button.dataset.optionValue = value;
@@ -1948,12 +2021,22 @@ function renderCcatSpatialOption(button, item, option, optionIndex) {
   button.appendChild(renderCcatSpatialSvg(spec || { shape: "missing" }));
 }
 
+function appendFeedbackContinue(container, onContinue) {
+  if (!container) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button button-small feedback-continue";
+  button.textContent = "Next question";
+  button.addEventListener("click", onContinue, { once: true });
+  container.appendChild(button);
+}
+
 function practiceExplanation(item) {
   if (item.explanation) return String(item.explanation);
   const kind = String(item.context_kind || "");
   if (kind === "pairs") return "Count only pairs whose letters match apart from upper- and lower-case.";
   if (kind === "numbers") return "Order the three values, identify the middle one, then compare each outer value's distance from it.";
-  if (kind === "words") return "Look for the category shared by three words; the correct answer is the one that does not fit it.";
+  if (kind === "words") return "Find the relationship shared by two words; choose the third word that does not fit that relationship.";
   if (kind === "letter_pairs") return "A figure can be rotated and still match, but a mirror image reverses its handedness.";
   if (kind === "statements") return "Use the comparison statement to determine the relationship before choosing the named person or thing.";
   if (kind === "ccat_spatial") return "Check every visual property—shape, position, count, fill, and rotation—before selecting an option.";
@@ -2106,6 +2189,8 @@ function normalizePlayerQuestion(item) {
     ...preview,
     seed: String(item.seed || ""),
     summary: String(prompt.question || prompt.instruction || item.summary || preview.summary),
+    explanation: String(prompt.explanation || ""),
+    data_table: prompt.data_table || null,
     options: Array.isArray(payload.options) ? payload.options.map((option) => String(option)) : [],
     correct_answer: correctAnswer,
   };
@@ -2161,7 +2246,7 @@ function normalizePlayerQuestion(item) {
     };
   }
 
-  if (sectionType === "ccat_spatial") {
+  if (["ccat_spatial", "shl_inductive"].includes(sectionType)) {
     return {
       ...fromPayload,
       context_kind: "ccat_spatial",
@@ -2173,7 +2258,7 @@ function normalizePlayerQuestion(item) {
     };
   }
 
-  if (sectionType === "ccat_numerical" || sectionType === "ccat_verbal") {
+  if (["ccat_numerical", "ccat_verbal", "shl_numerical", "shl_deductive"].includes(sectionType)) {
     return {
       ...fromPayload,
       instruction: String(prompt.instruction || ""),
@@ -2245,22 +2330,29 @@ function renderLetterSvg(letter, mirrored, rotation = 0) {
   svg.setAttribute("viewBox", "0 0 100 100");
   svg.setAttribute("class", "shape-svg");
 
-  // Centre the glyph on (50, 50) so rotation turns it in place.
-  const text = document.createElementNS(svgNS, "text");
-  text.setAttribute("x", "50");
-  text.setAttribute("y", "50");
-  text.setAttribute("text-anchor", "middle");
-  text.setAttribute("dominant-baseline", "central");
-  text.setAttribute("font-size", "70");
-  text.setAttribute("font-family", "Georgia, serif");
-  text.setAttribute("font-weight", "bold");
-  text.setAttribute("fill", "#0f766e");
+  // Original fixed outlines avoid platform-dependent font silhouettes.
+  const glyphPaths = {
+    F: "M30 82 L30 18 L73 18 M30 46 L60 46",
+    P: "M30 82 L30 18 L60 18 Q78 18 78 36 Q78 52 60 52 L30 52",
+    R: "M30 82 L30 18 L60 18 Q78 18 78 36 Q78 52 60 52 L30 52 M54 52 L78 82",
+    L: "M30 18 L30 82 L73 82",
+    b: "M30 18 L30 82 M30 49 Q42 37 59 42 Q78 47 74 65 Q70 85 50 82 Q39 81 30 74",
+    q: "M70 88 L70 40 M70 48 Q58 35 40 42 Q23 48 27 65 Q31 82 49 79 Q62 77 70 69",
+  };
+  const group = document.createElementNS(svgNS, "g");
   const transforms = [];
   if (rotation) transforms.push(`rotate(${rotation} 50 50)`);
-  if (mirrored) transforms.push("scale(-1,1) translate(-100,0)");
-  if (transforms.length) text.setAttribute("transform", transforms.join(" "));
-  text.textContent = letter;
-  svg.appendChild(text);
+  if (mirrored) transforms.push("translate(100,0) scale(-1,1)");
+  if (transforms.length) group.setAttribute("transform", transforms.join(" "));
+  const path = document.createElementNS(svgNS, "path");
+  path.setAttribute("d", glyphPaths[letter] || glyphPaths.R);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "#0f766e");
+  path.setAttribute("stroke-width", "7");
+  path.setAttribute("stroke-linecap", "square");
+  path.setAttribute("stroke-linejoin", "round");
+  group.appendChild(path);
+  svg.appendChild(group);
   return svg;
 }
 

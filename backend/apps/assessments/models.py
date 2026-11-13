@@ -26,6 +26,18 @@ class SectionType(models.TextChoices):
     CCAT_NUMERICAL = "ccat_numerical", "CCAT Math & Numerical Reasoning"
     CCAT_VERBAL = "ccat_verbal", "CCAT Verbal Reasoning"
     CCAT_SPATIAL = "ccat_spatial", "CCAT Spatial & Abstract Reasoning"
+    SHL_NUMERICAL = "shl_numerical", "SHL-style Numerical Reasoning"
+    SHL_DEDUCTIVE = "shl_deductive", "SHL-style Deductive Reasoning"
+    SHL_INDUCTIVE = "shl_inductive", "SHL-style Inductive Reasoning"
+    CONSULTING_MATH = "consulting_math", "Consulting Business Mathematics"
+    CONSULTING_EVIDENCE = "consulting_evidence", "Consulting Evidence Evaluation"
+    CONSULTING_CASE = "consulting_case", "Consulting Short Cases"
+    WG_INFERENCE = "wg_inference", "Watson–Glaser-style Inference"
+    WG_ASSUMPTIONS = "wg_assumptions", "Watson–Glaser-style Assumptions"
+    WG_DEDUCTION = "wg_deduction", "Watson–Glaser-style Deduction"
+    WG_INTERPRETATION = "wg_interpretation", "Watson–Glaser-style Interpretation"
+    WG_ARGUMENTS = "wg_arguments", "Watson–Glaser-style Arguments"
+    LINKED_CASE = "linked_case", "Linked Consulting Cases"
 
 
 class PracticeTrackVisibility(models.TextChoices):
@@ -107,17 +119,11 @@ class FreeTierModuleLimit(models.Model):
         ordering = ("tenant", "assessment_type", "section_type")
 
     def clean(self):
-        section_assessments = {
-            SectionType.REASONING: "prepgia",
-            SectionType.PERCEPTUAL_SPEED: "prepgia",
-            SectionType.NUMBER_SPEED_ACCURACY: "prepgia",
-            SectionType.WORD_MEANING: "prepgia",
-            SectionType.SPATIAL_VISUALIZATION: "prepgia",
-            SectionType.CCAT_NUMERICAL: "ccat",
-            SectionType.CCAT_VERBAL: "ccat",
-            SectionType.CCAT_SPATIAL: "ccat",
-        }
-        expected_assessment = section_assessments.get(self.section_type)
+        from .config import get_module_assessment_type
+        try:
+            expected_assessment = get_module_assessment_type(self.section_type)
+        except KeyError:
+            expected_assessment = None
         if expected_assessment and self.assessment_type != expected_assessment:
             raise ValidationError(
                 {"assessment_type": f"{self.get_section_type_display()} belongs to {expected_assessment}."}
@@ -140,6 +146,7 @@ class Attempt(models.Model):
     assessment_type = models.CharField(max_length=24, default="prepgia")
     mode = models.CharField(max_length=24, choices=AttemptMode.choices)
     status = models.CharField(max_length=24, choices=AttemptStatus.choices, default=AttemptStatus.CREATED)
+    configuration = models.JSONField(default=dict, blank=True)
     overall_adjusted_score = models.FloatField(default=0)
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
@@ -205,6 +212,7 @@ class WordMeaningItem(models.Model):
     pair_word_1 = models.CharField(max_length=128)
     pair_word_2 = models.CharField(max_length=128)
     relationship_type = models.CharField(max_length=64)
+    explanation = models.TextField(blank=True)
     odd_word = models.CharField(max_length=128)
     difficulty = models.CharField(max_length=16, default="easy")
     tags = models.JSONField(default=list, blank=True)
@@ -216,3 +224,81 @@ class WordMeaningItem(models.Model):
 
     def __str__(self) -> str:
         return f"{self.pair_word_1} / {self.pair_word_2} -> {self.odd_word}"
+
+
+class TestConfiguration(models.Model):
+    """Nullable fields inherit from the wider scope or the built-in defaults."""
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.CASCADE, null=True, blank=True)
+    assessment_type = models.CharField(max_length=24, blank=True, help_text="Blank applies to all assessments.")
+    section_type = models.CharField(max_length=32, blank=True, choices=SectionType.choices, help_text="Blank applies to the entire assessment.")
+    free_practice_questions = models.PositiveIntegerField(null=True, blank=True)
+    paid_practice_questions = models.PositiveIntegerField(null=True, blank=True)
+    free_module_test_attempts = models.PositiveIntegerField(null=True, blank=True)
+    free_full_test_attempts = models.PositiveIntegerField(null=True, blank=True)
+    module_test_questions = models.PositiveIntegerField(null=True, blank=True)
+    full_test_module_questions = models.PositiveIntegerField(null=True, blank=True)
+    module_time_seconds = models.PositiveIntegerField(null=True, blank=True)
+    full_test_time_seconds = models.PositiveIntegerField(null=True, blank=True)
+    warmup_questions = models.PositiveIntegerField(null=True, blank=True)
+    test_type = models.CharField(max_length=16, blank=True, choices=[("normal", "Normal"), ("adaptive", "Adaptive")])
+    starting_difficulty = models.CharField(max_length=8, blank=True, choices=[("easy", "Easy"), ("medium", "Medium"), ("hard", "Hard")])
+    correct_to_increase = models.PositiveIntegerField(null=True, blank=True)
+    incorrect_to_decrease = models.PositiveIntegerField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["tenant", "assessment_type", "section_type"], condition=models.Q(tenant__isnull=False), name="unique_tenant_test_configuration"),
+            models.UniqueConstraint(fields=["assessment_type", "section_type"], condition=models.Q(tenant__isnull=True), name="unique_global_test_configuration"),
+        ]
+        ordering = ["tenant_id", "assessment_type", "section_type"]
+
+    def clean(self):
+        from .config import ASSESSMENT_CONFIG, get_assessment_module_keys
+        if self.assessment_type and self.assessment_type not in ASSESSMENT_CONFIG:
+            raise ValidationError({"assessment_type": "Unknown assessment."})
+        if self.section_type and (not self.assessment_type or self.section_type not in get_assessment_module_keys(self.assessment_type)):
+            raise ValidationError({"section_type": "Select the assessment that contains this module."})
+        for name in ("module_test_questions", "full_test_module_questions", "module_time_seconds", "full_test_time_seconds", "correct_to_increase", "incorrect_to_decrease"):
+            value = getattr(self, name)
+            if value is not None and not 1 <= value <= (86400 if "seconds" in name else 1000):
+                raise ValidationError({name: "Enter a positive value within the supported limit."})
+        for name in ("free_practice_questions", "paid_practice_questions", "warmup_questions", "free_module_test_attempts", "free_full_test_attempts"):
+            value = getattr(self, name)
+            if value is not None and value > 1000:
+                raise ValidationError({name: "At most 1,000 questions per session."})
+        from .config import get_module_meta
+        if self.section_type:
+            group_size = get_module_meta(self.section_type).get("case_group_size", 1)
+            for name in ("module_test_questions", "full_test_module_questions", "free_practice_questions", "paid_practice_questions"):
+                value = getattr(self, name)
+                if value is not None and value % group_size:
+                    raise ValidationError({name: f"Use a multiple of {group_size} to include complete linked cases."})
+
+    def __str__(self):
+        return f"{self.tenant or 'Platform defaults'} / {self.assessment_type or 'All assessments'} / {self.section_type or 'All modules'}"
+
+
+class AdaptiveSession(models.Model):
+    attempt = models.OneToOneField(Attempt, on_delete=models.CASCADE, related_name="adaptive_session")
+    state = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AssessmentResource(models.Model):
+    title = models.CharField(max_length=200)
+    assessment_type = models.CharField(max_length=24)
+    url = models.URLField(max_length=1000, unique=True)
+    publisher = models.CharField(max_length=120)
+    resource_type = models.CharField(max_length=24, choices=[("official_sample", "Official sample"), ("historical_practice", "Historical practice paper"), ("licensed_paper", "Licensed past paper")])
+    rights_status = models.CharField(max_length=24, default="link_only", choices=[("link_only", "External link only"), ("permission_granted", "Reuse permission recorded"), ("public_domain", "Public domain")])
+    permission_notes = models.TextField(blank=True)
+    verified_at = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def clean(self):
+        if self.rights_status != "link_only" and not self.permission_notes.strip():
+            raise ValidationError({"permission_notes": "Record the permission or public-domain basis before enabling reuse."})
+
+    def __str__(self):
+        return self.title

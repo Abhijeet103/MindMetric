@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AdaptiveTestPageView,
     AssessmentGuidePageView,
     AssessmentPracticePageView,
     ContactInquiryCreateView,
@@ -29,6 +30,7 @@ urlpatterns = [
     path("suggest-test/", TestSuggestionCreateView.as_view(), name="suggest-test"),
     path("track-waitlist/", TrackWaitlistCreateView.as_view(), name="track-waitlist"),
     path("practice/", PracticePageView.as_view(), name="practice"),
+    path("practice/adaptive/<int:attempt_id>/", AdaptiveTestPageView.as_view(), name="adaptive-test"),
     path("guides/<slug:assessment_guide_slug>/", AssessmentGuidePageView.as_view(), name="assessment-guide"),
     path(
         "guides/<slug:assessment_guide_slug>/<slug:module_guide_slug>/",

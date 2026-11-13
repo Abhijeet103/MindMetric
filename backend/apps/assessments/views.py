@@ -12,11 +12,11 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
 from backend.apps.assessments.config import ASSESSMENT_CONFIG, ASSESSMENT_PREPGIA
+from backend.apps.tenants.services import tenant_allows_assessment
 from backend.apps.tenants.utils import get_current_tenant
 
 from .models import Attempt, AttemptMode, AttemptStatus, SectionType
 from .services import (
-    SECTION_TIME_LIMITS,
     FullTestSessionError,
     can_start_attempt,
     create_attempt,
@@ -40,6 +40,8 @@ class SectionCatalogView(View):
         tenant = get_current_tenant() or (request.user.tenant if request.user.is_authenticated else None)
         sections = []
         for assessment_type, config in ASSESSMENT_CONFIG.items():
+            if not tenant_allows_assessment(tenant, assessment_type):
+                continue
             for module in config["modules"]:
                 limits = get_module_free_tier_limits(
                     tenant,
@@ -51,7 +53,9 @@ class SectionCatalogView(View):
                         "key": module["key"],
                         "label": module["title"],
                         "assessment_type": assessment_type,
-                        "time_limit_seconds": SECTION_TIME_LIMITS[module["key"]],
+                        "time_limit_seconds": limits.time_limit_seconds,
+                        "question_count": limits.test_question_count,
+                        "test_type": limits.test_type,
                         "available_in_section_mode": True,
                         "free_practice_question_limit": limits.practice_question_limit,
                         "free_test_attempt_limit": limits.test_attempt_limit,
@@ -80,6 +84,8 @@ class AttemptStartView(View):
         difficulty = payload.get("difficulty", "easy")
         assessment_type = payload.get("assessment_type", ASSESSMENT_PREPGIA)
         section_type = payload.get("section_type")
+        if difficulty not in {"easy", "medium", "hard", "mixed"}:
+            return JsonResponse({"detail": "Valid difficulty is required."}, status=400)
 
         if mode == AttemptMode.SECTION and section_type not in {choice for choice, _ in SectionType.choices}:
             return JsonResponse({"detail": "Valid section_type is required for a section-wise test."}, status=400)
@@ -353,3 +359,18 @@ class PracticeProgressUpdateView(LoginRequiredMixin, View):
                 "practice_question_limit": limits.practice_question_limit,
             }
         )
+
+
+class AdaptiveAdvanceView(LoginRequiredMixin, View):
+    def post(self, request, attempt_id):
+        from .adaptive import advance_adaptive, AdaptiveInputError
+        try:
+            payload = json.loads(request.body or "{}")
+            if not isinstance(payload, dict):
+                raise AdaptiveInputError("A JSON object is required.")
+            result = advance_adaptive(attempt_id, request.user, payload)
+        except Attempt.DoesNotExist:
+            return JsonResponse({"detail": "Attempt not found."}, status=404)
+        except (ValueError, AdaptiveInputError) as exc:
+            return JsonResponse({"detail": str(exc)}, status=400)
+        return JsonResponse(result)

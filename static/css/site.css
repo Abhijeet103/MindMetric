@@ -4820,3 +4820,21 @@ body.has-open-modal {
     min-height: 92px;
   }
 }
+
+
+.question-data-table { overflow-x: auto; margin: 1rem 0; max-width: 100%; }
+.question-data-table table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.question-data-table caption { text-align: left; font-weight: 600; margin-bottom: .75rem; }
+.question-data-table th, .question-data-table td { border: 1px solid #cbd5e1; padding: .65rem .8rem; text-align: right; }
+.question-data-table th { background: #f1f5f9; color: #172033; }
+.question-data-table th:first-child { text-align: left; }
+
+.feedback-continue { display: block; margin: .75rem auto 0; }
+
+.adaptive-meta { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-between; margin-bottom: 1rem; }
+.question-bar-chart { margin: 1rem 0; padding: 1rem; background: #f0f7f4; border-radius: 12px; }
+.question-bar-chart figcaption { font-weight: 700; margin-bottom: .75rem; }
+.question-bar-chart > div { margin: .7rem 0; }
+.question-chart-bar { display: block; height: 14px; background: #3e7563; border-radius: 4px; margin-top: .25rem; }
+[data-adaptive-options] { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+[data-adaptive-question] { white-space: pre-line; }

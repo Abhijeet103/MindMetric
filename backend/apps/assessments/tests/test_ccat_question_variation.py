@@ -1,5 +1,3 @@
-import json
-
 from django.test import SimpleTestCase
 
 from prepgia.generators import (
@@ -10,12 +8,8 @@ from prepgia.generators import (
 
 
 def question_signature(question):
-    payload = dict(question.payload)
-    payload.pop("question_id", None)
-    return json.dumps(
-        {"payload": payload, "correct_answer": question.correct_answer},
-        sort_keys=True,
-    )
+    from prepgia.question_types import semantic_question_signature
+    return semantic_question_signature(question.payload)
 
 
 class CCATQuestionVariationTests(SimpleTestCase):
@@ -64,9 +58,9 @@ class CCATQuestionVariationTests(SimpleTestCase):
         self.assert_valid_options(questions)
         self.assertEqual(
             {question.payload["metadata"]["subtype"] for question in questions},
-            {"analogy", "sentence_completion", "odd_one_out", "synonym", "antonym", "category", "definition", "cause_effect"},
+            {"analogy", "sentence_completion", "word_relationship", "synonym", "antonym", "inference", "definition", "deduction"},
         )
-        self.assertGreater(len({question_signature(question) for question in questions}), 75)
+        self.assertGreater(len({question_signature(question) for question in questions}), 120)
 
     def test_spatial_questions_cover_parameterized_visual_rules(self):
         questions = self.generate_sample(CCATSpatialGenerator())
@@ -92,7 +86,7 @@ class CCATQuestionVariationTests(SimpleTestCase):
         cases = (
             (CCATNumericalGenerator(), 12),
             (CCATVerbalGenerator(), 8),
-            (CCATSpatialGenerator(), 11),
+            (CCATSpatialGenerator(), 10),
         )
 
         for generator, family_count in cases:

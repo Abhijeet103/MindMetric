@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<section class="content-section">
+    <a href="{% url 'pages:assessment-practice' attempt.assessment_type %}">← Back to practice</a>
+    <h1>{{ assessment.title }} · Adaptive practice</h1>
+    <p>Question difficulty adjusts to your answers. Linked case questions stay together. Your result is a practice raw score.</p>
+    <article class="card" data-adaptive-player data-advance-url="{{ advance_url }}">
+        {% csrf_token %}
+        <div class="adaptive-meta"><strong data-adaptive-module></strong><span data-adaptive-progress></span><span data-adaptive-timer></span></div>
+        <p data-adaptive-error role="alert" hidden></p>
+        <button type="button" class="button" data-adaptive-start>Start or resume test</button>
+        <button type="button" class="button-secondary" data-adaptive-retry hidden>Retry saving answer</button>
+        <div data-adaptive-question-shell hidden>
+            <div data-adaptive-context></div>
+            <button type="button" class="button" data-adaptive-reveal hidden>Reveal question</button>
+            <h2 data-adaptive-question></h2>
+            <div class="answer-options" data-adaptive-options></div>
+            <button type="button" class="button-secondary top-gap" data-adaptive-end>End test and save result</button>
+        </div>
+        <div data-adaptive-result hidden aria-live="polite"></div>
+    </article>
+</section>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'js/adaptive.js' %}"></script>{% endblock %}

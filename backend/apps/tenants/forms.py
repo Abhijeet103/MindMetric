@@ -26,6 +26,7 @@ def _assessment_state_field(assessment_key: str) -> forms.ChoiceField:
     config = PRACTICE_TRACK_LIBRARY[assessment_key]
     return forms.ChoiceField(
         label=config["title"],
+        required=False,
         choices=ASSESSMENT_STATE_CHOICES,
         help_text="Not allocated hides access completely. Hidden keeps the assessment allocated but removes it from the frontend.",
     )
@@ -36,6 +37,8 @@ class TenantAssessmentStateFormMixin(forms.ModelForm):
     assessment_state_ccat = _assessment_state_field("ccat")
     assessment_state_watson_glaser = _assessment_state_field("watson_glaser")
     assessment_state_shl_verify = _assessment_state_field("shl_verify")
+    assessment_state_consulting = _assessment_state_field("consulting")
+    assessment_state_consulting_cases = _assessment_state_field("consulting_cases")
 
     def _configure_assessment_state_fields(self):
         allowed_assessments = set(getattr(self.instance, "allowed_assessments", None) or [])
@@ -61,7 +64,7 @@ class TenantAssessmentStateFormMixin(forms.ModelForm):
 
     def assessment_states(self) -> dict[str, str]:
         return {
-            assessment_key: self.cleaned_data[f"assessment_state_{assessment_key}"]
+            assessment_key: self.cleaned_data.get(f"assessment_state_{assessment_key}") or self.fields[f"assessment_state_{assessment_key}"].initial or NOT_ALLOCATED
             for assessment_key in PRACTICE_TRACK_LIBRARY
         }
 

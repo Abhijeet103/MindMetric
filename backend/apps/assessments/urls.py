@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AdaptiveAdvanceView,
     AttemptEndView,
     AttemptProgressSaveView,
     AttemptStartView,
@@ -14,6 +15,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("adaptive/<int:attempt_id>/next/", AdaptiveAdvanceView.as_view(), name="adaptive-advance"),
     path("sections/", SectionCatalogView.as_view(), name="sections"),
     path("attempts/start/", AttemptStartView.as_view(), name="attempt-start"),
     path("attempts/<int:attempt_id>/end/", AttemptEndView.as_view(), name="attempt-end"),

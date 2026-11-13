@@ -3,7 +3,9 @@ from __future__ import annotations
 import csv
 from datetime import timedelta
 
+from django import forms
 from django.contrib import admin, messages
+from django.utils.html import format_html_join
 from django.http import HttpResponse
 from django.utils import timezone
 
@@ -11,12 +13,13 @@ from backend.apps.tenants.admin_mixins import TenantScopedAdminMixin
 
 from .emails import send_track_release_email
 from .models import (
+    AssessmentResource,
+    TestConfiguration,
     AssessmentTrack,
     AssessmentTrackWaitlistEntry,
     Attempt,
     AttemptAnswer,
     AttemptSection,
-    FreeTierModuleLimit,
     PracticeTrackVisibility,
     SectionProgress,
     WordMeaningItem,
@@ -126,7 +129,6 @@ class AssessmentTrackWaitlistEntryAdmin(TenantScopedAdminMixin, admin.ModelAdmin
     readonly_fields = ("created_at", "updated_at")
 
 
-@admin.register(FreeTierModuleLimit)
 class FreeTierModuleLimitAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
     list_display = (
         "tenant",
@@ -298,3 +300,75 @@ class WordMeaningItemAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
+
+
+
+
+class TestConfigurationForm(forms.ModelForm):
+    class Meta:
+        model = TestConfiguration
+        fields = "__all__"
+        help_texts = {
+            "free_practice_questions": "Free-user quota per module. Zero disables free practice. Linked cases round up to complete groups.",
+            "paid_practice_questions": "Questions per practice session for users with unlimited access, not a lifetime quota.",
+            "free_module_test_attempts": "Free attempts per module. Zero disables new free module tests.",
+            "free_full_test_attempts": "Free full-test attempts per assessment.",
+            "module_test_questions": "Question count for module tests.",
+            "full_test_module_questions": "Questions per module in a full test. Set a module scope to change only one module.",
+            "full_test_time_seconds": "Overall timer for mixed normal forms and adaptive forms. GIA staged normal tests use the module timers.",
+            "warmup_questions": "Unscored warm-ups in normal staged tests. Adaptive tests start with the first scored item.",
+            "test_type": "Assessment scope controls full tests; module scope overrides module tests. In-progress attempts retain their settings.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .config import ASSESSMENT_CONFIG
+        self.fields["assessment_type"] = forms.ChoiceField(required=False, choices=[("", "All assessments"), *[(key, config["title"]) for key, config in ASSESSMENT_CONFIG.items()]])
+
+
+@admin.register(TestConfiguration)
+class TestConfigurationAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    form = TestConfigurationForm
+
+    @admin.display(description="Effective settings after inheritance")
+    def effective_settings(self, obj):
+        if not obj or not obj.assessment_type:
+            return "Blank values inherit defaults. Select an assessment and save to inspect its effective values."
+        from .policies import resolve_test_configuration
+        values = resolve_test_configuration(obj.tenant, obj.assessment_type, obj.section_type)
+        return format_html_join("", "<div><strong>{}</strong>: {}</div>", ((key.replace("_", " ").capitalize(), value) for key, value in values.items()))
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == "tenant" and not request.user.is_superuser:
+            field.required = True
+            field.initial = request.user.tenant_id
+        return field
+
+    list_display = ("__str__", "test_type", "free_practice_questions", "paid_practice_questions", "module_test_questions", "full_test_module_questions", "updated_at")
+    list_filter = ("tenant", "assessment_type", "test_type")
+    search_fields = ("assessment_type", "section_type", "tenant__name")
+    readonly_fields = ("updated_at", "effective_settings")
+    fieldsets = (
+        ("Scope — blank values inherit", {"fields": ("tenant", "assessment_type", "section_type", "effective_settings")}),
+        ("Practice and free access", {"fields": ("free_practice_questions", "paid_practice_questions", "free_module_test_attempts", "free_full_test_attempts")}),
+        ("Test form", {"fields": ("test_type", "module_test_questions", "full_test_module_questions", "module_time_seconds", "full_test_time_seconds", "warmup_questions")}),
+        ("Adaptive practice", {"fields": ("starting_difficulty", "correct_to_increase", "incorrect_to_decrease"), "description": "A staircase training algorithm adjusts difficulty from answers. These scores are not official publisher percentiles."}),
+    )
+
+
+@admin.register(AssessmentResource)
+class AssessmentResourceAdmin(admin.ModelAdmin):
+    list_display = ("title", "publisher", "resource_type", "rights_status", "is_active")
+    list_filter = ("assessment_type", "rights_status", "resource_type")
+    search_fields = ("title", "publisher", "permission_notes")
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    has_add_permission = has_view_permission
+    has_change_permission = has_view_permission
+    has_delete_permission = has_view_permission

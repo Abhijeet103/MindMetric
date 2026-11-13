@@ -15,11 +15,11 @@ from redis.exceptions import RedisError
 from backend.apps.accounts.models import User, UserRole
 from backend.apps.assessments.config import (
     ASSESSMENT_PREPGIA,
-    get_assessment_config,
+    ASSESSMENT_CONFIG,
     get_assessment_module_keys,
-    get_full_test_question_count,
     get_module_assessment_type,
     get_time_limit_seconds,
+    get_module_meta,
 )
 from backend.apps.tenants.services import (
     get_or_create_tenant_user,
@@ -29,19 +29,22 @@ from backend.apps.tenants.services import (
 )
 from backend.apps.tenants.utils import get_current_tenant, get_current_tenant_slug
 from prepgia.generators import SECTION_TYPES, generate_question
+from prepgia.question_types import semantic_question_signature
 
 from .models import (
     Attempt,
     AttemptMode,
     AttemptSection,
     AttemptStatus,
-    FreeTierModuleLimit,
     SectionProgress,
     SectionType,
 )
 
+from .policies import resolve_test_configuration, runtime_assessment_config
+
 ACTIVE_ATTEMPT_EXPIRY_SECONDS = 2 * 60 * 60
 _redis_client: Redis | None = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,9 +58,6 @@ class FullTestSessionError(Exception):
     pass
 
 
-FREE_FULL_TEST_LIMIT = 1
-FREE_SECTION_TEST_LIMIT = 2
-FREE_PRACTICE_QUESTION_LIMIT = 10
 
 
 SECTION_TIME_LIMITS = {section_type: get_time_limit_seconds(section_type) for section_type in SECTION_TYPES}
@@ -67,17 +67,15 @@ SECTION_TIME_LIMITS = {section_type: get_time_limit_seconds(section_type) for se
 class ModuleFreeTierLimits:
     practice_question_limit: int
     test_attempt_limit: int
+    paid_practice_question_limit: int = 100
+    test_question_count: int = 30
+    time_limit_seconds: int = 180
+    test_type: str = "normal"
 
 
 def get_module_free_tier_limits(tenant, assessment_type: str, section_type: str) -> ModuleFreeTierLimits:
-    configured = FreeTierModuleLimit.objects.filter(
-        tenant=tenant,
-        assessment_type=assessment_type,
-        section_type=section_type,
-    ).values("practice_question_limit", "test_attempt_limit").first()
-    if configured is None:
-        return ModuleFreeTierLimits(FREE_PRACTICE_QUESTION_LIMIT, FREE_SECTION_TEST_LIMIT)
-    return ModuleFreeTierLimits(**configured)
+    policy = resolve_test_configuration(tenant, assessment_type, section_type)
+    return ModuleFreeTierLimits(policy["free_practice_questions"], policy["free_module_test_attempts"], policy["paid_practice_questions"], policy["module_test_questions"], policy["module_time_seconds"], policy["test_type"])
 
 
 def has_unlimited_module_access(user: User, tenant=None) -> bool:
@@ -99,7 +97,15 @@ def can_start_attempt(
     assessment_type: str = ASSESSMENT_PREPGIA,
     section_type: str | None = None,
 ) -> AccessDecision:
+    if assessment_type not in ASSESSMENT_CONFIG:
+        return AccessDecision(False, "Unknown assessment.")
+    if mode not in {AttemptMode.SECTION, AttemptMode.FULL_TEST}:
+        return AccessDecision(False, "Unknown test mode.")
+    if mode == AttemptMode.SECTION and section_type not in get_assessment_module_keys(assessment_type):
+        return AccessDecision(False, "This module does not belong to the selected assessment.")
     tenant = get_current_tenant() or user.tenant
+    if not tenant_allows_assessment(tenant, assessment_type):
+        return AccessDecision(False, "This assessment is not included in your plan.")
     if is_institution_tenant(tenant):
         access = get_tenant_access(tenant=tenant, user=user, auto_enroll=False)
         if not access.allowed:
@@ -118,9 +124,10 @@ def can_start_attempt(
             mode=AttemptMode.FULL_TEST,
             assessment_type=assessment_type,
         ).count()
-        if used >= FREE_FULL_TEST_LIMIT:
-            return AccessDecision(False, f"Free users can take up to {FREE_FULL_TEST_LIMIT} full test. Upgrade to unlock unlimited access.")
-        remaining = FREE_FULL_TEST_LIMIT - used
+        full_limit = resolve_test_configuration(tenant, assessment_type)["free_full_test_attempts"]
+        if used >= full_limit:
+            return AccessDecision(False, f"Free users can take up to {full_limit} full tests. Upgrade to unlock unlimited access.")
+        remaining = full_limit - used
         return AccessDecision(True, f"Free tier: {remaining} full test remaining.")
 
     if mode == AttemptMode.SECTION:
@@ -142,6 +149,7 @@ def can_start_attempt(
     return AccessDecision(True, "")
 
 
+@transaction.atomic
 def create_attempt(
     user: User,
     mode: str,
@@ -157,11 +165,17 @@ def create_attempt(
     )
     if not decision.allowed:
         raise PermissionError(decision.message)
+    if mode == AttemptMode.FULL_TEST:
+        return get_or_create_full_test_attempt(user, assessment_type)
 
     tenant = get_current_tenant() or user.tenant
+    configuration = resolve_test_configuration(tenant, assessment_type, section_type or "")
+    keys = [section_type] if section_type else get_assessment_module_keys(assessment_type)
+    configuration["modules"] = {key: resolve_test_configuration(tenant, assessment_type, key) for key in keys}
     tenant_user = get_or_create_tenant_user(tenant=tenant, user=user)
     attempt = Attempt.objects.create(
         user=user,
+        configuration=configuration,
         tenant=tenant,
         tenant_user=tenant_user,
         assessment_type=assessment_type,
@@ -180,18 +194,18 @@ def create_attempt(
         len(section_keys),
     )
     for index, section_key in enumerate(section_keys):
-        question_target = get_time_limit_seconds(section_key) if mode == AttemptMode.SECTION else 5
+        question_target = configuration["modules"][section_key]["module_test_questions"] if mode == AttemptMode.SECTION else 5
         section_record = AttemptSection.objects.create(
             attempt=attempt,
             tenant=attempt.tenant,
             section_type=section_key,
             order_index=index,
             difficulty=difficulty,
-            time_limit_seconds=get_time_limit_seconds(section_key),
+            time_limit_seconds=configuration["modules"][section_key]["module_time_seconds"],
             question_count=question_target,
             question_payload={},
         )
-        if mode == AttemptMode.SECTION:
+        if mode == AttemptMode.SECTION and configuration["test_type"] != "adaptive":
             logger.info(
                 "Generating section attempt payload attempt_id=%s section=%s difficulty=%s question_count=%s",
                 attempt.id,
@@ -224,16 +238,26 @@ def create_attempt(
     return attempt
 
 
+@transaction.atomic
 def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMENT_PREPGIA) -> Attempt:
+    tenant = get_current_tenant() or user.tenant
+    if tenant_allows_assessment(tenant, assessment_type) and (not is_institution_tenant(tenant) or get_tenant_access(tenant=tenant, user=user, auto_enroll=False).allowed):
+        active = Attempt.objects.filter(user=user, tenant=tenant, assessment_type=assessment_type, mode=AttemptMode.FULL_TEST, status__in=[AttemptStatus.CREATED, AttemptStatus.IN_PROGRESS], configuration__test_type="adaptive").order_by("-id").first()
+        if active is not None:
+            return active
     decision = can_start_attempt(user, AttemptMode.FULL_TEST, assessment_type=assessment_type)
     if not decision.allowed:
         raise PermissionError(decision.message)
-    assessment_config = get_assessment_config(assessment_type)
+    tenant = get_current_tenant() or user.tenant
+    assessment_config = runtime_assessment_config(tenant, assessment_type)
+    configuration = resolve_test_configuration(tenant, assessment_type)
+    configuration["modules"] = {key: resolve_test_configuration(tenant, assessment_type, key) for key in get_assessment_module_keys(assessment_type)}
     full_test_practice_count = assessment_config["full_test_practice_count"]
     tenant = get_current_tenant() or user.tenant
     tenant_user = get_or_create_tenant_user(tenant=tenant, user=user)
     attempt = Attempt.objects.create(
         user=user,
+        configuration=configuration,
         tenant=tenant,
         tenant_user=tenant_user,
         assessment_type=assessment_type,
@@ -245,7 +269,7 @@ def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMEN
     session_sections = []
     existing_sections = {section.section_type: section for section in attempt.sections.all()}
     for index, section_key in enumerate(get_assessment_module_keys(assessment_type)):
-        test_count = get_full_test_question_count(assessment_type, section_key)
+        test_count = configuration["modules"][section_key]["full_test_module_questions"]
 
         section = existing_sections.get(section_key)
         if section is None:
@@ -255,14 +279,14 @@ def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMEN
                 section_type=section_key,
                 order_index=index,
                 difficulty="mixed",
-                time_limit_seconds=get_time_limit_seconds(section_key),
+                time_limit_seconds=configuration["modules"][section_key]["module_time_seconds"],
                 question_count=test_count,
                 question_payload={},
             )
         else:
             section.order_index = index
             section.difficulty = "mixed"
-            section.time_limit_seconds = get_time_limit_seconds(section_key)
+            section.time_limit_seconds = configuration["modules"][section_key]["module_time_seconds"]
             section.question_count = test_count
             section.question_payload = {}
             section.save(update_fields=["order_index", "difficulty", "time_limit_seconds", "question_count", "question_payload"])
@@ -287,6 +311,9 @@ def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMEN
                 "submitted_answers": [],
             }
         )
+
+    if configuration["test_type"] == "adaptive":
+        return attempt
 
     _save_full_test_session(
         attempt.id,
@@ -328,6 +355,8 @@ def get_or_create_section_attempt(
         .first()
     )
     if active_attempt is not None:
+        if active_attempt.configuration.get("test_type") == "adaptive":
+            return active_attempt
         if not _section_test_session_exists(active_attempt.id):
             logger.info(
                 "Redis section session missing for active attempt; regenerating attempt_id=%s user_id=%s section=%s",
@@ -394,6 +423,8 @@ def serialize_full_test_attempt_for_frontend(
 
 
 def get_full_test_question(attempt: Attempt, section_index: int, phase: str, question_index: int) -> dict[str, Any]:
+    if attempt.configuration.get("test_type") == "adaptive":
+        raise FullTestSessionError("Use the adaptive session endpoint for this attempt.")
     session = _load_full_test_session(attempt.id)
     sections = session.get("sections", [])
     if section_index < 0 or section_index >= len(sections):
@@ -423,6 +454,8 @@ def get_full_test_question(attempt: Attempt, section_index: int, phase: str, que
 
 
 def get_full_test_section_payload(attempt: Attempt, section_index: int) -> dict[str, Any]:
+    if attempt.configuration.get("test_type") == "adaptive":
+        raise FullTestSessionError("Use the adaptive session endpoint for this attempt.")
     session = _load_full_test_session(attempt.id)
     sections = session.get("sections", [])
     if section_index < 0 or section_index >= len(sections):
@@ -447,6 +480,8 @@ def get_full_test_section_payload(attempt: Attempt, section_index: int) -> dict[
 
 
 def submit_full_test_section(attempt: Attempt, section_id: int, submitted_answers: list[dict[str, Any]]) -> dict[str, Any]:
+    if attempt.configuration.get("test_type") == "adaptive":
+        raise FullTestSessionError("Use the adaptive session endpoint for this attempt.")
     session = _load_full_test_session(attempt.id)
     session_section = next((item for item in session.get("sections", []) if int(item.get("section_id", 0)) == section_id), None)
     if session_section is None:
@@ -512,7 +547,7 @@ def _ensure_full_test_section_phase_generated(
         _save_full_test_session(attempt.id, session)
         return
 
-    difficulty = "easy" if phase == "practice" else "medium"
+    difficulty = "easy" if phase == "practice" else ("medium" if attempt.assessment_type == ASSESSMENT_PREPGIA else "mixed")
     logger.info(
         "Generating staged full test section attempt_id=%s section=%s phase=%s difficulty=%s count=%s",
         attempt.id,
@@ -527,6 +562,8 @@ def _ensure_full_test_section_phase_generated(
 
 
 def get_section_test_previews(attempt: Attempt) -> list[dict[str, Any]]:
+    if attempt.configuration.get("test_type") == "adaptive":
+        raise FullTestSessionError("Use the adaptive session endpoint for this attempt.")
     session = _load_section_test_session(attempt.id)
     questions = session.get("questions", [])
     if questions and not isinstance(questions[0], dict):
@@ -557,6 +594,8 @@ def get_section_test_previews(attempt: Attempt) -> list[dict[str, Any]]:
 
 
 def save_attempt_progress(attempt: Attempt, payload: dict[str, Any]) -> None:
+    if attempt.configuration.get("test_type") == "adaptive":
+        return
     if attempt.mode == AttemptMode.FULL_TEST:
         _save_full_test_progress(attempt.id, payload.get("sections", []))
         return
@@ -564,6 +603,9 @@ def save_attempt_progress(attempt: Attempt, payload: dict[str, Any]) -> None:
 
 
 def submit_full_test_attempt(attempt: Attempt, submitted_answers: list[dict[str, Any]]) -> dict[str, Any]:
+    if attempt.configuration.get("test_type") == "adaptive":
+        from .adaptive import advance_adaptive
+        return advance_adaptive(attempt.id, attempt.user, {"finish": True}, tenant=attempt.tenant)
     if attempt.status == AttemptStatus.COMPLETED:
         logger.info("Full test submission reused completed result attempt_id=%s user_id=%s", attempt.id, attempt.user_id)
         return {
@@ -644,6 +686,9 @@ def submit_full_test_attempt(attempt: Attempt, submitted_answers: list[dict[str,
 
 
 def submit_section_attempt(attempt: Attempt, submitted_answers: list[dict[str, Any]]) -> dict[str, Any]:
+    if attempt.configuration.get("test_type") == "adaptive":
+        from .adaptive import advance_adaptive
+        return advance_adaptive(attempt.id, attempt.user, {"finish": True}, tenant=attempt.tenant)
     if attempt.status == AttemptStatus.COMPLETED:
         section = attempt.sections.order_by("order_index").first()
         return {
@@ -736,9 +781,9 @@ def record_practice_progress(
     return progress
 
 
-def record_test_progress(user: User, section_type: str, score: float, assessment_type: str | None = None) -> SectionProgress:
+def record_test_progress(user: User, section_type: str, score: float, assessment_type: str | None = None, tenant=None) -> SectionProgress:
     resolved_assessment_type = assessment_type or get_module_assessment_type(section_type)
-    tenant = get_current_tenant() or user.tenant
+    tenant = tenant or get_current_tenant() or user.tenant
     progress, _ = SectionProgress.objects.get_or_create(
         tenant=tenant,
         user=user,
@@ -819,6 +864,11 @@ def complete_attempt_with_zero(attempt: Attempt, reason: str = "manual_end") -> 
 
 
 def finalize_attempt_from_saved_progress(attempt: Attempt, reason: str = "manual_end") -> Attempt:
+    if attempt.configuration.get("test_type") == "adaptive":
+        from .adaptive import advance_adaptive
+        advance_adaptive(attempt.id, attempt.user, {"finish": True}, tenant=attempt.tenant)
+        attempt.refresh_from_db()
+        return attempt
     if attempt.status == AttemptStatus.COMPLETED:
         return attempt
     logger.info("Finalizing attempt from saved progress attempt_id=%s mode=%s reason=%s", attempt.id, attempt.mode, reason)
@@ -899,10 +949,24 @@ def recompute_section_progress_for_user(user: User, assessment_type: str | None 
 
 def _build_question_batch(attempt_id: int, section_type: str, phase: str, count: int, difficulty: str) -> list[dict[str, Any]]:
     batch = []
-    for index in range(count):
-        seed = f"{attempt_id}:{section_type}:{phase}:{difficulty}:{index}"
-        generated = generate_question(section_type, difficulty, seed)
-        batch.append(asdict(generated))
+    seen = set()
+    group_size = get_module_meta(section_type).get("case_group_size", 1)
+    if count % group_size:
+        raise ValueError(f"{section_type} requires complete groups of {group_size} questions.")
+    for start in range(0, count, group_size):
+        effective_difficulty = ["easy", "medium", "medium", "hard"][(start // group_size) % 4] if difficulty == "mixed" else difficulty
+        for retry in range(100):
+            namespace = f"{attempt_id}:{section_type}:{phase}:{effective_difficulty}"
+            if retry:
+                namespace += f":retry-{retry}"
+            candidates = [generate_question(section_type, effective_difficulty, f"{namespace}:{index}") for index in range(start, start + group_size)]
+            signatures = [semantic_question_signature(candidate.payload) for candidate in candidates]
+            if len(set(signatures)) == group_size and not seen.intersection(signatures):
+                seen.update(signatures)
+                batch.extend(asdict(candidate) for candidate in candidates)
+                break
+        else:
+            raise ValueError(f"Question bank exhausted for {section_type}; cannot create {count} distinct questions.")
     logger.info(
         "Generated question batch attempt_id=%s section=%s phase=%s difficulty=%s count=%s",
         attempt_id,
@@ -928,7 +992,9 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
     section_type = question.get("section_type", "")
 
     preview = {
-        "seed": question.get("seed", ""),
+        "case_study": prompt.get("case_study"),
+        "chart": prompt.get("chart"),
+        "seed": question.get("seed", "") if include_correct_answer else "",
         "summary": prompt.get("question") or prompt.get("instruction", "Question preview unavailable."),
         "context_kind": "generic",
         "instruction": "",
@@ -963,6 +1029,7 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
             {
                 "context_kind": "pairs",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "pairs": prompt.get("pairs", []),
                 "question_text": "How many matching pairs are there?",
             }
@@ -974,6 +1041,7 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
             {
                 "context_kind": "numbers",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "numbers": prompt.get("numbers", []),
                 "question_text": prompt.get("instruction", "Choose one answer."),
                 "reveal_mode": "question_only",
@@ -986,6 +1054,7 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
             {
                 "context_kind": "words",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "words": prompt.get("words", []),
                 "question_text": prompt.get("instruction", "Choose one answer."),
                 "reveal_mode": "question_only",
@@ -998,17 +1067,19 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
             {
                 "context_kind": "letter_pairs",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "letter_pairs": prompt.get("letter_pairs", []),
                 "question_text": "How many pairs show the same image?",
             }
         )
         return preview
 
-    if section_type == SectionType.CCAT_SPATIAL:
+    if section_type in {SectionType.CCAT_SPATIAL, SectionType.SHL_INDUCTIVE}:
         preview.update(
             {
                 "context_kind": "ccat_spatial",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "spatial_stimulus": prompt.get("stimulus", []),
                 "spatial_stimulus_layout": prompt.get("stimulus_layout", "sequence"),
                 "option_visuals": payload.get("option_visuals", []),
@@ -1018,17 +1089,20 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
         )
         return preview
 
-    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL}:
+    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL, SectionType.SHL_NUMERICAL, SectionType.SHL_DEDUCTIVE}:
         preview.update(
             {
                 "context_kind": "generic",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "question_text": prompt.get("question", prompt.get("instruction", "Choose one answer.")),
                 "reveal_mode": "question_only",
             }
         )
         return preview
 
+    if section_type in {"consulting_math", "consulting_evidence", "consulting_case", "linked_case", "wg_inference", "wg_assumptions", "wg_deduction", "wg_interpretation", "wg_arguments"}:
+        preview.update(context_kind="generic", instruction=prompt.get("instruction", ""), data_table=prompt.get("data_table"), question_text=prompt.get("question", ""), reveal_mode="question_only")
     return preview
 
 

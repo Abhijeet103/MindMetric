@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import asdict
 from decimal import Decimal
 
 from allauth.account.forms import LoginForm
@@ -60,12 +59,11 @@ from backend.apps.billing.services import (
 )
 from backend.apps.tenants.services import is_institution_tenant, tenant_allows_assessment
 from backend.apps.tenants.utils import get_default_tenant
-from prepgia.generators import generate_question
+from backend.apps.assessments.policies import resolve_test_configuration, runtime_assessment_config
 from prepgia.preview_data import get_questions
 
 from .emails import send_sale_inquiry_notification
 from .forms import PortalFeedbackForm, SaleInquiryForm, TestSuggestionForm, TrackWaitlistForm
-from .models import PortalFeedback
 from .guides import (
     MODULE_GUIDES,
     get_assessment_guide_url,
@@ -75,9 +73,6 @@ from .guides import (
 )
 from .seo import assessment_seo_metadata, module_seo_metadata
 
-SECTION_PRACTICE_GENERATION_COUNT = 40
-SECTION_PRACTICE_PAID_COUNT = 100
-SECTION_PRACTICE_GOAL = 50
 logger = logging.getLogger(__name__)
 
 
@@ -123,7 +118,9 @@ def _estimate_iq_band(percentile: int) -> tuple[str, str]:
     return "Below 80", "Developing range"
 
 
-def _build_estimate(score: float | int | None, assessment_type: str, section_type: str | None = None) -> dict[str, object]:
+def _build_estimate(score: float | int | None, assessment_type: str, section_type: str | None = None, test_type="normal") -> dict[str, object]:
+    if test_type == "adaptive" or assessment_type not in {ASSESSMENT_PREPGIA, ASSESSMENT_CCAT}:
+        return {"percentile": None, "percentile_label": "Practice raw score", "iq_range": "Not calibrated", "band": "No publisher percentile or IQ estimate"}
     percentile = _estimate_percentile(score, assessment_type, section_type)
     iq_range, band = _estimate_iq_band(percentile)
     return {
@@ -710,17 +707,19 @@ class AssessmentPracticePageView(TemplateView):
     def get_context_data(self, **kwargs):
         from backend.apps.accounts.models import UserRole
         from backend.apps.assessments.models import Attempt, AttemptMode
-        from backend.apps.assessments.services import FREE_FULL_TEST_LIMIT
+        full_limit = resolve_test_configuration(_current_tenant(self.request), self.kwargs["assessment_slug"])["free_full_test_attempts"]
         context = super().get_context_data(**kwargs)
         assessment_type = self.kwargs["assessment_slug"]
         tenant = _current_tenant(self.request)
         if not tenant_allows_assessment(tenant, assessment_type):
             raise Http404("Assessment not available for this institution.")
-        assessment_config = get_assessment_config(assessment_type)
+        assessment_config = runtime_assessment_config(_current_tenant(self.request), assessment_type)
         seo_metadata = assessment_seo_metadata(
             assessment_type,
             assessment_config["title"],
         )
+        from backend.apps.assessments.models import AssessmentResource
+        context["official_resources"] = AssessmentResource.objects.filter(assessment_type=assessment_type, is_active=True)
         sections = _practice_section_cards(self.request, assessment_type)
         user = self.request.user
         if user.is_authenticated and (
@@ -735,9 +734,9 @@ class AssessmentPracticePageView(TemplateView):
                 mode=AttemptMode.FULL_TEST,
                 assessment_type=assessment_type,
             ).count()
-            full_test_attempts_left = max(0, FREE_FULL_TEST_LIMIT - full_used)
+            full_test_attempts_left = max(0, full_limit - full_used)
         else:
-            full_test_attempts_left = FREE_FULL_TEST_LIMIT
+            full_test_attempts_left = full_limit
         context.update(
             {
                 "page_title": seo_metadata["page_title"],
@@ -782,6 +781,12 @@ class SectionsPageView(TemplateView):
 
 
 class FullTestPageView(LoginRequiredMixin, TemplateView):
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs)
+        if context.get("adaptive_url"):
+            return redirect(context["adaptive_url"])
+        return self.render_to_response(context)
+
     template_name = "pages/full_test.html"
     login_url = "/login/"
 
@@ -790,7 +795,7 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
         assessment_type = self.kwargs.get("assessment_slug", ASSESSMENT_PREPGIA)
         if not tenant_allows_assessment(_current_tenant(self.request), assessment_type):
             raise Http404("Assessment not available for this institution.")
-        assessment_config = get_assessment_config(assessment_type)
+        assessment_config = runtime_assessment_config(_current_tenant(self.request), assessment_type)
         section_meta = {module["key"]: {"title": module["title"], "description": module["description"]} for module in assessment_config["modules"]}
         instructions = {module["key"]: module["instruction"] for module in assessment_config["modules"]}
         full_test_data = []
@@ -799,6 +804,8 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
         try:
             attempt = get_or_create_full_test_attempt(self.request.user, assessment_type=assessment_type)
             full_test_attempt_id = attempt.id
+            if attempt.configuration.get("test_type") == "adaptive":
+                context["adaptive_url"] = reverse("pages:adaptive-test", args=[attempt.id])
             full_test_data = serialize_full_test_attempt_for_frontend(
                 attempt,
                 section_meta,
@@ -824,7 +831,7 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
                 "full_test_submit_url": f"/api/tests/full-tests/{full_test_attempt_id}/submit/" if full_test_attempt_id else "",
                 "full_test_access_error": access_error,
                 "full_test_mode": assessment_config.get("full_test_mode", "staged"),
-                "full_test_duration_seconds": int(assessment_config.get("full_test_duration_minutes", 45)) * 60,
+                "full_test_duration_seconds": int(assessment_config.get("full_test_duration_minutes", 45) * 60),
             }
         )
         return context
@@ -839,7 +846,7 @@ class SectionDetailPageView(TemplateView):
         tenant = _current_tenant(self.request)
         if not tenant_allows_assessment(tenant, assessment_type):
             raise Http404("Assessment not available for this institution.")
-        assessment_config = get_assessment_config(assessment_type)
+        assessment_config = runtime_assessment_config(_current_tenant(self.request), assessment_type)
         slug = self.kwargs["slug"]
         try:
             section_type = SectionType(slug)
@@ -866,7 +873,7 @@ class SectionDetailPageView(TemplateView):
             and has_unlimited_module_access(self.request.user, tenant)
         )
         practice_question_total = (
-            SECTION_PRACTICE_PAID_COUNT
+            limits.paid_practice_question_limit
             if unlimited_access
             else limits.practice_question_limit
         )
@@ -904,8 +911,8 @@ class SectionDetailPageView(TemplateView):
                     "description": meta["description"],
                     "instruction": meta["instruction"],
                     "help": meta.get("help", {}),
-                    "time_limit_seconds": get_time_limit_seconds(section_type),
-                    "duration_minutes": max(1, round(get_time_limit_seconds(section_type) / 60)),
+                    "time_limit_seconds": limits.time_limit_seconds,
+                    "duration_minutes": max(1, round(limits.time_limit_seconds / 60)),
                     "question_count": len(practice_previews),
                     "practice_question_total": practice_question_total,
                     "practice_questions_solved": practice_questions_solved,
@@ -913,6 +920,8 @@ class SectionDetailPageView(TemplateView):
                     "practice_previews": practice_previews,
                     "practice_access_exhausted": not unlimited_access and practice_remaining == 0,
                     "free_test_attempt_limit": limits.test_attempt_limit,
+                "test_type": limits.test_type,
+                "test_question_count": limits.test_question_count,
                     "mode": mode,
                     "test_setup_url": reverse("pages:assessment-section-test-setup", args=[assessment_type, section_type]),
                     "guide_url": get_module_guide_url(assessment_type, str(section_type)),
@@ -938,6 +947,8 @@ class SectionTestSetupView(LoginRequiredMixin, View):
 
         try:
             attempt = get_or_create_section_attempt(request.user, section_type, assessment_type=assessment_type)
+            if attempt.configuration.get("test_type") == "adaptive":
+                return JsonResponse({"adaptive_url": reverse("pages:adaptive-test", args=[attempt.id])})
             previews = get_section_test_previews(attempt)
         except PermissionError as exc:
             return JsonResponse({"detail": str(exc), "access_requires_upgrade": True}, status=403)
@@ -951,6 +962,7 @@ class SectionTestSetupView(LoginRequiredMixin, View):
                 "submit_url": f"/api/tests/section-tests/{attempt.id}/submit/",
                 "progress_url": reverse("attempt-progress", args=[attempt.id]),
                 "end_url": reverse("attempt-end", args=[attempt.id]),
+                "time_limit_seconds": attempt.sections.order_by("order_index").first().time_limit_seconds,
                 "previews": previews,
             }
         )
@@ -1053,6 +1065,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                 attempt.overall_adjusted_score,
                 attempt.assessment_type,
                 first_section.section_type if attempt.mode == AttemptMode.SECTION and first_section else None,
+                test_type=attempt.configuration.get("test_type", "normal"),
             )
             recent_attempt_rows.append(
                 {
@@ -1075,7 +1088,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
             section = next(iter(attempt.sections.all()), None)
             if section is None:
                 continue
-            estimate = _build_estimate(section.adjusted_score, attempt.assessment_type, section.section_type)
+            estimate = _build_estimate(section.adjusted_score, attempt.assessment_type, section.section_type, attempt.configuration.get("test_type", "normal"))
             section_score_rows.append(
                 {
                     "attempt_id": attempt.id,
@@ -1095,7 +1108,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
         for attempt in full_test_attempts:
             section_scores = {section.section_type: section.adjusted_score for section in attempt.sections.all()}
             module_keys = get_assessment_module_keys(attempt.assessment_type)
-            estimate = _build_estimate(attempt.overall_adjusted_score, attempt.assessment_type)
+            estimate = _build_estimate(attempt.overall_adjusted_score, attempt.assessment_type, test_type=attempt.configuration.get("test_type", "normal"))
             full_test_rows.append(
                 {
                     "attempt_id": attempt.id,
@@ -1135,7 +1148,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                 tests_taken = row.tests_taken if row else 0
                 limits = get_module_free_tier_limits(tenant, assessment_key, module["key"])
                 practice_goal = (
-                    SECTION_PRACTICE_GOAL
+                    limits.paid_practice_question_limit
                     if unlimited_module_access
                     else limits.practice_question_limit
                 )
@@ -1182,7 +1195,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                 continue
             score = attempt.overall_adjusted_score
             label = attempt.completed_at.strftime("%-d %b") if attempt.completed_at else f"#{i}"
-            estimate = _build_estimate(score, attempt.assessment_type)
+            estimate = _build_estimate(score, attempt.assessment_type, test_type=attempt.configuration.get("test_type", "normal"))
             chart_data[attempt.assessment_type]["full_test"].append(
                 {
                     "label": label,
@@ -1212,7 +1225,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
             section_counters[attempt.assessment_type][key] += 1
             label = attempt.completed_at.strftime("%-d %b") if attempt.completed_at else f"#{section_counters[attempt.assessment_type][key]}"
             score = section.adjusted_score
-            estimate = _build_estimate(score, attempt.assessment_type, section.section_type)
+            estimate = _build_estimate(score, attempt.assessment_type, section.section_type, attempt.configuration.get("test_type", "normal"))
             chart_data[attempt.assessment_type][key].append(
                 {
                     "label": label,
@@ -1236,6 +1249,7 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                 latest_attempt.overall_adjusted_score,
                 latest_attempt.assessment_type,
                 first_section.section_type if latest_attempt.mode == AttemptMode.SECTION and first_section else None,
+                test_type=latest_attempt.configuration.get("test_type", "normal"),
             )
             based_on = "Based on latest full test" if latest_attempt.mode == AttemptMode.FULL_TEST else "Based on latest module test"
             assessment_estimates[assessment_key] = {
@@ -1330,7 +1344,7 @@ def _practice_section_cards(request, assessment_type: str):
         tests_taken = progress.tests_taken if progress else 0
         active_attempt = active_attempts.get(key)
         limits = get_module_free_tier_limits(tenant, assessment_type, key)
-        practice_goal = SECTION_PRACTICE_GOAL if unlimited_access else limits.practice_question_limit
+        practice_goal = limits.paid_practice_question_limit if unlimited_access else limits.practice_question_limit
         test_goal = 10 if unlimited_access else limits.test_attempt_limit
         practice_ratio = min(practice_solved / practice_goal, 1) if practice_goal else 0
         test_ratio = min(tests_taken / test_goal, 1) if test_goal else 0
@@ -1357,12 +1371,14 @@ def _practice_section_cards(request, assessment_type: str):
                 "question_count": limits.practice_question_limit,
                 "free_practice_question_limit": limits.practice_question_limit,
                 "free_test_attempt_limit": limits.test_attempt_limit,
+                "test_type": limits.test_type,
+                "test_question_count": limits.test_question_count,
                 "free_test_attempts_left": (
                     None
                     if unlimited_access
                     else max(0, limits.test_attempt_limit - test_attempt_counts.get(key, 0))
                 ),
-                "duration_minutes": max(1, get_time_limit_seconds(key) // 60),
+                "duration_minutes": max(1, limits.time_limit_seconds // 60),
                 "practice_solved": practice_solved,
                 "tests_taken": tests_taken,
                 "progress_percent": progress_percent,
@@ -1385,13 +1401,12 @@ def _build_section_questions(section_type: str, mode: str, user=None, question_c
         question_count = max(1, get_time_limit_seconds(section_type) // 2)
     else:
         question_count = get_time_limit_seconds(section_type)
+    from backend.apps.assessments.services import _build_question_batch
+    group_size = get_module_meta(section_type).get("case_group_size", 1)
+    question_count = ((question_count + group_size - 1) // group_size) * group_size
     session_id = uuid.uuid4().hex
-    questions = []
-    for index in range(question_count):
-        seed = f"section:{section_type}:{mode}:{difficulty}:{session_id}:{index}"
-        generated = generate_question(section_type, difficulty, seed)
-        questions.append(_build_generated_preview(asdict(generated)))
-    return questions
+    generated = _build_question_batch(session_id, section_type, mode, question_count, difficulty)
+    return [_build_generated_preview(item) for item in generated]
 
 
 def _question_summary(payload_json: str) -> str:
@@ -1462,6 +1477,7 @@ def _build_preview(item: dict, section_type: str) -> dict:
             {
                 "context_kind": "pairs",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "pairs": prompt.get("pairs", []),
                 "question_text": "How many matching pairs are there?",
                 "reveal_mode": "context_then_question",
@@ -1475,6 +1491,7 @@ def _build_preview(item: dict, section_type: str) -> dict:
             {
                 "context_kind": "numbers",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "numbers": prompt.get("numbers", []),
                 "question_text": prompt.get("instruction", "Choose one answer."),
                 "reveal_mode": "question_only",
@@ -1488,6 +1505,7 @@ def _build_preview(item: dict, section_type: str) -> dict:
             {
                 "context_kind": "words",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "words": prompt.get("words", []),
                 "question_text": prompt.get("instruction", "Choose one answer."),
                 "reveal_mode": "question_only",
@@ -1501,6 +1519,7 @@ def _build_preview(item: dict, section_type: str) -> dict:
             {
                 "context_kind": "letter_pairs",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "letter_pairs": prompt.get("letter_pairs", []),
                 "question_text": "How many pairs show the same image?",
                 "options": options,
@@ -1508,11 +1527,12 @@ def _build_preview(item: dict, section_type: str) -> dict:
         )
         return preview
 
-    if section_type == SectionType.CCAT_SPATIAL:
+    if section_type in {SectionType.CCAT_SPATIAL, SectionType.SHL_INDUCTIVE}:
         preview.update(
             {
                 "context_kind": "ccat_spatial",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "spatial_stimulus": prompt.get("stimulus", []),
                 "spatial_stimulus_layout": prompt.get("stimulus_layout", "sequence"),
                 "option_visuals": payload.get("option_visuals", []),
@@ -1523,11 +1543,12 @@ def _build_preview(item: dict, section_type: str) -> dict:
         )
         return preview
 
-    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL}:
+    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL, SectionType.SHL_NUMERICAL, SectionType.SHL_DEDUCTIVE}:
         preview.update(
             {
                 "context_kind": "generic",
                 "instruction": prompt.get("instruction", ""),
+                "data_table": prompt.get("data_table"),
                 "question_text": prompt.get("question", prompt.get("instruction", "Choose one answer.")),
                 "reveal_mode": "question_only",
                 "options": options,
@@ -1539,110 +1560,22 @@ def _build_preview(item: dict, section_type: str) -> dict:
 
 
 def _build_generated_preview(item: dict) -> dict:
-    payload = item.get("payload", {})
-    prompt = payload.get("prompt", {})
-    options = [str(option) for option in payload.get("options", [])]
-    correct_answer = str(item.get("correct_answer", {}).get("answer", ""))
-    section_type = item.get("section_type", "")
+    from backend.apps.assessments.services import _serialize_generated_question_for_player
+    return _serialize_generated_question_for_player(item, include_correct_answer=True)
 
-    preview = {
-        "seed": item.get("seed", ""),
-        "summary": prompt.get("question") or prompt.get("instruction", "Question preview unavailable."),
-        "context_kind": "generic",
-        "instruction": "",
-        "context_lines": [],
-        "pairs": [],
-        "numbers": [],
-        "words": [],
-        "shapes": {},
-        "spatial_stimulus": [],
-        "option_visuals": [],
-        "question_text": "",
-        "options": options,
-        "correct_answer": correct_answer,
-        "explanation": prompt.get("explanation", ""),
-        "reveal_mode": "context_then_question",
-    }
 
-    if section_type == SectionType.REASONING:
-        preview.update(
-            {
-                "context_kind": "statements",
-                "context_lines": prompt.get("statements", []),
-                "question_text": prompt.get("question", "Choose one answer."),
-            }
-        )
-        return preview
+class AdaptiveTestPageView(LoginRequiredMixin, TemplateView):
+    template_name = "pages/adaptive_test.html"
+    login_url = "/login/"
 
-    if section_type == SectionType.PERCEPTUAL_SPEED:
-        preview.update(
-            {
-                "context_kind": "pairs",
-                "instruction": prompt.get("instruction", ""),
-                "pairs": prompt.get("pairs", []),
-                "question_text": "How many matching pairs are there?",
-            }
-        )
-        return preview
-
-    if section_type == SectionType.NUMBER_SPEED_ACCURACY:
-        preview.update(
-            {
-                "context_kind": "numbers",
-                "instruction": prompt.get("instruction", ""),
-                "numbers": prompt.get("numbers", []),
-                "question_text": prompt.get("instruction", "Choose one answer."),
-                "reveal_mode": "question_only",
-            }
-        )
-        return preview
-
-    if section_type == SectionType.WORD_MEANING:
-        preview.update(
-            {
-                "context_kind": "words",
-                "instruction": prompt.get("instruction", ""),
-                "words": prompt.get("words", []),
-                "question_text": prompt.get("instruction", "Choose one answer."),
-                "reveal_mode": "question_only",
-            }
-        )
-        return preview
-
-    if section_type == SectionType.SPATIAL_VISUALIZATION:
-        preview.update(
-            {
-                "context_kind": "letter_pairs",
-                "instruction": prompt.get("instruction", ""),
-                "letter_pairs": prompt.get("letter_pairs", []),
-                "question_text": "How many pairs show the same image?",
-            }
-        )
-        return preview
-
-    if section_type == SectionType.CCAT_SPATIAL:
-        preview.update(
-            {
-                "context_kind": "ccat_spatial",
-                "instruction": prompt.get("instruction", ""),
-                "spatial_stimulus": prompt.get("stimulus", []),
-                "spatial_stimulus_layout": prompt.get("stimulus_layout", "sequence"),
-                "option_visuals": payload.get("option_visuals", []),
-                "question_text": prompt.get("question", "Choose the missing figure."),
-                "reveal_mode": "question_only",
-            }
-        )
-        return preview
-
-    if section_type in {SectionType.CCAT_NUMERICAL, SectionType.CCAT_VERBAL}:
-        preview.update(
-            {
-                "context_kind": "generic",
-                "instruction": prompt.get("instruction", ""),
-                "question_text": prompt.get("question", prompt.get("instruction", "Choose one answer.")),
-                "reveal_mode": "question_only",
-            }
-        )
-        return preview
-
-    return preview
+    def get_context_data(self, **kwargs):
+        from backend.apps.assessments.models import Attempt
+        from django.shortcuts import get_object_or_404
+        context = super().get_context_data(**kwargs)
+        attempt = get_object_or_404(Attempt, pk=kwargs["attempt_id"], user=self.request.user, tenant=_current_tenant(self.request) or self.request.user.tenant)
+        if attempt.configuration.get("test_type") != "adaptive":
+            raise Http404("Adaptive attempt not found.")
+        context.update(page_title="Adaptive Practice | MindMetric", attempt=attempt,
+                       assessment=get_assessment_config(attempt.assessment_type),
+                       advance_url=reverse("adaptive-advance", args=[attempt.id]))
+        return context
