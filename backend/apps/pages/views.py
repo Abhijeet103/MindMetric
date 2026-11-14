@@ -344,6 +344,7 @@ class HomePageView(TemplateView):
                 "sections": _section_cards(ASSESSMENT_PREPGIA),
                 "home_assessments": get_assessment_cards(),
                 "home_tests": _home_test_picker(self.request),
+                "home_finder": _home_finder_data(self.request),
                 "home_eyebrow": prepgia_config["eyebrow"],
             }
         )
@@ -370,6 +371,40 @@ HOME_TEST_PICKER_LABELS = {
     "watson_glaser": ("Watson–Glaser-style", "Critical thinking"),
     "prepgia": ("Thomas GIA", "5 sections"),
 }
+
+
+# Words a student might type for each test: its name, the publisher named in
+# the invite email, and the skills it covers. Publisher-to-test mappings only;
+# which employer uses which test comes from sourced EmployerAssessment rows.
+HOME_TEST_KEYWORDS = {
+    "ccat": "ccat criteria cognitive aptitude test criteria corp",
+    "shl_verify": "shl verify numerical inductive deductive reasoning",
+    "consulting": "consulting problem solving business reasoning",
+    "consulting_cases": "consulting case interview cases",
+    "watson_glaser": "watson glaser critical thinking pearson talentlens",
+    "prepgia": "thomas gia general intelligence assessment thomas international",
+}
+HOME_QUICK_PICKS = 3
+
+
+def _home_finder_data(request):
+    from .models import EmployerAssessment
+
+    tests = _home_test_picker(request)
+    titles = {test["key"]: test for test in tests}
+    companies = []
+    for entry in EmployerAssessment.objects.filter(is_published=True).order_by("company")[:300]:
+        matched = [titles[key] for key in entry.assessment_types if key in titles]
+        if matched:
+            companies.append({"name": entry.company, "test": matched[0]["label"], "url": matched[0]["url"]})
+    return {
+        "tests": [
+            {"label": test["label"], "hint": test["hint"], "url": test["url"], "keywords": HOME_TEST_KEYWORDS.get(test["key"], "")}
+            for test in tests
+        ],
+        "companies": companies,
+        "lookup_url": reverse("pages:company-lookup"),
+    }
 
 
 def _home_test_picker(request):

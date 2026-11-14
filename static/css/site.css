@@ -61,7 +61,7 @@
     --teal-dark: #8fe0c7;
     --teal-tint: #12261f;
     --brand-fill: #1b7a63;
-    --brand-fill-hover: #21906f;
+    --brand-fill-hover: #166b56;
     --orange: #f2ab55;
     --orange-tint: #2a1f10;
     --good: #55cf93;
@@ -92,7 +92,7 @@
   --teal-dark: #8fe0c7;
   --teal-tint: #12261f;
   --brand-fill: #1b7a63;
-  --brand-fill-hover: #21906f;
+  --brand-fill-hover: #166b56;
   --orange: #f2ab55;
   --orange-tint: #2a1f10;
   --good: #55cf93;
@@ -6135,4 +6135,110 @@ body[data-view-name="pages:adaptive-test"] .footer { display: none; }
   text-decoration: underline;
   text-underline-offset: 3px;
   white-space: nowrap;
+}
+
+/* Buttons that also carry the muted stage-helper class keep button text colours. */
+.button.full-test-stage-helper,
+.button.reveal-question-button,
+.full-test-stage .button.full-test-stage-helper {
+  color: #fff;
+  letter-spacing: normal;
+  font-size: 1rem;
+}
+.button.reveal-question-button kbd { color: inherit; border-color: rgba(255, 255, 255, 0.55); opacity: 1; }
+
+/* ---- Homepage finder: one question instead of a wall of chips ---- */
+.landing-finder {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  margin-top: 8px;
+}
+.landing-finder-label {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+.landing-finder-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgb(var(--card-rgb));
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.landing-finder-field:focus-within {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 22%, transparent), var(--shadow);
+}
+.landing-finder-anchor { position: relative; }
+.landing-finder-icon { flex: none; color: var(--ink-muted); }
+.landing-finder-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  padding: 8px 0;
+}
+.landing-finder-field input::placeholder { color: var(--ink-muted); opacity: 0.85; }
+.landing-finder-field input::-webkit-search-cancel-button { display: none; }
+.landing-finder-go { flex: none; padding: 10px 16px; min-height: 0; }
+.landing-finder-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgb(var(--card-rgb));
+  box-shadow: var(--shadow);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.landing-finder-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--ink);
+}
+.landing-finder-option small { color: var(--ink-muted); font-size: 0.84rem; white-space: nowrap; }
+.landing-finder-option[aria-selected="true"],
+.landing-finder-option:hover { background: color-mix(in srgb, var(--teal) 12%, transparent); }
+.landing-finder-option.is-lookup { color: var(--teal); font-weight: 600; border-top: 1px solid var(--line); border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+.landing-finder-option-title { font-weight: 600; }
+.landing-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 2px 0 0;
+  font-size: 0.92rem;
+}
+.landing-quick-label { color: var(--ink-muted); }
+.landing-quick a { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; }
+.landing-quick a:hover { text-decoration-color: var(--teal); }
+.landing-quick a.landing-quick-all { color: var(--teal); text-decoration: none; }
+.landing-trust-line { margin: 4px 0 0; color: var(--ink-muted); font-size: 0.88rem; }
+
+@media (max-width: 520px) {
+  .landing-finder-field { flex-wrap: wrap; padding: 6px 6px 6px 12px; }
+  .landing-finder-field input { flex-basis: calc(100% - 30px); }
+  .landing-finder-go { flex-basis: 100%; }
 }
