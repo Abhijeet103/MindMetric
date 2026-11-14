@@ -5,8 +5,8 @@
 <section class="pricing-shell">
     <div class="pricing-hero">
         <span class="kicker">Pricing</span>
-        <h1 class="section-title">Pricing built for practice</h1>
-        <p class="section-copy">Start with free practice, then choose a monthly membership for full access. Your access lasts one month and won’t renew automatically.</p>
+        <h1 class="section-title">One price for every test in your applications</h1>
+        <p class="section-copy">Start free. When you're ready for full timed practice, a membership covers every test for one month and then ends on its own. There's nothing to cancel.</p>
     </div>
 
     <div class="pricing-card-grid">
@@ -17,8 +17,9 @@
             </div>
             <p class="pricing-plan-duration">No expiry</p>
             <ul class="pricing-feature-list">
-                <li>3 full tests</li>
-                <li>Limited section practice</li>
+                <li>Free practice questions in every module</li>
+                <li>One timed full test per test, with a free account</li>
+                <li>Worked explanations</li>
             </ul>
             <a href="{% url 'pages:practice' %}" data-show-loader class="button-secondary pricing-plan-button">Continue free</a>
         </article>
@@ -45,11 +46,13 @@
                     {% if plan.code == "monthly" %}One month access · no auto-renewal{% else %}{{ plan.duration_label }}{% endif %}
                 </p>
                 <ul class="pricing-feature-list">
-                    <li>Full access, all tracks</li>
+                    <li>Every test and every module</li>
+                    <li>Timed full tests and section tests</li>
+                    <li>Full practice question bank with explanations</li>
                     {% if plan.code == "weekly" %}
-                        <li>Best if you're in a rush</li>
+                        <li>Good for a deadline this week</li>
                     {% elif plan.code == "monthly" %}
-                        <li>Best for longer prep</li>
+                        <li>Covers a whole recruiting sprint</li>
                     {% endif %}
                 </ul>
                 {% if request.user.is_authenticated and plan.show_action %}
@@ -92,10 +95,32 @@
         {% endfor %}
     </div>
 
+    <section class="landing-faq pricing-faq" aria-labelledby="pricing-faq-title">
+        <h2 id="pricing-faq-title">Common questions</h2>
+        <div class="landing-faq-list">
+            <details>
+                <summary>Does the membership renew automatically?</summary>
+                <p>No. You pay once and get one month of access. When it ends, your account goes back to the free plan and keeps your history. There's nothing to cancel.</p>
+            </details>
+            <details>
+                <summary>Does one membership cover every test?</summary>
+                <p>Yes. It covers every test and module on MindMetric, so you can prepare for several employers' assessments at once.</p>
+            </details>
+            <details>
+                <summary>Are these the real tests?</summary>
+                <p>No. MindMetric is independent and not affiliated with any test publisher or employer. Our questions are original and follow the published format and timing of each test.</p>
+            </details>
+            <details>
+                <summary>What if something goes wrong with a payment?</summary>
+                <p>Email <a href="mailto:support@mindmetric.store">support@mindmetric.store</a> with the address you signed up with{% if "refunds" in legal_published %}, and see our <a href="{% url 'pages:legal-page' 'refunds' %}">refund policy</a>{% endif %}.</p>
+            </details>
+        </div>
+    </section>
+
     <article class="pricing-sales-banner">
         <div class="pricing-sales-copy">
             <h2>Preparing a group or cohort?</h2>
-            <p>Bulk seats and multi-tenant access for coaching institutes, career centers, and hiring teams. We can tailor pricing around your cohort size and rollout needs.</p>
+            <p>Group access for university career centers, student societies and coaching programs. We can price around your cohort size and recruiting calendar.</p>
         </div>
         <a href="{{ contact_sales_open_url }}#contact-sales-modal" class="button-secondary pricing-sales-button" data-modal-open="contact-sales-modal">Contact sales</a>
     </article>

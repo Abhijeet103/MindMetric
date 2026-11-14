@@ -21,6 +21,8 @@ INDEXABLE_VIEWS = {
     "pages:assessment-section-detail",
     "pages:assessment-guide",
     "pages:module-guide",
+    "pages:company-lookup",
+    "pages:legal-page",
 }
 
 GA4_MEASUREMENT_ID_PATTERN = re.compile(r"^G-[A-Z0-9]+$")

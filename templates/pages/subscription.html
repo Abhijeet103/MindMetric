@@ -60,6 +60,8 @@
             <p class="billing-note">Payment returned successfully. We are waiting for backend confirmation before finalizing access.</p>
         {% elif checkout_state == "cancelled" %}
             <p class="billing-note">Checkout was cancelled. You can choose another plan any time.</p>
+        {% elif checkout_state == "failed" %}
+            <p class="billing-note">We couldn't confirm that payment yet. If PayPal shows it as taken, your access switches on automatically within a few minutes. Otherwise email <a href="mailto:support@mindmetric.store?subject=Payment%20check">support@mindmetric.store</a> with your receipt.</p>
         {% endif %}
     </article>
 

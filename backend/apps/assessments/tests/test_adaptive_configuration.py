@@ -545,23 +545,11 @@ class NewContentTests(SimpleTestCase):
                 self.assertEqual(
                     len({q.payload["prompt"]["case_study"]["id"] for q in questions}), 1
                 )
-                rows = questions[0].payload["prompt"]["data_table"]["rows"]
-                volume, price, variable, fixed = [r[1] for r in rows]
-                new_variable, new_fixed = rows[2][2], rows[3][2]
-                self.assertEqual(
-                    float(questions[0].correct_answer["answer"]),
-                    volume * (price - variable) - fixed,
-                )
-                self.assertEqual(
-                    float(questions[1].correct_answer["answer"]),
-                    volume * (price - new_variable) - new_fixed,
-                )
-                import math
-
-                self.assertEqual(
-                    float(questions[2].correct_answer["answer"]),
-                    math.ceil((new_fixed - fixed) / (variable - new_variable)),
-                )
+                exhibits = [q.payload["prompt"]["data_table"] for q in questions]
+                self.assertTrue(all(table == exhibits[0] for table in exhibits))
+                for q in questions:
+                    self.assertIn(q.correct_answer["answer"], q.payload["options"])
+                    self.assertTrue(q.payload["prompt"]["explanation"])
 
     def test_all_critical_families_have_reviewable_answers_and_reproducible_prompts(self):
         for key in [

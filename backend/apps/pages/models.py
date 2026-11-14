@@ -158,3 +158,69 @@ class PortalFeedback(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_category_display()} from {self.email}"
+
+
+class ApplicationDeadline(models.Model):
+    """A company a student applied to, with the date its online assessment is due."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="application_deadlines")
+    company = models.CharField(max_length=120)
+    assessment_type = models.CharField(max_length=32, blank=True, help_text="Practice track key, if the student knows the test.")
+    due_date = models.DateField()
+    reminder_sent_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["due_date", "company"]
+        indexes = [models.Index(fields=["user", "due_date"])]
+
+    def __str__(self):
+        return f"{self.company} · {self.due_date:%Y-%m-%d}"
+
+    @property
+    def days_left(self) -> int:
+        return (self.due_date - timezone.localdate()).days
+
+
+class EmployerAssessment(models.Model):
+    """Which test types an employer is known to use in its screening round.
+
+    Only published entries with a source are shown publicly, so every claim on
+    the company lookup page can be traced back to where it came from.
+    """
+
+    company = models.CharField(max_length=160)
+    industry = models.CharField(max_length=120, blank=True)
+    assessment_types = models.JSONField(default=list, help_text="Practice track keys, e.g. [\"ccat\", \"shl_verify\"].")
+    roles_note = models.CharField(max_length=200, blank=True, help_text="Which programmes this applies to, e.g. 'Summer analyst internships'.")
+    source_url = models.URLField(max_length=1000, help_text="Where this mapping was confirmed.")
+    source_label = models.CharField(max_length=160, help_text="Short description of the source, e.g. 'Employer careers FAQ'.")
+    verified_on = models.DateField()
+    is_published = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["company"]
+
+    def __str__(self):
+        return self.company
+
+
+class LegalPage(models.Model):
+    """Privacy policy, terms and similar pages, written and published by an admin."""
+
+    class Slug(models.TextChoices):
+        PRIVACY = "privacy", "Privacy policy"
+        TERMS = "terms", "Terms of service"
+        REFUNDS = "refunds", "Refund policy"
+
+    slug = models.CharField(max_length=32, choices=Slug.choices, unique=True)
+    title = models.CharField(max_length=160)
+    body = models.TextField(help_text="Plain text. Blank lines start new paragraphs; lines starting with '## ' become headings.")
+    effective_date = models.DateField()
+    is_published = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title

@@ -302,3 +302,93 @@ class AssessmentResource(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class LearningSession(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, null=True, blank=True)
+    assessment_type = models.CharField(max_length=32)
+    kind = models.CharField(max_length=32)
+    content = models.JSONField(default=dict)
+    state = models.JSONField(default=dict)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True)
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="workshop_reviews")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["tenant", "user", "assessment_type", "completed_at"])]
+
+
+class ItemExposure(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, null=True, blank=True)
+    section_type = models.CharField(max_length=32)
+    signature = models.CharField(max_length=64)
+    source_key = models.CharField(max_length=100)
+    question = models.JSONField(default=dict)
+    selected_answer = models.JSONField(null=True, blank=True)
+    is_correct = models.BooleanField(null=True, blank=True)
+    response_ms = models.PositiveIntegerField(null=True, blank=True)
+    issued_at = models.DateTimeField(auto_now_add=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "source_key"], name="unique_item_delivery")]
+        indexes = [models.Index(fields=["tenant", "user", "section_type", "issued_at"])]
+
+
+class ItemReport(models.Model):
+    exposure = models.ForeignKey(ItemExposure, on_delete=models.CASCADE, null=True, blank=True)
+    session = models.ForeignKey(LearningSession, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, null=True, blank=True)
+    stage_index = models.PositiveIntegerField(default=0)
+    reason = models.CharField(max_length=32, choices=[("ambiguous", "Ambiguous wording"), ("answer", "Answer key"), ("display", "Display problem"), ("other", "Other")])
+    detail = models.TextField(blank=True, max_length=2000)
+    status = models.CharField(max_length=16, choices=[("open", "Open"), ("resolved", "Resolved")], default="open")
+    reviewer_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class EditorialReview(models.Model):
+    content_key = models.CharField(max_length=100, unique=True)
+    title = models.CharField(max_length=160)
+    status = models.CharField(max_length=24, choices=[("needs_review", "Needs independent review"), ("approved", "Approved by reviewer"), ("withdrawn", "Withdrawn")], default="needs_review")
+    content = models.JSONField(default=dict)
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    reviewer_notes = models.TextField(blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    def clean(self):
+        if isinstance(self.content, dict) and self.content.get("kind") == "template":
+            if self.content.get("key") != self.content_key or not self.content.get("examples") or not isinstance(self.content["examples"], list):
+                raise ValidationError("A template review requires a matching key and example questions.")
+            for example in self.content["examples"]:
+                if not isinstance(example, dict) or not isinstance(example.get("payload"), dict) or example.get("correct_answer", {}).get("answer") not in example["payload"].get("options", []):
+                    raise ValidationError("Template examples require an offered answer key.")
+        elif self.content:
+            if not isinstance(self.content, dict) or not all(isinstance(self.content.get(k), str) and self.content[k].strip() for k in ("key", "title", "body")) or self.content.get("key") != self.content_key:
+                raise ValidationError("A passage requires matching key, title and body.")
+            items = self.content.get("items")
+            if not isinstance(items, list) or not 1 <= len(items) <= 20:
+                raise ValidationError("A passage requires 1–20 questions.")
+            for item in items:
+                if not isinstance(item, dict) or item.get("skill") not in {"inference", "assumptions", "deduction", "interpretation", "arguments"} or item.get("kind") != "choice" or not isinstance(item.get("options"), list) or len(item["options"]) != len(set(str(x) for x in item["options"])) or item.get("answer") not in item["options"] or not item.get("question") or not item.get("explanation"):
+                    raise ValidationError("Each passage question requires a supported skill, unique options, a valid answer and an explanation.")
+        if self.status == "approved" and (not self.content or not self.reviewer_id or not self.reviewer_notes.strip()):
+            raise ValidationError("Approval requires an identified reviewer and review notes.")
+
+
+class LearningReviewInvite(models.Model):
+    session = models.ForeignKey(LearningSession, on_delete=models.CASCADE, related_name="peer_invites")
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, null=True, blank=True)
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    feedback = models.TextField(blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)

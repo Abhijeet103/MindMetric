@@ -126,7 +126,7 @@ def can_start_attempt(
         ).count()
         full_limit = resolve_test_configuration(tenant, assessment_type)["free_full_test_attempts"]
         if used >= full_limit:
-            return AccessDecision(False, f"Free users can take up to {full_limit} full tests. Upgrade to unlock unlimited access.")
+            return AccessDecision(False, f"You've used your free full test{'s' if full_limit != 1 else ''}. Members get unlimited timed full tests and section tests for every assessment.")
         remaining = full_limit - used
         return AccessDecision(True, f"Free tier: {remaining} full test remaining.")
 
@@ -142,7 +142,7 @@ def can_start_attempt(
             sections__section_type=section_type,
         ).distinct().count()
         if used >= limits.test_attempt_limit:
-            return AccessDecision(False, f"Free users can take up to {limits.test_attempt_limit} {SectionType(section_type).label} test(s). Upgrade to unlock unlimited access.")
+            return AccessDecision(False, f"You've used your free timed {SectionType(section_type).label} test{'s' if limits.test_attempt_limit != 1 else ''}. Untimed practice stays free; members get unlimited timed tests.")
         remaining = limits.test_attempt_limit - used
         return AccessDecision(True, f"Free tier: {remaining} {SectionType(section_type).label} test(s) remaining.")
 
@@ -213,7 +213,7 @@ def create_attempt(
                 difficulty,
                 question_target,
             )
-            payloads = _build_question_batch(attempt.id, section_key, "test", question_target, difficulty)
+            payloads = _build_question_batch(attempt.id, section_key, "test", question_target, difficulty, user=attempt.user, tenant=attempt.tenant)
             _save_section_test_session(
                 attempt.id,
                 {
@@ -372,6 +372,7 @@ def get_or_create_section_attempt(
                     "test",
                     section.question_count,
                     section.difficulty,
+                    user=active_attempt.user, tenant=active_attempt.tenant,
                 )
                 _save_section_test_session(
                     active_attempt.id,
@@ -450,7 +451,7 @@ def get_full_test_question(attempt: Attempt, section_index: int, phase: str, que
         phase,
         question_index,
     )
-    return _serialize_generated_question_for_player(question, include_correct_answer=phase == "practice")
+    return _serialize_generated_question_for_player(question, include_correct_answer=phase == "practice", attempt=attempt)
 
 
 def get_full_test_section_payload(attempt: Attempt, section_index: int) -> dict[str, Any]:
@@ -469,11 +470,11 @@ def get_full_test_section_payload(attempt: Attempt, section_index: int) -> dict[
         "section_id": int(section["section_id"]),
         "section_type": section["section_type"],
         "practice_questions": [
-            _serialize_generated_question_for_player(question, include_correct_answer=True)
+            _serialize_generated_question_for_player(question, include_correct_answer=True, attempt=attempt)
             for question in section.get("practice_questions", [])
         ],
         "test_questions": [
-            _serialize_generated_question_for_player(question, include_correct_answer=False)
+            _serialize_generated_question_for_player(question, include_correct_answer=False, attempt=attempt)
             for question in section.get("test_questions", [])
         ],
     }
@@ -556,7 +557,7 @@ def _ensure_full_test_section_phase_generated(
         difficulty,
         count,
     )
-    section[question_key] = _build_question_batch(attempt.id, section_type, phase, count, difficulty)
+    section[question_key] = _build_question_batch(attempt.id, section_type, phase, count, difficulty, user=attempt.user, tenant=attempt.tenant)
     section[generated_flag] = True
     _save_full_test_session(attempt.id, session)
 
@@ -583,12 +584,13 @@ def get_section_test_previews(attempt: Attempt) -> list[dict[str, Any]]:
             "test",
             section.question_count,
             section.difficulty,
+            user=attempt.user, tenant=attempt.tenant,
         )
         session["questions"] = questions
         session["submitted_answers"] = []
         _save_section_test_session(attempt.id, session)
     return [
-        _serialize_generated_question_for_player(question, include_correct_answer=False)
+        _serialize_generated_question_for_player(question, include_correct_answer=False, attempt=attempt)
         for question in questions
     ]
 
@@ -639,6 +641,7 @@ def submit_full_test_attempt(attempt: Attempt, submitted_answers: list[dict[str,
             raise FullTestSessionError("Active test session is missing section data.")
         expected_questions = session_section.get("test_questions", [])
         summary = _calculate_question_summary(expected_questions, session_section.get("submitted_answers", []))
+        _observe_final_answers(attempt, expected_questions, session_section.get("submitted_answers", []))
         section.adjusted_score = summary["score"]
         section.correct_answers_count = summary["correct_count"]
         section.incorrect_answers_count = summary["incorrect_count"]
@@ -712,6 +715,7 @@ def submit_section_attempt(attempt: Attempt, submitted_answers: list[dict[str, A
         len(submitted_answers),
     )
     summary = _calculate_question_summary(session.get("questions", []), session.get("submitted_answers", []))
+    _observe_final_answers(attempt, session.get("questions", []), session.get("submitted_answers", []))
     section.adjusted_score = summary["score"]
     section.correct_answers_count = summary["correct_count"]
     section.incorrect_answers_count = summary["incorrect_count"]
@@ -947,7 +951,13 @@ def recompute_section_progress_for_user(user: User, assessment_type: str | None 
     return updates
 
 
-def _build_question_batch(attempt_id: int, section_type: str, phase: str, count: int, difficulty: str) -> list[dict[str, Any]]:
+def _build_question_batch(attempt_id: int, section_type: str, phase: str, count: int, difficulty: str, user=None, tenant=None) -> list[dict[str, Any]]:
+    from .quality import recent_signatures, item_signature, family_key, withdrawn_families
+    from backend.apps.tenants.utils import get_current_tenant
+    if user and user.is_authenticated:
+        tenant = tenant or get_current_tenant() or user.tenant
+    recent = recent_signatures(user, tenant, section_type)
+    withdrawn = withdrawn_families(section_type) if user is not None else set()
     batch = []
     seen = set()
     group_size = get_module_meta(section_type).get("case_group_size", 1)
@@ -961,7 +971,12 @@ def _build_question_batch(attempt_id: int, section_type: str, phase: str, count:
                 namespace += f":retry-{retry}"
             candidates = [generate_question(section_type, effective_difficulty, f"{namespace}:{index}") for index in range(start, start + group_size)]
             signatures = [semantic_question_signature(candidate.payload) for candidate in candidates]
-            if len(set(signatures)) == group_size and not seen.intersection(signatures):
+            # Prefer unseen recent items, then fall back after 60 tries so a
+            # small reviewed bank does not make practice impossible.
+            repeated = recent.intersection(item_signature(asdict(q)) for q in candidates)
+            if any(family_key(asdict(q)) in withdrawn for q in candidates):
+                continue
+            if len(set(signatures)) == group_size and not seen.intersection(signatures) and (not repeated or retry >= 60):
                 seen.update(signatures)
                 batch.extend(asdict(candidate) for candidate in candidates)
                 break
@@ -984,7 +999,7 @@ def _strip_correct_answer(question: dict[str, Any]) -> dict[str, Any]:
     return sanitized
 
 
-def _serialize_generated_question_for_player(question: dict[str, Any], include_correct_answer: bool) -> dict[str, Any]:
+def _serialize_generated_question_for_player(question: dict[str, Any], include_correct_answer: bool, attempt=None) -> dict[str, Any]:
     payload = question.get("payload", {})
     prompt = payload.get("prompt", {})
     options = [str(option) for option in payload.get("options", [])]
@@ -1010,6 +1025,9 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
         "reveal_mode": "context_then_question",
     }
 
+    if attempt is not None:
+        from .quality import issue_question
+        preview["report_token"] = issue_question(attempt.user, attempt.tenant, question, allow_observation=include_correct_answer)
     if include_correct_answer:
         preview["correct_answer"] = correct_answer
         preview["explanation"] = prompt.get("explanation", "")
@@ -1295,3 +1313,18 @@ def _section_test_session_exists(attempt_id: int) -> bool:
         return exists
     except RedisError as exc:
         raise FullTestSessionError("Redis is unavailable for active section-test sessions.") from exc
+
+
+def _observe_final_answers(attempt, questions, rows):
+    from .quality import issue_question, resolve_receipt, observe_answer
+    for row in _normalize_answer_rows(rows):
+        index = row["question_index"]
+        if index >= len(questions) or "payload" not in questions[index]:
+            continue
+        question = questions[index]
+        if row["selected_option"] not in [str(o) for o in question["payload"].get("options", [])]:
+            continue
+        token = issue_question(attempt.user, attempt.tenant, question, allow_observation=False)
+        exposure = resolve_receipt(token, attempt.user, attempt.tenant)
+        if not exposure.answered_at:
+            observe_answer(exposure, row["selected_option"])

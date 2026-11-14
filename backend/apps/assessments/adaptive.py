@@ -103,9 +103,12 @@ def _response(attempt, state):
         )
     else:
         index = len(state["answers"])
+        from .quality import issue_question
+        current = _serialize_generated_question_for_player(state["questions"][index], False)
+        current["report_token"] = issue_question(attempt.user, attempt.tenant, state["questions"][index], allow_observation=False)
         response.update(
             question_index=index,
-            question=_serialize_generated_question_for_player(state["questions"][index], False),
+            question=current,
             module_title=get_module_meta(state["order"][index]["section_type"])["title"],
         )
     return response
@@ -184,6 +187,9 @@ def advance_adaptive(attempt_id, user, payload, tenant=None):
             slot = state["order"][index]
             section = slot["section_type"]
             correct = selected == str(generated["correct_answer"]["answer"])
+            from .quality import issue_question, resolve_receipt, observe_answer
+            token = issue_question(user, tenant, generated, allow_observation=False)
+            observe_answer(resolve_receipt(token, user, tenant), selected)
             state["answers"].append(
                 {
                     **slot,
@@ -218,6 +224,9 @@ def advance_adaptive(attempt_id, user, payload, tenant=None):
         difficulty = LEVELS[level]
         seen = {semantic_question_signature(q["payload"]) for q in state["questions"]}
         group_start = slot["module_index"] - slot["module_index"] % group_size
+        from .quality import recent_signatures, item_signature, family_key, withdrawn_families
+        withdrawn = withdrawn_families(section)
+        recent = recent_signatures(user, tenant, section)
         for retry in range(100):
             candidates = [
                 generate_question(
@@ -230,12 +239,15 @@ def advance_adaptive(attempt_id, user, payload, tenant=None):
             signatures = [
                 semantic_question_signature(candidate.payload) for candidate in candidates
             ]
-            if not seen.intersection(signatures) and len(set(signatures)) == group_size:
+            repeated = recent.intersection(item_signature(asdict(q)) for q in candidates)
+            if any(family_key(asdict(q)) in withdrawn for q in candidates):
+                continue
+            if not seen.intersection(signatures) and len(set(signatures)) == group_size and (not repeated or retry >= 60):
                 state["questions"].extend(asdict(candidate) for candidate in candidates)
                 break
         else:
             raise AdaptiveInputError(
-                "No distinct question is available. End this attempt and choose a shorter form."
+                "No eligible distinct question is available. End this attempt and ask your administrator to check the bank and review settings."
             )
     session.state = state
     session.save()

@@ -11,6 +11,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initSectionPlayer();
   initFullTestPlayer();
   initModalDialogs();
+  initPlayerKeyboardShortcuts();
+  initThemeToggle();
 });
 
 document.addEventListener("htmx:afterSwap", () => {
@@ -405,6 +407,22 @@ function initSectionPlayer() {
     feedbackEl.removeAttribute("hidden");
   };
 
+  // Free users who reach a members-only timed test get a way forward, not an error.
+  const showUpgradePrompt = (message, upgradeUrl) => {
+    if (!feedbackEl) return;
+    feedbackEl.textContent = "";
+    feedbackEl.className = "section-inline-feedback feedback-upgrade";
+    const text = document.createElement("span");
+    text.textContent = `${message || "Timed tests are part of membership."} `;
+    const link = document.createElement("a");
+    link.href = upgradeUrl || "/pricing/";
+    link.className = "feedback-upgrade-link";
+    link.textContent = "See membership";
+    feedbackEl.append(text, link);
+    feedbackEl.removeAttribute("hidden");
+    link.focus({preventScroll: true});
+  };
+
   const hideFeedback = () => {
     if (!feedbackEl) return;
     feedbackEl.setAttribute("hidden", "");
@@ -419,6 +437,7 @@ function initSectionPlayer() {
         timerEl.textContent = text;
       });
     };
+    timerEls.forEach((timerEl) => applyCountdownState(timerEl, isTestMode() ? remainingSeconds : null, timeLimitSeconds));
     if (!isTestMode()) {
       if (!practiceStarted) {
         const suggestedSeconds = practiceTotal ? Math.max(1, Math.round(timeLimitSeconds / practiceTotal)) : 0;
@@ -523,7 +542,10 @@ function initSectionPlayer() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.detail || "Could not start test mode.");
+      const error = new Error(payload.detail || "Could not start test mode.");
+      error.requiresUpgrade = Boolean(payload.access_requires_upgrade);
+      error.upgradeUrl = payload.upgrade_url || "/pricing/";
+      throw error;
     }
     if (payload.adaptive_url) {
       window.location.assign(payload.adaptive_url);
@@ -541,20 +563,24 @@ function initSectionPlayer() {
   };
 
   const syncPracticeProgress = async () => {
-    if (!player.dataset.practiceProgressUrl || !sectionKey) {
+    if (!player.dataset.practiceProgressUrl || !sectionKey || player.dataset.authenticated === "false") {
       return;
     }
-    try {
-      await fetch(player.dataset.practiceProgressUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCookie("csrftoken"),
-        },
-        body: JSON.stringify({ assessment_type: assessmentType, section_type: sectionKey, solved_increment: 1 }),
-      });
-    } catch (error) {
-      // Practice progress sync is helpful but should not block the player flow.
+    const notice = player.querySelector("[data-practice-save-status]");
+    const message = player.querySelector("[data-practice-save-message]");
+    const login = player.querySelector("[data-practice-save-login]");
+    const outcome = await savePracticeProgress(player.dataset.practiceProgressUrl, {
+      assessment_type: assessmentType, section_type: sectionKey, solved_increment: 1,
+    });
+    if (!outcome.saved) {
+      notice?.removeAttribute("hidden");
+      if (message) message.textContent = outcome.authenticationRequired
+        ? "Your session has expired. This answer was not saved."
+        : "This answer could not be saved. Check your connection before continuing; the dashboard may be incomplete.";
+      if (outcome.authenticationRequired) {
+        login?.removeAttribute("hidden");
+        player.dataset.authenticated = "false";
+      }
     }
   };
 
@@ -599,6 +625,10 @@ function initSectionPlayer() {
         }
         if (completeSummaryEl) {
           completeSummaryEl.textContent = `Final section score: ${result.section_score}.`;
+        }
+        if (result.results_url) {
+          window.location.assign(result.results_url);
+          return;
         }
         if (player.dataset.dashboardUrl) {
           window.location.assign(player.dataset.dashboardUrl);
@@ -679,6 +709,7 @@ function initSectionPlayer() {
           }
 
           if (!isTestMode()) {
+            recordPracticeItem(item, selected);
             practiceReviewing = true;
             if (isCorrect) {
               button.classList.add("is-selected-correct");
@@ -718,12 +749,6 @@ function initSectionPlayer() {
       });
     }
 
-    if (contextHelperEl) {
-      contextHelperEl.textContent =
-        isTestMode() && item.reveal_mode === "question_only"
-          ? "Click to reveal the question."
-          : "Click the context card to reveal the question.";
-    }
     if (item.reveal_mode === "question_only") {
       showStage(questionStage);
       return;
@@ -759,7 +784,11 @@ function initSectionPlayer() {
       if (!await loadTestSetup()) return;
     } catch (error) {
       window.hidePageLoader?.();
-      showFeedback(error.message || "Could not start test mode.", "wrong");
+      if (error.requiresUpgrade) {
+        showUpgradePrompt(error.message, error.upgradeUrl);
+      } else {
+        showFeedback(error.message || "Could not start test mode.", "wrong");
+      }
       return;
     }
     const enteredFullscreen = await requestFullscreenFor(player);
@@ -1087,7 +1116,9 @@ function initFullTestPlayer() {
     }
     const minutes = Math.floor(remainingSeconds / 60);
     const seconds = remainingSeconds % 60;
+    const totalSeconds = isMixedFullTest ? fullTestDurationSeconds : getCurrentSection()?.time_limit_seconds || 0;
     timerEls.forEach((timerEl) => {
+      applyCountdownState(timerEl, remainingSeconds, totalSeconds);
       timerEl.removeAttribute("hidden");
       timerEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     });
@@ -1207,6 +1238,7 @@ function initFullTestPlayer() {
             const isCorrect = selected === String(activeQuestion.correct_answer || "");
 
             if (phase === "practice") {
+              recordPracticeItem(activeQuestion, selected);
               const answerButtons = Array.from(optionsEl.querySelectorAll(".answer-option"));
               answerButtons.forEach((node) => {
                 node.disabled = true;
@@ -1559,6 +1591,10 @@ function initFullTestPlayer() {
           .map((item) => `${item.section_type}: ${item.score}`)
           .join(" | ");
         completeSummaryEl.textContent = `Final score: ${result.overall_score}. ${breakdown}`;
+      }
+      if (result.results_url) {
+        window.location.assign(result.results_url);
+        return;
       }
       if (player.dataset.dashboardUrl) {
         window.location.assign(player.dataset.dashboardUrl);
@@ -1934,8 +1970,118 @@ function orderMixedQuestions(sectionRuntimes, attemptId) {
   return blocks.flatMap((block) => block.questions);
 }
 
+function renderDataChart(spec) {
+  const figure = document.createElement("figure");
+  figure.className = "question-bar-chart data-chart";
+  const caption = document.createElement("figcaption");
+  caption.textContent = spec.title || "Question chart";
+  figure.appendChild(caption);
+  const labels = Array.isArray(spec.labels) ? spec.labels.map(String) : [];
+  const values = (Array.isArray(spec.values) ? spec.values : []).map((v) => Number.isFinite(Number(v)) ? Number(v) : 0);
+  const series = spec.type === "stacked" && Array.isArray(spec.series) ? spec.series : [{name: "Value", values}];
+  if (spec.type === "line") {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 640 250");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", `${spec.title}. ${labels.map((label, i) => `${label}: ${values[i]}`).join("; ")}`);
+    const low = Math.min(0, ...values), high = Math.max(1, ...values);
+    const y = (value) => 210 - (value - low) / (high - low) * 175;
+    const x = (i) => 65 + i * 520 / Math.max(1, labels.length - 1);
+    const axis = document.createElementNS(ns, "line");
+    axis.setAttribute("x1", "55"); axis.setAttribute("x2", "605"); axis.setAttribute("y1", y(0)); axis.setAttribute("y2", y(0)); axis.setAttribute("stroke", "currentColor");
+    svg.appendChild(axis);
+    const path = document.createElementNS(ns, "polyline");
+    path.setAttribute("points", values.map((value, i) => `${x(i)},${y(value)}`).join(" "));
+    path.setAttribute("fill", "none"); path.style.stroke = "var(--teal)"; path.setAttribute("stroke-width", "3");
+    svg.appendChild(path);
+    labels.forEach((label, i) => {
+      const dot = document.createElementNS(ns, "circle");
+      dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(values[i])); dot.setAttribute("r", "4"); dot.style.fill = "var(--teal)";
+      const number = document.createElementNS(ns, "text");
+      number.setAttribute("x", x(i)); number.setAttribute("y", y(values[i]) - 12); number.setAttribute("text-anchor", "middle"); number.textContent = (typeof formatDisplayNumber === "function" ? formatDisplayNumber(values[i]) : String(values[i]));
+      const text = document.createElementNS(ns, "text");
+      text.setAttribute("x", x(i)); text.setAttribute("y", "237"); text.setAttribute("text-anchor", "middle"); text.textContent = label;
+      svg.append(dot, number, text);
+    });
+    figure.appendChild(svg);
+  } else if (spec.type === "stacked") {
+    const totals = labels.map((_label, i) => series.reduce((sum, s) => sum + Math.max(0, Number(s.values[i]) || 0), 0));
+    const maximum = Math.max(1, ...totals);
+    const colors = ["#2563eb", "#d97706", "#059669", "#7c3aed"];
+    const legend = document.createElement("p");
+    legend.textContent = series.map((s) => s.name).join(" · ");
+    figure.appendChild(legend);
+    labels.forEach((label, i) => {
+      const row = document.createElement("div");
+      const name = document.createElement("p"); name.textContent = `${label}: total ${(typeof formatDisplayNumber === "function" ? formatDisplayNumber(totals[i]) : String(totals[i]))}`;
+      const track = document.createElement("div"); track.className = "chart-stacked-track";
+      series.forEach((s, j) => {
+        const value = Math.max(0, Number(s.values[i]) || 0);
+        const bar = document.createElement("span");
+        bar.style.width = `${value / maximum * 100}%`; bar.style.backgroundColor = colors[j % colors.length];
+        bar.textContent = (typeof formatDisplayNumber === "function" ? formatDisplayNumber(value) : String(value)); bar.title = `${s.name}: ${value}`; bar.setAttribute("aria-label", `${s.name}: ${value}`);
+        track.appendChild(bar);
+      });
+      row.append(name, track); figure.appendChild(row);
+    });
+  } else {
+    const maximum = Math.max(1, ...values.map(Math.abs));
+    if (values.some((v) => v < 0)) {
+      const note = document.createElement("p"); note.textContent = "Bar lengths show magnitude; labels retain positive and negative signs."; figure.appendChild(note);
+    }
+    labels.forEach((label, i) => {
+      const row = document.createElement("div");
+      const name = document.createElement("span"); name.textContent = `${label}: ${(typeof formatDisplayNumber === "function" ? formatDisplayNumber(values[i]) : String(values[i]))}`;
+      const bar = document.createElement("span"); bar.className = "question-chart-bar"; bar.style.width = `${Math.abs(values[i]) / maximum * 100}%`; bar.setAttribute("aria-hidden", "true");
+      row.append(name, bar); figure.appendChild(row);
+    });
+  }
+  const details = document.createElement("details");
+  const summary = document.createElement("summary"); summary.textContent = "Exact chart values";
+  const table = document.createElement("table");
+  const header = document.createElement("tr");
+  ["Period / category", ...series.map((s) => s.name)].forEach((name) => { const th = document.createElement("th"); th.scope = "col"; th.textContent = name; header.appendChild(th); });
+  const head = document.createElement("thead"); head.appendChild(header); table.appendChild(head);
+  const body = document.createElement("tbody");
+  labels.forEach((label, i) => {
+    const row = document.createElement("tr");
+    [label, ...series.map((s) => s.values[i])].forEach((value, j) => { const cell = document.createElement(j ? "td" : "th"); if (!j) cell.scope = "row"; cell.textContent = String(value); row.appendChild(cell); }); body.appendChild(row);
+  });
+  table.appendChild(body); details.append(summary, table); figure.appendChild(details);
+  return figure;
+}
+
+function renderItemReporting(shell, item) {
+  shell.querySelector("[data-item-report]")?.remove();
+  item.displayedAt = performance.now();
+  if (!item.report_token) return;
+  const details = document.createElement("details"); details.dataset.itemReport = ""; details.className = "item-report";
+  const summary = document.createElement("summary"); summary.textContent = "Report a question issue";
+  const reason = document.createElement("select"); reason.setAttribute("aria-label", "Issue type");
+  [["ambiguous", "Ambiguous wording"], ["answer", "Answer key"], ["display", "Display problem"], ["other", "Other"]].forEach(([value, label]) => { const option = document.createElement("option"); option.value = value; option.textContent = label; reason.appendChild(option); });
+  const text = document.createElement("textarea"); text.maxLength = 2000; text.setAttribute("aria-label", "Describe the issue");
+  const button = document.createElement("button"); button.type = "button"; button.textContent = "Send issue for review";
+  const status = document.createElement("p"); status.setAttribute("role", "status");
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const response = await fetch("/api/tests/item-events/", {method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken")}, body: JSON.stringify({action: "report", token: item.report_token, reason: reason.value, detail: text.value})});
+      if (!response.ok || response.redirected) throw new Error("Could not send the report. Sign in and retry.");
+      status.textContent = "Saved for editorial review.";
+    } catch (error) { status.textContent = error.message; button.disabled = false; }
+  });
+  details.append(summary, reason, text, button, status); shell.appendChild(details);
+}
+
+function recordPracticeItem(item, answer) {
+  if (!item.report_token) return;
+  void fetch("/api/tests/item-events/", {method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken")}, body: JSON.stringify({action: "answer", token: item.report_token, answer, response_ms: Math.max(0, Math.round(performance.now() - (item.displayedAt || performance.now())))})}).catch(() => {});
+}
+
 function renderQuestionTable(questionEl, item) {
   const shell = questionEl.parentElement;
+  renderItemReporting(shell, item);
   shell.querySelector("[data-question-table]")?.remove();
   if (!item.data_table && !item.case_study && !item.chart) return;
   const wrapper = document.createElement("div");
@@ -1948,26 +2094,7 @@ function renderQuestionTable(questionEl, item) {
     background.textContent = item.case_study.background;
     wrapper.append(heading, background);
   }
-  if (item.chart) {
-    const chart = document.createElement("figure");
-    chart.className = "question-bar-chart";
-    const caption = document.createElement("figcaption");
-    caption.textContent = item.chart.title;
-    chart.appendChild(caption);
-    const maximum = Math.max(1, ...item.chart.values.map((value) => Math.abs(Number(value))));
-    item.chart.labels.forEach((label, index) => {
-      const row = document.createElement("div");
-      const name = document.createElement("span");
-      name.textContent = `${label}: ${item.chart.values[index]}`;
-      const bar = document.createElement("span");
-      bar.className = "question-chart-bar";
-      bar.style.width = `${Math.abs(Number(item.chart.values[index])) / maximum * 100}%`;
-      bar.setAttribute("aria-hidden", "true");
-      row.append(name, bar);
-      chart.appendChild(row);
-    });
-    wrapper.appendChild(chart);
-  }
+  if (item.chart) wrapper.appendChild(renderDataChart(item.chart));
   if (item.instruction) {
     const instruction = document.createElement("p");
     instruction.className = "muted";
@@ -1998,7 +2125,7 @@ function renderQuestionTable(questionEl, item) {
     row.forEach((value, index) => {
       const cell = document.createElement(index === 0 ? "th" : "td");
       if (index === 0) cell.scope = "row";
-      cell.textContent = String(value);
+      cell.textContent = index === 0 ? String(value) : formatDisplayNumber(value);
       tr.appendChild(cell);
     });
     body.appendChild(tr);
@@ -2012,13 +2139,87 @@ function renderCcatSpatialOption(button, item, option, optionIndex) {
   const value = String(option);
   button.dataset.optionValue = value;
   if (item.context_kind !== "ccat_spatial") {
-    button.textContent = value;
+    button.textContent = formatDisplayNumber(value);
+    appendOptionKeyHint(button, optionIndex);
     return;
   }
   const spec = getCcatSpatialPresentation(item).options[optionIndex];
   button.classList.add("ccat-spatial-answer-option");
   button.setAttribute("aria-label", `Option ${optionIndex + 1}`);
   button.appendChild(renderCcatSpatialSvg(spec || { shape: "missing" }));
+  appendOptionKeyHint(button, optionIndex);
+}
+
+function appendOptionKeyHint(button, optionIndex) {
+  if (optionIndex > 8) return;
+  const hint = document.createElement("span");
+  hint.className = "option-key";
+  hint.setAttribute("aria-hidden", "true");
+  hint.textContent = String(optionIndex + 1);
+  button.appendChild(hint);
+}
+
+// Adds thousands separators to large plain numbers (133000 -> 133,000) for
+// display only. Short numbers and anything that is not a plain number (years
+// in labels, ranges, units) are left exactly as authored.
+function formatDisplayNumber(value) {
+  const text = String(value).trim();
+  if (!/^-?\d{5,}(\.\d+)?$/.test(text)) return String(value);
+  const [whole, fraction] = text.split(".");
+  const grouped = Number(whole).toLocaleString("en-US");
+  return fraction === undefined ? grouped : `${grouped}.${fraction}`;
+}
+
+// Countdown pill: a small ring that drains with the remaining time and turns
+// amber in the final stretch. Pass remaining = null to show the neutral pill.
+function applyCountdownState(timerEl, remaining, total) {
+  if (!timerEl) return;
+  if (remaining === null || !total) {
+    timerEl.classList.remove("is-countdown", "is-low");
+    timerEl.style.removeProperty("--timer-pct");
+    return;
+  }
+  const pct = Math.max(0, Math.min(100, (remaining / total) * 100));
+  timerEl.classList.add("is-countdown");
+  timerEl.classList.toggle("is-low", remaining <= Math.max(10, total * 0.1));
+  timerEl.style.setProperty("--timer-pct", pct.toFixed(1));
+  timerEl.setAttribute("aria-label", `${Math.floor(remaining / 60)} minutes ${remaining % 60} seconds left`);
+}
+
+// Keyboard: 1-9 picks an answer, Enter/Space reveals the question or moves on.
+function initPlayerKeyboardShortcuts() {
+  const isVisible = (el) => el && !el.closest("[hidden]") && el.getClientRects().length > 0;
+  document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable='true']")) return;
+    const player = document.querySelector("[data-test-player], [data-full-test-player]");
+    if (!player) return;
+
+    if (/^[1-9]$/.test(event.key)) {
+      const options = Array.from(player.querySelectorAll(".answer-option")).filter(isVisible);
+      const option = options[Number(event.key) - 1];
+      if (option && !option.disabled) {
+        event.preventDefault();
+        option.click();
+      }
+      return;
+    }
+
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return;
+    const continueButton = Array.from(player.querySelectorAll(".feedback-continue")).find(isVisible);
+    if (continueButton) {
+      event.preventDefault();
+      continueButton.click();
+      return;
+    }
+    const reveal = Array.from(player.querySelectorAll(".reveal-question-button")).find(isVisible);
+    if (reveal) {
+      event.preventDefault();
+      reveal.click();
+    }
+  });
 }
 
 function appendFeedbackContinue(container, onContinue) {
@@ -2026,7 +2227,11 @@ function appendFeedbackContinue(container, onContinue) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "button button-small feedback-continue";
-  button.textContent = "Next question";
+  button.textContent = "Next question ";
+  const key = document.createElement("kbd");
+  key.setAttribute("aria-hidden", "true");
+  key.textContent = "Enter";
+  button.appendChild(key);
   button.addEventListener("click", onContinue, { once: true });
   container.appendChild(button);
 }
@@ -2347,7 +2552,7 @@ function renderLetterSvg(letter, mirrored, rotation = 0) {
   const path = document.createElementNS(svgNS, "path");
   path.setAttribute("d", glyphPaths[letter] || glyphPaths.R);
   path.setAttribute("fill", "none");
-  path.setAttribute("stroke", "#0f766e");
+  path.style.stroke = "var(--teal)";
   path.setAttribute("stroke-width", "7");
   path.setAttribute("stroke-linecap", "square");
   path.setAttribute("stroke-linejoin", "round");
@@ -2356,12 +2561,38 @@ function renderLetterSvg(letter, mirrored, rotation = 0) {
   return svg;
 }
 
+// Reject redirected login HTML and failed responses instead of silently claiming a save.
+async function savePracticeProgress(url, payload) {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken")},
+      body: JSON.stringify(payload),
+    });
+    if (response.redirected || response.status === 401) {
+      return {saved: false, authenticationRequired: true};
+    }
+    if (!response.ok) return {saved: false};
+    const result = await response.json();
+    return {saved: Number.isFinite(result.practice_questions_solved)};
+  } catch (error) {
+    return {saved: false};
+  }
+}
+
 function getCookie(name) {
-  const cookieValue = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(`${name}=`))
-    ?.split("=")[1];
-  return cookieValue ? decodeURIComponent(cookieValue) : "";
+  if (name === "csrftoken") {
+    const formToken = document.querySelector('[name="csrfmiddlewaretoken"]')?.value;
+    if (formToken) return formToken;
+  }
+  const candidates = name === "csrftoken"
+    ? ["__Host-mindmetric_csrf_v2", "mindmetric_csrf_v2", "csrftoken"]
+    : [name];
+  for (const candidate of candidates) {
+    const row = document.cookie.split(/;\s*/).find((cookie) => cookie.startsWith(`${candidate}=`));
+    if (row) return decodeURIComponent(row.slice(candidate.length + 1));
+  }
+  return "";
 }
 
 function dismissFlash(msg) {
@@ -2373,3 +2604,26 @@ document.querySelectorAll(".flash-message").forEach((msg) => {
   msg.querySelector(".flash-close")?.addEventListener("click", () => dismissFlash(msg));
   setTimeout(() => dismissFlash(msg), 5000);
 });
+
+// Header light/dark switch. The choice is remembered on this device.
+function initThemeToggle() {
+  const root = document.documentElement;
+  const toggle = document.querySelector("[data-theme-toggle]");
+  const themeColor = document.querySelector("[data-theme-color]");
+  const apply = (theme) => {
+    root.setAttribute("data-theme", theme);
+    themeColor?.setAttribute("content", theme === "dark" ? "#0d1613" : "#0f5c4c");
+    if (toggle) {
+      toggle.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
+      toggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+    }
+  };
+  apply(root.getAttribute("data-theme") === "dark" ? "dark" : "light");
+  toggle?.addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.classList.add("is-theme-switching");
+    apply(next);
+    try { localStorage.setItem("mm-theme", next); } catch (error) { /* storage blocked: still switches for this page */ }
+    window.setTimeout(() => root.classList.remove("is-theme-switching"), 300);
+  });
+}

@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.test import Client, TestCase, override_settings
 
 from backend.apps.assessments.models import (
     Attempt,
@@ -138,3 +140,47 @@ class FreeTierModuleLimitTests(TestCase):
         reasoning = next(card for card in response.context["sections"] if card["key"] == "reasoning")
         self.assertEqual(reasoning["free_practice_question_limit"], 7)
         self.assertEqual(reasoning["free_test_attempt_limit"], 4)
+
+    def test_guest_practice_save_returns_json_401_without_redirect(self):
+        response = self.client.post(
+            "/api/tests/practice-progress/",
+            data={"section_type": "reasoning"},
+            content_type="application/json",
+            HTTP_HOST=self.tenant.primary_domain,
+        )
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn("Location", response)
+        self.assertIn("Sign in", response.json()["detail"])
+        self.assertFalse(SectionProgress.objects.filter(user=self.user).exists())
+
+    def test_authenticated_practice_save_persists_progress(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            "/api/tests/practice-progress/",
+            data={"section_type": "reasoning", "solved_increment": 1},
+            content_type="application/json",
+            HTTP_HOST=self.tenant.primary_domain,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["practice_questions_solved"], 1)
+        self.assertEqual(SectionProgress.objects.get(user=self.user).practice_questions_solved, 1)
+
+    @override_settings(CSRF_COOKIE_NAME="__Host-mindmetric_csrf_v2")
+    def test_module_setup_accepts_production_csrf_cookie_and_returns_save_urls(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        url = "/practice/prepgia/modules/reasoning/test-setup/"
+        host = {"HTTP_HOST": self.tenant.primary_domain}
+        self.assertEqual(client.post(url, **host).status_code, 403)
+        token = "a" * 32
+        client.cookies["__Host-mindmetric_csrf_v2"] = token
+        attempt = self.create_section_attempt("reasoning")
+        with patch("backend.apps.pages.views.get_or_create_section_attempt", return_value=attempt), patch(
+            "backend.apps.pages.views.get_section_test_previews", return_value=[{"id": "question-1"}]
+        ):
+            response = client.post(url, HTTP_X_CSRFTOKEN=token, **host)
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["attempt_id"], attempt.id)
+        for field in ["submit_url", "progress_url", "end_url"]:
+            self.assertTrue(payload[field].startswith("/api/tests/"))

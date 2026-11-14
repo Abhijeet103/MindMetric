@@ -1,12 +1,40 @@
+# MindMetric: online assessment practice for students.
+# Public pages (home, tests, guides, pricing, company lookup) are open to crawl.
+# Everything below is private, behind sign-in, or a form endpoint.
+
 User-agent: *
 Allow: /
+
+# Admin, APIs and auth
 Disallow: /admin/
 Disallow: /api/
 Disallow: /accounts/
+Disallow: /login/
+Disallow: /tenant-access/
+Disallow: /billing/
+
+# Signed-in student areas
 Disallow: /dashboard/
 Disallow: /subscription/
+Disallow: /results/
+Disallow: /applications/
+
+# Live tests and test sessions (the practice pages that link to them stay crawlable)
 Disallow: /full-test/
 Disallow: /practice/*/full-test/
 Disallow: /practice/*/modules/*/test-setup/
+Disallow: /practice/*/workshop/
+Disallow: /practice/adaptive/
+Disallow: /practice/peer-review/
+
+# Form endpoints
+Disallow: /feedback/
+Disallow: /contact-sales/
+Disallow: /suggest-test/
+Disallow: /track-waitlist/
+
+# Duplicate or low-value URL variants
+Disallow: /*?*next=
+Disallow: /companies/?*q=
 
 Sitemap: {{ site_url }}/sitemap.xml

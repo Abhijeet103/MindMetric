@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="lookup">
+    <header class="lookup-head">
+        <span class="eyebrow">Company lookup</span>
+        <h1>Which test will your employer send?</h1>
+        <p class="muted">Search a company or industry to see which online assessment it uses in its screening round. Every entry links to the source we checked and the date we checked it.</p>
+    </header>
+
+    <form class="lookup-search" method="get" role="search">
+        <label class="visually-hidden" for="lookup-q">Company or industry</label>
+        <input id="lookup-q" type="search" name="q" value="{{ query }}" placeholder="Company or industry" autocomplete="organization">
+        <button type="submit" class="button">Search</button>
+    </form>
+
+    {% if results %}
+        <ul class="lookup-results">
+            {% for row in results %}
+                <li>
+                    <div class="lookup-company">
+                        <strong>{{ row.entry.company }}</strong>
+                        <span class="muted">{% if row.entry.industry %}{{ row.entry.industry }}{% endif %}{% if row.entry.industry and row.entry.roles_note %} · {% endif %}{{ row.entry.roles_note }}</span>
+                    </div>
+                    <div class="lookup-tests">
+                        {% for test in row.tests %}<a class="landing-pick" href="{{ test.url }}" data-show-loader><span>{{ test.title }}</span></a>{% endfor %}
+                    </div>
+                    <p class="lookup-source">Source: <a href="{{ row.entry.source_url }}" target="_blank" rel="noopener noreferrer">{{ row.entry.source_label }}</a> · checked {{ row.entry.verified_on|date:"M Y" }}</p>
+                </li>
+            {% endfor %}
+        </ul>
+    {% elif query or not has_any_entries %}
+        <div class="lookup-empty">
+            <h2>{% if query %}No sourced entry for “{{ query }}” yet{% else %}We're still building this list{% endif %}</h2>
+            <p class="muted">We only list a company once we can point to a source. In the meantime, your invite email usually names the test provider. If it doesn't, these are the formats students meet most often.</p>
+            <div class="lookup-tests">
+                <a class="landing-pick" href="{% url 'pages:assessment-practice' 'ccat' %}" data-show-loader><span>CCAT</span></a>
+                <a class="landing-pick" href="{% url 'pages:assessment-practice' 'shl_verify' %}" data-show-loader><span>SHL-style</span></a>
+                <a class="landing-pick" href="{% url 'pages:assessment-practice' 'watson_glaser' %}" data-show-loader><span>Watson–Glaser-style</span></a>
+                <a class="landing-pick landing-pick-ghost" href="{% url 'pages:practice' %}" data-show-loader><span>All tests</span></a>
+            </div>
+            <p class="muted lookup-suggest">Know which test a company uses? <a href="{% url 'pages:practice' %}?suggest_test=open#suggest-test-modal">Tell us</a> and we'll check it.</p>
+        </div>
+    {% endif %}
+
+    <p class="lookup-disclaimer">MindMetric is independent and not affiliated with any employer or test publisher. Employers change their assessments, so always check your invite.</p>
+</section>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<section class="content-section" data-workshop data-assessment="{{ assessment_slug }}" data-start-url="{% url 'workshop-start' %}">
+    <a href="{% url 'pages:assessment-practice' assessment_slug %}">← Back to {{ assessment.title }}</a>
+    <h1>Applied practice workshop</h1>
+    <p>Original skill exercises with saved progress. Objective answers receive worked feedback; written responses use a transparent self-review rubric.</p>
+    {% csrf_token %}
+    <div class="workshop-choices">{% for key, title in workshops %}<button type="button" class="button-secondary" data-workshop-kind="{{ key }}">{{ title }}</button>{% endfor %}</div>
+    <p data-workshop-status role="status" aria-live="polite"></p>
+    <article class="card top-gap" data-workshop-player hidden>
+        <p data-workshop-progress></p>
+        <h2 data-workshop-title></h2>
+        <p data-workshop-intro></p>
+        <div data-workshop-stage></div>
+        <div class="workshop-actions"><button type="button" class="button-secondary" data-workshop-draft hidden>Save draft</button><button type="button" class="button" data-workshop-submit>Submit response</button><button type="button" class="button" data-workshop-next hidden>Next stage</button></div>
+        <section data-workshop-feedback aria-live="polite"></section>
+        <div data-workshop-report></div>
+    </article>
+</section>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'js/workshop.js' %}"></script>{% endblock %}

@@ -48,7 +48,7 @@ from backend.apps.assessments.services import (
     serialize_full_test_attempt_for_frontend,
 )
 from backend.apps.billing.models import BillingCurrency, format_money
-from backend.apps.billing.regions import get_request_country_code
+from backend.apps.billing.regions import get_request_country_code, pricing_region_for_country
 from backend.apps.billing.services import (
     PAYPAL_SUPPORTED_CURRENCIES,
     build_plan_cards,
@@ -334,18 +334,53 @@ class HomePageView(TemplateView):
         all_questions = get_questions()
         context.update(
             {
-                "page_title": "Free Cognitive Aptitude Test Practice | GIA & CCAT | MindMetric",
+                "page_title": "Pass the Online Assessment: CCAT, SHL & Aptitude Test Practice | MindMetric",
                 "meta_description": (
-                    "Take free cognitive aptitude test practice for Thomas GIA and CCAT, "
-                    "with numerical, verbal, abstract and spatial reasoning questions."
+                    "Practice the online aptitude assessments large employers use to screen "
+                    "internship and new-grad applicants: CCAT, SHL-style, Watson-Glaser-style, "
+                    "consulting and Thomas GIA. Start free."
                 ),
                 "question_count": len(all_questions),
                 "sections": _section_cards(ASSESSMENT_PREPGIA),
                 "home_assessments": get_assessment_cards(),
+                "home_tests": _home_test_picker(self.request),
                 "home_eyebrow": prepgia_config["eyebrow"],
             }
         )
         return context
+
+
+# Widely published facts about each real test, shown on its practice page.
+# Keep these to the publisher's standard format; employers can vary them.
+REAL_TEST_FACTS = {
+    "ccat": ["50 questions", "15 minutes", "Verbal, math and spatial reasoning", "Few people finish all 50"],
+    "watson_glaser": ["40 questions", "30 minutes", "Five critical-thinking sections"],
+    "shl_verify": ["Separate numerical, verbal and inductive tests", "Each timed on its own"],
+    "prepgia": ["Five short timed sections", "Practice questions before each section", "Speed matters as much as accuracy"],
+}
+
+# Order and short labels for the home-page test picker: the tests students
+# meet most often in big-company screening rounds come first.
+HOME_TEST_PICKER_ORDER = ["ccat", "shl_verify", "consulting", "consulting_cases", "watson_glaser", "prepgia"]
+HOME_TEST_PICKER_LABELS = {
+    "ccat": ("CCAT", "50 Q · 15 min"),
+    "shl_verify": ("SHL-style", "Numerical · logic"),
+    "consulting": ("Consulting problem solving", ""),
+    "consulting_cases": ("Consulting cases", ""),
+    "watson_glaser": ("Watson–Glaser-style", "Critical thinking"),
+    "prepgia": ("Thomas GIA", "5 sections"),
+}
+
+
+def _home_test_picker(request):
+    cards = [card for card in _build_practice_assessment_cards(request) if card.get("can_open")]
+    rank = {key: index for index, key in enumerate(HOME_TEST_PICKER_ORDER)}
+    cards.sort(key=lambda card: rank.get(card["key"], len(rank)))
+    picker = []
+    for card in cards:
+        label, hint = HOME_TEST_PICKER_LABELS.get(card["key"], (card["title"], ""))
+        picker.append({"key": card["key"], "label": label, "hint": hint, "url": card["open_url"]})
+    return picker
 
 
 class PricingPageView(TemplateView):
@@ -358,7 +393,11 @@ class PricingPageView(TemplateView):
             sync_user_subscription_access(self.request.user)
             active_subscription = self.request.user.subscriptions.filter(status="active").order_by("-updated_at").first()
         plans = _visible_frontend_plans(self.request, active_subscription)
-        regional_currency = plans[0]["currency"] if plans else BillingCurrency.USD
+        country = get_request_country_code(self.request)
+        region = pricing_region_for_country(country)
+        # A free allowance follows the visitor's regional currency even if an
+        # administrator intentionally lists a paid plan in another currency.
+        regional_currency = "CHF" if country == "CH" else {"IN": "INR", "GB": "GBP", "EU": "EUR"}.get(region, BillingCurrency.USD)
         free_price_display = format_money(regional_currency, Decimal("0")).removesuffix(".00")
         context.update(
             {
@@ -719,7 +758,9 @@ class AssessmentPracticePageView(TemplateView):
             assessment_config["title"],
         )
         from backend.apps.assessments.models import AssessmentResource
-        context["official_resources"] = AssessmentResource.objects.filter(assessment_type=assessment_type, is_active=True)
+        resource_assessments = ["consulting", "consulting_cases"] if assessment_type in {"consulting", "consulting_cases"} else [assessment_type]
+        context["official_resources"] = AssessmentResource.objects.filter(assessment_type__in=resource_assessments, is_active=True).order_by("publisher", "title")
+        context["real_test_facts"] = REAL_TEST_FACTS.get(assessment_type, [])
         sections = _practice_section_cards(self.request, assessment_type)
         user = self.request.user
         if user.is_authenticated and (
@@ -951,7 +992,10 @@ class SectionTestSetupView(LoginRequiredMixin, View):
                 return JsonResponse({"adaptive_url": reverse("pages:adaptive-test", args=[attempt.id])})
             previews = get_section_test_previews(attempt)
         except PermissionError as exc:
-            return JsonResponse({"detail": str(exc), "access_requires_upgrade": True}, status=403)
+            return JsonResponse(
+                {"detail": str(exc), "access_requires_upgrade": True, "upgrade_url": reverse("pages:pricing")},
+                status=403,
+            )
         except FullTestSessionError:
             logger.exception("Section test setup failed because the active Redis-backed session was unavailable.")
             return JsonResponse({"detail": "Section test is temporarily unavailable. Please try again in a moment."}, status=503)
@@ -1174,10 +1218,11 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                     "has_progress": modules_touched > 0,
                     "is_complete": completed_count == module_count and module_count > 0,
                     "progress_label": (
-                        f"{completed_count} out of {module_count} completed"
+                        f"{completed_count} of {module_count} modules completed"
                         if modules_touched > 0
-                        else "Not started yet"
+                        else "Not started"
                     ),
+                    "open_url": _track_open_url(assessment_key),
                 }
             )
             chart_data[assessment_key] = {"full_test": []}
@@ -1276,7 +1321,9 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                 "full_test_rows": full_test_rows,
                 "section_score_rows": section_score_rows,
                 "expired_attempt_count": 0,
-                "assessment_cards": assessment_cards,
+                # Tests the student has started come first; untouched ones follow.
+                "assessment_cards": sorted(assessment_cards, key=lambda card: not card["has_progress"]),
+                "has_any_progress": any(card["has_progress"] for card in assessment_cards),
                 "assessment_estimates": assessment_estimates,
                 "chart_data": chart_data,
                 "section_tabs": section_tabs,
@@ -1284,6 +1331,9 @@ class DashboardPageView(LoginRequiredMixin, TemplateView):
                 "feedback_form": PortalFeedbackForm(),
             }
         )
+        from .student import dashboard_deadline_context
+
+        context.update(dashboard_deadline_context(self.request))
         return context
 
 
@@ -1405,8 +1455,15 @@ def _build_section_questions(section_type: str, mode: str, user=None, question_c
     group_size = get_module_meta(section_type).get("case_group_size", 1)
     question_count = ((question_count + group_size - 1) // group_size) * group_size
     session_id = uuid.uuid4().hex
-    generated = _build_question_batch(session_id, section_type, mode, question_count, difficulty)
-    return [_build_generated_preview(item) for item in generated]
+    generated = _build_question_batch(session_id, section_type, mode, question_count, difficulty, user=user)
+    from backend.apps.assessments.quality import issue_question
+    from backend.apps.tenants.utils import get_current_tenant
+    previews = []
+    for item in generated:
+        preview = _build_generated_preview(item)
+        preview["report_token"] = issue_question(user, get_current_tenant() or getattr(user, "tenant", None), item)
+        previews.append(preview)
+    return previews
 
 
 def _question_summary(payload_json: str) -> str:

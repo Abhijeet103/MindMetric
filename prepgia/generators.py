@@ -17,7 +17,13 @@ from prepgia.question_types import (
     _build_ccat_number_options,
 )
 from prepgia.shl_generators import SHLDeductiveGenerator, SHLNumericalGenerator
-from prepgia.consulting_generators import ConsultingMathGenerator, ConsultingEvidenceGenerator, ConsultingShortCaseGenerator, CriticalThinkingGenerator, LinkedCaseGenerator
+from prepgia.consulting_generators import (
+    ConsultingMathGenerator,
+    ConsultingEvidenceGenerator,
+    ConsultingShortCaseGenerator,
+    CriticalThinkingGenerator,
+    LinkedCaseGenerator,
+)
 
 SECTION_TYPES = [
     "reasoning",
@@ -31,8 +37,15 @@ SECTION_TYPES = [
     "shl_numerical",
     "shl_deductive",
     "shl_inductive",
-    "consulting_math", "consulting_evidence", "consulting_case", "linked_case",
-    "wg_inference", "wg_assumptions", "wg_deduction", "wg_interpretation", "wg_arguments",
+    "consulting_math",
+    "consulting_evidence",
+    "consulting_case",
+    "linked_case",
+    "wg_inference",
+    "wg_assumptions",
+    "wg_deduction",
+    "wg_interpretation",
+    "wg_arguments",
 ]
 
 # (greater comparative, lesser comparative, greater adjective, lesser adjective).
@@ -1233,6 +1246,74 @@ def _make_polygon_points(rng: random.Random, vertex_count: int) -> list[list[flo
 class SHLInductiveGenerator(CCATSpatialGenerator):
     section_type = "shl_inductive"
 
+    def generate(self, difficulty, seed, conn=None):
+        rng = self.rng(seed)
+        if _choose_batch_balanced_variant(rng, seed, ["existing", "compound"]) == "existing":
+            return super().generate(difficulty, seed, conn)
+        level = {"easy": 1, "medium": 2, "hard": 3}[difficulty]
+        positions = ["top_left", "top_right", "bottom_right", "bottom_left"]
+        start, direction = rng.randrange(4), rng.choice([-1, 1])
+        shape = rng.choice(["triangle", "diamond", "circle"])
+
+        def cell(step, reverse=False, hold_fill=False, wrong_shape=False):
+            marks = []
+            for index in range(level):
+                position = (start + index + (-direction if reverse else direction) * step) % 4
+                marks.append(
+                    {
+                        "shape": "square" if wrong_shape else shape,
+                        "position": positions[position],
+                        "filled": (index + (0 if hold_fill else step)) % 2 == 0,
+                    }
+                )
+            return {"shape": "symbol_box", "marks": marks}
+
+        target = cell(4)
+        candidates = [target, cell(4, hold_fill=True), cell(3), cell(4, wrong_shape=True), cell(2)]
+        # Step 4's fill equals step 0: use the opposite fill as the diagnostic
+        # distractor, rather than an identical 'held' fill.
+        candidates[1] = copy.deepcopy(target)
+        for mark in candidates[1]["marks"]:
+            mark["filled"] = not mark["filled"]
+        distinct = []
+        for spec in candidates:
+            if spec not in distinct:
+                distinct.append(spec)
+        options = [{"value": "", **spec} for spec in distinct[:4]]
+        rng.shuffle(options)
+        answer = None
+        for index, spec in enumerate(options):
+            spec["value"] = chr(65 + index)
+            if {k: v for k, v in spec.items() if k != "value"} == target:
+                answer = spec["value"]
+        return GeneratedQuestion(
+            self.section_type,
+            difficulty,
+            seed,
+            {
+                "question_id": str(uuid.uuid4()),
+                "section_type": self.section_type,
+                "prompt": {
+                    "instruction": "Study every figure and select the missing one.",
+                    "question": "Which figure completes the sequence?",
+                    "stimulus": [*[cell(i) for i in range(4)], {"shape": "missing"}],
+                    "stimulus_layout": "sequence",
+                    "explanation": f"All {level} symbols move one corner {'clockwise' if direction == 1 else 'anticlockwise'} per step, and each symbol alternates between filled and outline. Continue both changes; a correct position with the wrong fill is insufficient.",
+                },
+                "options": [spec["value"] for spec in options],
+                "option_visuals": options,
+                "metadata": {
+                    "difficulty": difficulty,
+                    "subtype": "compound_movement",
+                    "generator_version": 2,
+                    "start": start,
+                    "direction": direction,
+                    "symbol_count": level,
+                },
+            },
+            {"answer": answer},
+        )
+
 
 GENERATOR_MAP = {
     "reasoning": ReasoningGenerator(),
@@ -1248,7 +1329,24 @@ GENERATOR_MAP = {
     "shl_inductive": SHLInductiveGenerator(),
 }
 
-GENERATOR_MAP.update({"consulting_math": ConsultingMathGenerator(), "consulting_evidence": ConsultingEvidenceGenerator(), "consulting_case": ConsultingShortCaseGenerator(), "linked_case": LinkedCaseGenerator(), **{key: CriticalThinkingGenerator(key) for key in ["wg_inference", "wg_assumptions", "wg_deduction", "wg_interpretation", "wg_arguments"]}})
+GENERATOR_MAP.update(
+    {
+        "consulting_math": ConsultingMathGenerator(),
+        "consulting_evidence": ConsultingEvidenceGenerator(),
+        "consulting_case": ConsultingShortCaseGenerator(),
+        "linked_case": LinkedCaseGenerator(),
+        **{
+            key: CriticalThinkingGenerator(key)
+            for key in [
+                "wg_inference",
+                "wg_assumptions",
+                "wg_deduction",
+                "wg_interpretation",
+                "wg_arguments",
+            ]
+        },
+    }
+)
 
 
 def generate_question(

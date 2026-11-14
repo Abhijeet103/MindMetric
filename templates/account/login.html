@@ -4,11 +4,21 @@
 <section class="content-section">
     <div class="login-layout">
         <article class="card login-panel">
-            <span class="eyebrow">Login</span>
-            <h1 class="section-title">Sign in to MindMetric</h1>
-            <p class="section-copy">
-                Use your email and password, or continue with Google. Every user begins on the free role and upgrades after payment.
-            </p>
+            <span class="eyebrow">Sign in</span>
+            <h1 class="section-title">Welcome back</h1>
+            {% if redirect_field_value and "full-test" in redirect_field_value %}
+                <p class="login-context">Sign in to take your free timed full test. It takes under a minute to create an account.</p>
+            {% elif redirect_field_value %}
+                <p class="login-context">Sign in to continue. Your scores and progress will be saved.</p>
+            {% else %}
+                <p class="section-copy">Save your scores and pick up where you left off.</p>
+            {% endif %}
+
+            <a href="/accounts/google/login/" data-btn-loader class="button-secondary login-google">
+                <img src="/static/google-g.svg" alt="" class="login-google-icon" width="20" height="20">
+                <span>Continue with Google</span>
+            </a>
+            <div class="login-divider"><span>or use email</span></div>
 
             <form method="post" action="{% url 'account_login' %}" class="login-form" data-btn-loader>
                 {% csrf_token %}
@@ -36,18 +46,11 @@
                         {% endfor %}
                     </div>
                 {% endif %}
-                <button type="submit" class="button login-submit">Sign in with email</button>
+                <button type="submit" class="button login-submit">Sign in</button>
+                <a class="login-forgot" href="{% url 'account_reset_password' %}">Forgot your password?</a>
             </form>
 
-            <div class="login-divider"><span>or</span></div>
-            <a href="/accounts/google/login/" data-btn-loader class="button-secondary login-google">
-                <img src="/static/google-g.svg" alt="" class="login-google-icon" width="20" height="20">
-                <span>Continue with Google</span>
-            </a>
-
-            <p class="muted" style="text-align:center;margin-top:16px;font-size:0.92rem;">
-                No account? <a href="{% url 'account_signup' %}" style="color:var(--brand-dark);font-weight:700;">Register</a>
-            </p>
+            <p class="login-switch">New here? <a href="{% url 'account_signup' %}">Create a free account</a></p>
         </article>
     </div>
 </section>

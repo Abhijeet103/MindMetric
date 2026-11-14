@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="results" data-results>
+    <a class="back-link" href="{{ assessment_url }}" data-show-loader>&larr; Back to {{ assessment_title }}</a>
+
+    <header class="results-head">
+        <span class="eyebrow">Results · {{ attempt.completed_at|date:"j M Y" }}</span>
+        <h1>{{ title }}</h1>
+    </header>
+
+    <div class="results-summary">
+        <div class="results-score" aria-label="{{ total_correct }} of {{ total_questions }} correct">
+            <svg class="results-ring" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="track" cx="60" cy="60" r="52"/>
+                <circle class="bar" cx="60" cy="60" r="52" data-results-ring style="--pct: {{ accuracy }}"/>
+            </svg>
+            <div class="results-score-copy">
+                <strong class="mono" data-count-to="{{ accuracy }}">{{ accuracy }}%</strong>
+                <span>accuracy</span>
+            </div>
+        </div>
+        <dl class="results-stats">
+            <div><dt>Correct</dt><dd class="mono" data-count-to="{{ total_correct }}">{{ total_correct }}</dd><dd class="results-stat-sub">of {{ total_questions }}</dd></div>
+            <div><dt>Answered</dt><dd class="mono" data-count-to="{{ total_answered }}">{{ total_answered }}</dd><dd class="results-stat-sub">of {{ total_questions }}</dd></div>
+            {% if elapsed %}<div><dt>Time used</dt><dd class="mono">{{ elapsed }}</dd>{% if seconds_per_answer %}<dd class="results-stat-sub">~{{ seconds_per_answer }}s per answer</dd>{% endif %}</div>{% endif %}
+        </dl>
+    </div>
+
+    {% if weakest %}
+        <article class="results-focus">
+            <div>
+                <span class="results-focus-label">Practice this next</span>
+                <h2>{{ weakest.title }}</h2>
+                <p>
+                    {% if is_full_test %}This was your lowest-scoring section: {{ weakest.correct }} of {{ weakest.total }} correct{% if weakest.unanswered %}, with {{ weakest.unanswered }} left unanswered{% endif %}.
+                    {% else %}You got {{ weakest.correct }} of {{ weakest.total }} correct{% if weakest.unanswered %} and ran out of time on {{ weakest.unanswered }}{% endif %}.{% endif %}
+                    A few untimed practice rounds with explanations is the fastest way to lift it.
+                </p>
+            </div>
+            <a class="button" href="{{ weakest.drill_url }}" data-show-loader>Practice {{ weakest.title }}</a>
+        </article>
+    {% endif %}
+
+    {% if sections|length > 1 %}
+        <section class="results-sections" aria-labelledby="results-sections-title">
+            <h2 id="results-sections-title">By section</h2>
+            <ul>
+                {% for section in sections %}
+                    <li class="{% if weakest and section.section_type == weakest.section_type %}is-weakest{% endif %}" style="--i: {{ forloop.counter0 }}">
+                        <div class="results-section-row">
+                            <a href="{{ section.drill_url }}" data-show-loader>{{ section.title }}</a>
+                            <span class="mono">{{ section.correct }} / {{ section.total }}</span>
+                        </div>
+                        <span class="results-bar" aria-hidden="true"><span style="--pct: {{ section.accuracy }}"></span></span>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+    {% endif %}
+
+    {% if show_upgrade %}
+        <aside class="results-upgrade">
+            <div>
+                <h2>Keep going before the real round</h2>
+                <p>A membership unlocks every test, timed full tests and the full question bank for one month. It ends on its own, with nothing to cancel.</p>
+            </div>
+            <a class="button" href="{% url 'pages:pricing' %}" data-show-loader>See membership</a>
+        </aside>
+    {% endif %}
+
+    <nav class="results-actions" aria-label="Next steps">
+        <a class="button-secondary" href="{{ assessment_url }}" data-show-loader>Back to {{ assessment_title }}</a>
+        <a class="button-secondary" href="{% url 'pages:dashboard' %}" data-show-loader>See all progress</a>
+    </nav>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(() => {
+  // Count numbers up from zero once; skipped when motion is reduced.
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const els = document.querySelectorAll("[data-count-to]");
+  els.forEach((el) => {
+    const target = Number(el.dataset.countTo);
+    if (!Number.isFinite(target) || target <= 0) return;
+    const suffix = el.textContent.trim().endsWith("%") ? "%" : "";
+    const start = performance.now();
+    const duration = 650;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = `${Math.round(target * eased)}${suffix}`;
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+  document.querySelector("[data-results]")?.classList.add("is-animated");
+})();
+</script>
+{% endblock %}

@@ -28,3 +28,74 @@ for (let attempt = 1; attempt <= 80; attempt += 1) {
 }
 assert.equal(JSON.stringify(sessions), before, 'Ordering must not mutate source sessions');
 console.log('Player ordering checks passed (80 attempts).');
+
+// Optional fixtures exercise the real SVG renderer without a browser. Compare
+// the actual element tree, including geometry/fill, rather than only item JSON.
+if (process.argv[2]) {
+  class SvgElement {
+    constructor(tag) { this.tag = tag; this.attributes = {}; this.children = []; }
+    setAttribute(key, value) { this.attributes[key] = value; }
+    append(...children) { this.children.push(...children); }
+    appendChild(child) { this.children.push(child); }
+  }
+  context.document = {createElementNS: (_namespace, tag) => new SvgElement(tag)};
+  const svgStart = source.indexOf('function renderCcatSpatialSvg(');
+  const svgEnd = source.indexOf('function renderCcatSpatialStimulus(', svgStart);
+  vm.runInContext(source.slice(svgStart, svgEnd), context);
+  const canonicalSvg = (element) => JSON.stringify({
+    tag: element.tag,
+    attributes: Object.fromEntries(Object.entries(element.attributes).sort()),
+    children: element.children.map(canonicalSvg).sort(),
+  });
+  const audit = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+  const fixtures = audit.sections.shl_inductive.visual_fixtures;
+  assert.ok(fixtures.length >= 30, 'Expected compound visual fixtures at all three difficulties');
+  for (const options of fixtures) {
+    const rendered = options.map((option) => canonicalSvg(context.renderCcatSpatialSvg(option)));
+    assert.equal(rendered.length, 4);
+    assert.equal(new Set(rendered).size, 4, 'All offered figures must render differently');
+  }
+  console.log(`SVG geometry checks passed (${fixtures.length} compound questions).`);
+}
+
+class ChartNode {
+  constructor(tag) { this.tag = tag; this.attributes = {}; this.children = []; this.style = {}; this.dataset = {}; this.textContent = ''; }
+  setAttribute(key, value) { this.attributes[key] = String(value); }
+  append(...children) { this.children.push(...children); }
+  appendChild(child) { this.children.push(child); }
+  set innerHTML(_value) { throw new Error('Charts must use text nodes for untrusted labels'); }
+}
+context.document = {createElement: (tag) => new ChartNode(tag), createElementNS: (_namespace, tag) => new ChartNode(tag)};
+const descendants = (node) => [node, ...node.children.flatMap(descendants)];
+for (const values of [[100, 80, 130], [-10, 0, 20], [0, 0, 0]]) {
+  const chart = context.renderDataChart({type: 'line', title: 'Revenue (£)', labels: ['Jan', 'Feb', 'Mar'], values});
+  const nodes = descendants(chart);
+  const points = nodes.find((node) => node.tag === 'polyline').attributes.points;
+  assert.equal(points.split(' ').length, 3);
+  assert.ok(!/NaN|Infinity/.test(points));
+  assert.equal(nodes.filter((node) => node.tag === 'circle').length, 3);
+  assert.equal(nodes.filter((node) => node.tag === 'tbody')[0].children.length, 3);
+}
+const stacked = context.renderDataChart({type: 'stacked', title: 'Client mix', labels: ['Before', 'After'], series: [{name: 'Existing', values: [100, 120]}, {name: 'New', values: [400, 320]}]});
+const stackedNodes = descendants(stacked);
+const bars = stackedNodes.filter((node) => node.tag === 'span');
+assert.equal(bars.length, 4);
+assert.ok(bars.every((node) => Number.parseFloat(node.style.width) >= 0 && Number.parseFloat(node.style.width) <= 100));
+assert.equal(stackedNodes.find((node) => node.tag === 'tbody').children.length, 2);
+const maliciousLabel = '<img src=x onerror=alert(1)>';
+const safeChart = context.renderDataChart({title: maliciousLabel, labels: [maliciousLabel], values: [2]});
+assert.ok(descendants(safeChart).some((node) => node.textContent === maliciousLabel));
+console.log('Line, stacked, zero/negative value and safe-label chart checks passed.');
+
+const cookieStart = source.indexOf('function getCookie(name)');
+const cookieEnd = source.indexOf('function dismissFlash', cookieStart);
+vm.runInContext(source.slice(cookieStart, cookieEnd), context);
+for (const name of ['__Host-mindmetric_csrf_v2', 'mindmetric_csrf_v2', 'csrftoken']) {
+  context.document = {cookie: `other=x; ${name}=encoded%20token`, querySelector: () => null};
+  assert.equal(context.getCookie('csrftoken'), 'encoded token');
+}
+context.document = {cookie: 'mindmetric_csrf_v2=raw', querySelector: () => ({value: 'masked-form-token'})};
+assert.equal(context.getCookie('csrftoken'), 'masked-form-token');
+context.document = {cookie: 'example=abc%3Ddef', querySelector: () => null};
+assert.equal(context.getCookie('example'), 'abc=def');
+console.log('CSRF token lookup checks passed for form, production, development and legacy cookies.');

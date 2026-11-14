@@ -96,13 +96,14 @@ def runtime_assessment_config(tenant, assessment_type):
         for m in config["modules"]
     }
     count = sum(config["full_test_question_counts"].values())
-    config["full_test_meta_tail"] = f"{count} questions · {policy['test_type'].capitalize()}"
+    is_adaptive = policy["test_type"] == "adaptive"
+    config["full_test_meta_tail"] = f"{count} questions" + (" · Adaptive" if is_adaptive else "")
     config["full_test_description"] = (
-        f"{count} questions in {policy['full_test_time_seconds'] / 60:g} minutes. "
+        f"Every section, back to back, in {policy['full_test_time_seconds'] / 60:g} minutes. "
         + (
-            "Difficulty adjusts to your answers."
-            if policy["test_type"] == "adaptive"
-            else "A normal practice test with a fixed question form."
+            "Timed like the real test, and the difficulty adjusts to your answers."
+            if is_adaptive
+            else "Timed like the real test, with a score for every section at the end."
         )
     )
     return config

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from backend.apps.assessments.models import SectionType
+from prepgia.critical_scenarios import INSTRUCTIONS as CRITICAL_INSTRUCTIONS
 
 ASSESSMENT_PREPGIA = "prepgia"
 ASSESSMENT_CCAT = "ccat"
@@ -280,7 +281,7 @@ def _module(key, title, description, case_group_size=1):
 
 
 ASSESSMENT_CONFIG["consulting"] = _practice_track("consulting", "Consulting Problem Solving", "Charts, business mathematics, evidence evaluation and original short business cases.", [
-    _module(SectionType.CONSULTING_MATH, "Charts & Business Mathematics", "Interpret charts, percentages, margins and weighted averages."),
+    _module(SectionType.CONSULTING_MATH, "Charts & Business Mathematics", "Interpret exhibits, market sizing, pricing, margins, capacity and opportunity costs."),
     _module(SectionType.CONSULTING_EVIDENCE, "Evidence Evaluation", "Evaluate sampling, causal claims and evidence needed for business decisions."),
     _module(SectionType.CONSULTING_CASE, "Short Business Cases", "Solve four linked questions using a shared business case.", 4),
 ], 30)
@@ -292,9 +293,27 @@ ASSESSMENT_CONFIG[ASSESSMENT_WATSON_GLASER] = _practice_track(ASSESSMENT_WATSON_
     _module(SectionType.WG_ARGUMENTS, "Evaluating Arguments", "Judge the relevance and importance of arguments to the stated decision."),
 ], 30)
 ASSESSMENT_CONFIG["consulting_cases"] = _practice_track("consulting_cases", "Consulting Case Practice", "Independent BCG/Bain-style case skills with shared exhibits and linked questions; original cases, not official replicas.", [
-    _module(SectionType.LINKED_CASE, "Linked Case Sessions", "Analyse business exhibits, calculate profit and break-even, and recommend a decision.", 4),
+    _module(SectionType.LINKED_CASE, "Linked Case Sessions", "Evaluate automation, market entry and capacity decisions using shared exhibits, incremental economics and evidence.", 4),
 ], 30)
 ASSESSMENT_CONFIG["consulting_cases"]["full_test_question_counts"][SectionType.LINKED_CASE] = 12
+
+# Keep the learning guidance aligned with each section's actual decision rule.
+
+_CRITICAL_TRAPS = {
+    "inference": "Distinguish a population estimate from a fact about every individual; preference is not willingness to pay.",
+    "assumptions": "A useful benefit need not be an assumption. Negate the proposed assumption and test the stated reason.",
+    "deduction": "Necessary is not sufficient. All A are B does not imply all B are A or that any A exist.",
+    "interpretation": "Changing group weights can reverse an overall rate. An observed improvement does not identify its cause.",
+    "arguments": "An argument against a proposal may be strong. Check its relevance to the exact objective and constraints.",
+}
+for _critical_module in ASSESSMENT_CONFIG[ASSESSMENT_WATSON_GLASER]["modules"]:
+    _skill = _critical_module["key"].removeprefix("wg_")
+    _critical_module["instruction"] = CRITICAL_INSTRUCTIONS[_skill]
+    _critical_module["help"].update(
+        task=CRITICAL_INSTRUCTIONS[_skill], watch_out=_CRITICAL_TRAPS[_skill],
+        tip="Use the explanation to identify the reasoning error, not just the correct option.",
+    )
+
 
 PRACTICE_TRACK_LIBRARY = {
     ASSESSMENT_PREPGIA: {
@@ -303,7 +322,7 @@ PRACTICE_TRACK_LIBRARY = {
         "description": "Thomas International GIA cognitive ability practice with timed tests and section-wise drills.",
         "module_count": len(ASSESSMENT_CONFIG[ASSESSMENT_PREPGIA]["modules"]),
         "trust_line": "Used by 30,000+ employers across the UK and Europe",
-        "available_languages": ["English", "Deutsch — kommt bald"],
+        "available_languages": ["English", "German (coming soon)"],
         "route_enabled": True,
         "default_visibility_state": "accessible",
     },

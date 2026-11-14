@@ -41,8 +41,13 @@
             data-dashboard-url="{% url 'pages:dashboard' %}"
             data-return-url="{% url 'pages:assessment-section-detail' assessment_slug section.key %}?mode=practice"
             data-test-setup-url="{{ section.test_setup_url }}"
+            data-authenticated="{{ request.user.is_authenticated|yesno:'true,false' }}"
             data-practice-progress-url="{% url 'practice-progress' %}"
         >
+            <p class="section-inline-feedback" data-practice-save-status role="status" aria-live="polite"{% if request.user.is_authenticated %} hidden{% endif %}>
+                <span data-practice-save-message>You're practicing as a guest, so progress lasts only for this visit.</span>
+                <a data-practice-save-login href="{% url 'pages:login' %}?next={{ request.get_full_path|urlencode }}"{% if request.user.is_authenticated %} hidden{% endif %}>Sign in to save your progress</a>
+            </p>
             <div class="player-loader" data-player-loader hidden aria-live="polite" aria-label="Loading">
                 <div class="page-loader-dots" aria-hidden="true">
                     <span class="page-loader-dot"></span>
@@ -65,10 +70,10 @@
                 </div>
                 <p
                     class="muted section-mode-copy"
-                    data-practice-copy="No time limit · immediate feedback · one player, card updates in place as you go."
-                    data-test-copy="Timed section · fullscreen required · one player, card updates in place as you go."
+                    data-practice-copy="No timer. You'll see the answer and an explanation after each question."
+                    data-test-copy="Timed, like the real test. Opens fullscreen, and results are shown at the end."
                 >
-                    {% if section.mode == "test" %}Timed section · fullscreen required · one player, card updates in place as you go.{% else %}No time limit · immediate feedback · one player, card updates in place as you go.{% endif %}
+                    {% if section.mode == "test" %}Timed, like the real test. Opens fullscreen, and results are shown at the end.{% else %}No timer. You'll see the answer and an explanation after each question.{% endif %}
                 </p>
             </article>
 
@@ -97,15 +102,15 @@
 
             <div class="test-stage full-test-stage" data-test-stage="practice-intro" {% if section.mode == "test" %}hidden{% endif %}>
                 <p class="muted test-label">Practice mode</p>
-                <h3>Start practice</h3>
-                <p class="muted">Begin when ready. We will track your average time per solved question so you can compare your pace with the timed test.</p>
+                <h3>Ready when you are</h3>
+                <p class="muted">We track your average time per question so you can compare your pace with the timed test.</p>
                 <button type="button" class="button" data-test-practice-start>Start practice</button>
             </div>
 
             <div class="test-stage full-test-stage" data-test-stage="test-intro" {% if section.mode != "test" %}hidden{% endif %}>
                 <p class="muted test-label">Test mode</p>
                 <h3>Enter fullscreen to begin</h3>
-                <p class="muted">This timed section starts only after fullscreen mode is enabled.</p>
+                <p class="muted">The timer starts when the test opens fullscreen. You can't pause once it begins.</p>
                 <button type="button" class="button" data-test-fullscreen-start>Enter fullscreen and start</button>
             </div>
 
@@ -116,7 +121,7 @@
                         <p class="test-timer full-test-timer-pill" data-test-timer></p>
                     </div>
                     <div class="test-context test-context-large test-shell section-question-shell section-stage-box full-test-stage-shell full-test-context-shell" data-test-context></div>
-                    <p class="muted full-test-stage-helper" data-test-context-helper>Click the context card to reveal the question.</p>
+                    <button type="button" class="button reveal-question-button full-test-stage-helper" data-test-context-helper>Show question <kbd aria-hidden="true">Enter</kbd></button>
                 </div>
             </div>
 
@@ -137,7 +142,7 @@
             <div class="test-stage" data-test-stage="complete" hidden>
                 <p class="muted test-label">Section complete</p>
                 <h3>You have reached the end of this question set.</h3>
-                <p class="muted" data-complete-summary>You can refresh the page to practice this section again.</p>
+                <p class="muted" data-complete-summary>Refresh the page to practice this section again.</p>
             </div>
 
             <div class="test-stage" data-test-stage="loading" hidden>

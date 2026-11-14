@@ -6,6 +6,7 @@ import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
@@ -157,7 +158,7 @@ class FullTestSubmitView(LoginRequiredMixin, View):
             logger.exception("Full test submission failed because the active Redis-backed session was unavailable.")
             return JsonResponse({"detail": "Full test session is temporarily unavailable. Please restart the test."}, status=503)
         logger.info("Full test submit completed attempt_id=%s user_id=%s overall_score=%s", attempt_id, request.user.id, result["overall_score"])
-        return JsonResponse(result)
+        return JsonResponse({**result, "results_url": reverse("pages:attempt-results", args=[attempt.id])})
 
 
 class FullTestQuestionView(LoginRequiredMixin, View):
@@ -323,12 +324,15 @@ class SectionTestSubmitView(LoginRequiredMixin, View):
         payload = json.loads(request.body or "{}")
         logger.info("Section test submit requested attempt_id=%s user_id=%s", attempt_id, request.user.id)
         result = submit_section_attempt(attempt, payload.get("answers", []))
-        return JsonResponse(result)
+        return JsonResponse({**result, "results_url": reverse("pages:attempt-results", args=[attempt.id])})
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class PracticeProgressUpdateView(LoginRequiredMixin, View):
+class PracticeProgressUpdateView(View):
     def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({"detail": "Sign in to save practice progress."}, status=401)
+
         payload = json.loads(request.body or "{}")
         section_type = payload.get("section_type")
         assessment_type = payload.get("assessment_type", ASSESSMENT_PREPGIA)
@@ -373,4 +377,6 @@ class AdaptiveAdvanceView(LoginRequiredMixin, View):
             return JsonResponse({"detail": "Attempt not found."}, status=404)
         except (ValueError, AdaptiveInputError) as exc:
             return JsonResponse({"detail": str(exc)}, status=400)
+        if result.get("complete"):
+            result = {**result, "results_url": reverse("pages:attempt-results", args=[attempt_id])}
         return JsonResponse(result)

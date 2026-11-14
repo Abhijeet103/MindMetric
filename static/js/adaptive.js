@@ -16,6 +16,10 @@
     find('progress').textContent = `${state.answered} / ${state.total} answered`;
     if (state.complete) {
       if (timer) clearInterval(timer);
+      if (state.results_url) {
+        window.location.assign(state.results_url);
+        return;
+      }
       find('question-shell').hidden = true;
       const result = find('result');
       result.hidden = false;

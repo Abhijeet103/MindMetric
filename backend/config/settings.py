@@ -83,6 +83,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "backend.apps.pages.seo.seo_context",
+                "backend.apps.pages.student.legal_links",
             ],
         },
     }

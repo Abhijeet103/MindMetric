@@ -348,3 +348,25 @@ class PortalFeedbackAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
     search_fields = ("email", "message", "user__first_name", "user__last_name")
     readonly_fields = ("user", "email", "message", "source_page", "created_at")
     fields = ("tenant", "user", "email", "category", "message", "source_page", "status", "created_at")
+
+
+from .models import ApplicationDeadline, EmployerAssessment, LegalPage  # noqa: E402
+
+
+@admin.register(EmployerAssessment)
+class EmployerAssessmentAdmin(admin.ModelAdmin):
+    list_display = ("company", "industry", "assessment_types", "verified_on", "is_published")
+    list_filter = ("is_published", "industry")
+    search_fields = ("company", "industry")
+
+
+@admin.register(LegalPage)
+class LegalPageAdmin(admin.ModelAdmin):
+    list_display = ("title", "slug", "effective_date", "is_published", "updated_at")
+
+
+@admin.register(ApplicationDeadline)
+class ApplicationDeadlineAdmin(admin.ModelAdmin):
+    list_display = ("company", "user", "assessment_type", "due_date", "reminder_sent_at")
+    search_fields = ("company", "user__email")
+    raw_id_fields = ("user",)

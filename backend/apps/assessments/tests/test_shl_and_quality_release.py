@@ -106,6 +106,25 @@ class GeneratedQualityTests(SimpleTestCase):
                     expected = sum(row[2] * row[3] for row in rows) / sum(row[2] for row in rows)
                 elif subtype == "ratio":
                     expected = current / rows[1][2]
+                elif subtype == "revenue_growth":
+                    expected = 100 * (
+                        sum(r[2] * r[3] for r in rows) / sum(r[1] * r[3] for r in rows) - 1
+                    )
+                elif subtype == "contribution_margin":
+                    expected = (
+                        100
+                        * sum(r[2] * (r[3] - r[4]) for r in rows)
+                        / sum(r[2] * r[3] for r in rows)
+                    )
+                elif subtype == "target_profit":
+                    import math
+                    import re
+
+                    target, fixed = [
+                        int(v.replace(",", ""))
+                        for v in re.findall(r"£([\d,]+)", q.payload["prompt"]["question"])
+                    ]
+                    expected = math.ceil((target + fixed) / (price - rows[0][4]))
                 else:
                     expected = current * price - rows[1][2] * rows[1][3]
                 self.assertAlmostEqual(

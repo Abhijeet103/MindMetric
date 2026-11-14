@@ -235,14 +235,66 @@ def capture_paypal_order(order_id: str) -> dict:
     if not order_id:
         raise BillingWebhookError("Missing PayPal order id.")
     try:
-        return _paypal_request("POST", f"/v2/checkout/orders/{order_id}/capture", {})
+        _paypal_request("POST", f"/v2/checkout/orders/{order_id}/capture", {})
     except BillingWebhookError as exc:
         # Revisiting the return URL, or a webhook arriving first, means the
         # order was already captured; read it back instead of failing a paid user.
         if "ORDER_ALREADY_CAPTURED" not in str(exc):
             raise
         logger.info("PayPal order %s was already captured; loading it instead.", order_id)
-        return get_paypal_order(order_id)
+    # The capture response is PayPal's minimal representation: it has no
+    # purchase-unit amount or custom_id, so validating it directly rejects every
+    # real payment. Always read back the full order before activating access.
+    return get_paypal_order(order_id)
+
+
+def complete_paypal_order(order_id: str) -> Subscription:
+    """Capture (if needed) and activate a PayPal order. Safe to call repeatedly."""
+    order = get_paypal_order(order_id)
+    if order.get("status") == "APPROVED":
+        order = capture_paypal_order(order_id)
+    return activate_subscription_from_paypal_order(order)
+
+
+def reconcile_pending_paypal_orders(*, since, dry_run: bool = False) -> list[dict]:
+    """Find PayPal checkouts still marked pending here and settle the ones PayPal says are paid.
+
+    Completed orders are activated, approved-but-uncaptured orders are captured
+    (the customer already approved the payment), anything else is left alone.
+    """
+    outcomes = []
+    pending = Subscription.objects.filter(
+        provider="paypal", status=SubscriptionStatus.PENDING, created_at__gte=since
+    ).order_by("created_at")
+    for subscription in pending:
+        order_id = subscription.provider_subscription_id
+        try:
+            order = get_paypal_order(order_id)
+        except BillingWebhookError as exc:
+            outcomes.append({"order_id": order_id, "paypal_status": "unavailable", "action": "skipped", "detail": str(exc)[:160]})
+            continue
+        status = order.get("status", "")
+        if status not in {"COMPLETED", "APPROVED"}:
+            outcomes.append({"order_id": order_id, "paypal_status": status, "action": "skipped"})
+            continue
+        has_other_access = subscription.user.subscriptions.filter(status=SubscriptionStatus.ACTIVE).exclude(pk=subscription.pk).exists()
+        if has_other_access:
+            # Activation cancels the user's other subscriptions; never let an
+            # automatic job override access an admin granted by hand.
+            outcomes.append({"order_id": order_id, "paypal_status": status, "action": "needs review", "detail": "user already has active access"})
+            continue
+        if dry_run:
+            outcomes.append({"order_id": order_id, "paypal_status": status, "action": "would activate"})
+            continue
+        try:
+            complete_paypal_order(order_id)
+        except BillingWebhookError as exc:
+            logger.warning("PayPal reconcile could not settle order %s: %s", order_id, exc)
+            outcomes.append({"order_id": order_id, "paypal_status": status, "action": "failed", "detail": str(exc)[:160]})
+            continue
+        logger.info("PayPal reconcile activated order %s.", order_id)
+        outcomes.append({"order_id": order_id, "paypal_status": status, "action": "activated"})
+    return outcomes
 
 
 def _completed_paypal_capture(purchase_unit: dict) -> dict:

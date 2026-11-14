@@ -7,6 +7,7 @@ from django.views.generic import TemplateView
 
 from backend.apps.pages.seo import canonical_site_url
 from backend.apps.pages.sitemaps import PublicPageSitemap
+from backend.apps.billing.views import PayPalWebhookView
 
 admin.site.site_header = "MindMetric Admin"
 admin.site.site_title = "MindMetric"
@@ -34,6 +35,8 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("api/auth/", include("backend.apps.accounts.urls")),
     path("api/billing/", include("backend.apps.billing.urls")),
+    # Accept existing provider deliveries directly: POST webhooks must not redirect.
+    path("billing/paypal/webhook/", PayPalWebhookView.as_view(), name="billing-paypal-webhook-legacy"),
     path("api/tests/", include("backend.apps.assessments.urls")),
     path("tenant-access/", include("backend.apps.tenants.urls")),
 ]

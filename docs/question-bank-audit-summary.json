@@ -1,0 +1,304 @@
+{
+  "baseline_commit": "2370026",
+  "sample_seed": "competitor-audit:{index}",
+  "samples_per_module": 540,
+  "modules": 12,
+  "questions_per_version": 6480,
+  "limitations": [
+    "Family labels describe implemented templates, not independently reviewed items.",
+    "Exact task signatures detect repeats but numeric/context changes can overstate semantic variety.",
+    "This checks structure, reproducibility and leakage, not predictive validity or publisher equivalence."
+  ],
+  "modules_compared": {
+    "shl_numerical": {
+      "before_families": [
+        "difference",
+        "growth",
+        "profit",
+        "ratio",
+        "share",
+        "weighted_average"
+      ],
+      "after_families": [
+        "contribution_margin",
+        "difference",
+        "growth",
+        "profit",
+        "ratio",
+        "revenue_growth",
+        "share",
+        "target_profit",
+        "weighted_average"
+      ],
+      "before_unique_exact_tasks": 540,
+      "after_unique_exact_tasks": 540,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "shl_deductive": {
+      "before_families": [
+        "conditional",
+        "ordering",
+        "scheduling",
+        "syllogism"
+      ],
+      "after_families": [
+        "conditional",
+        "feasible_schedule",
+        "ordering",
+        "scheduling",
+        "syllogism"
+      ],
+      "before_unique_exact_tasks": 534,
+      "after_unique_exact_tasks": 520,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "shl_inductive": {
+      "before_families": [
+        "bar_growth",
+        "dot_count",
+        "dot_movement",
+        "fill_rotation",
+        "matrix_completion",
+        "mirror",
+        "polygon_growth",
+        "quadrant_fill",
+        "rotation",
+        "shape_cycle",
+        "size_growth"
+      ],
+      "after_families": [
+        "bar_growth",
+        "compound_movement",
+        "dot_count",
+        "dot_movement",
+        "fill_rotation",
+        "matrix_completion",
+        "mirror",
+        "polygon_growth",
+        "quadrant_fill",
+        "rotation",
+        "shape_cycle",
+        "size_growth"
+      ],
+      "before_unique_exact_tasks": 221,
+      "after_unique_exact_tasks": 220,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "consulting_math": {
+      "before_families": [
+        "difference",
+        "growth",
+        "profit",
+        "ratio",
+        "share",
+        "weighted_average"
+      ],
+      "after_families": [
+        "break_even",
+        "capacity_yield",
+        "compound_growth",
+        "currency",
+        "market_funnel",
+        "opportunity_cost",
+        "price_volume",
+        "weighted_margin"
+      ],
+      "before_unique_exact_tasks": 540,
+      "after_unique_exact_tasks": 517,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "consulting_evidence": {
+      "before_families": [
+        "causality",
+        "decision",
+        "sampling"
+      ],
+      "after_families": [
+        "base_rate",
+        "causality",
+        "comparison",
+        "decision",
+        "opportunity_cost",
+        "sampling"
+      ],
+      "before_unique_exact_tasks": 407,
+      "after_unique_exact_tasks": 460,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 150
+    },
+    "consulting_case": {
+      "before_families": [
+        "case"
+      ],
+      "after_families": [
+        "automation",
+        "capacity",
+        "market_entry"
+      ],
+      "before_unique_exact_tasks": 540,
+      "after_unique_exact_tasks": 480,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "wg_inference": {
+      "before_families": [
+        "inference"
+      ],
+      "after_families": [
+        "audit_record",
+        "representative_survey",
+        "service_records"
+      ],
+      "before_unique_exact_tasks": 532,
+      "after_unique_exact_tasks": 536,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "wg_assumptions": {
+      "before_families": [
+        "assumptions"
+      ],
+      "after_families": [
+        "access",
+        "capacity",
+        "measurement"
+      ],
+      "before_unique_exact_tasks": 333,
+      "after_unique_exact_tasks": 390,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "wg_deduction": {
+      "before_families": [
+        "deduction"
+      ],
+      "after_families": [
+        "conditional",
+        "exclusion",
+        "overlap"
+      ],
+      "before_unique_exact_tasks": 540,
+      "after_unique_exact_tasks": 352,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "wg_interpretation": {
+      "before_families": [
+        "interpretation"
+      ],
+      "after_families": [
+        "before_after",
+        "scope",
+        "weighted_rates"
+      ],
+      "before_unique_exact_tasks": 537,
+      "after_unique_exact_tasks": 441,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "wg_arguments": {
+      "before_families": [
+        "arguments"
+      ],
+      "after_families": [
+        "access",
+        "cost",
+        "reliability"
+      ],
+      "before_unique_exact_tasks": 230,
+      "after_unique_exact_tasks": 516,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    },
+    "linked_case": {
+      "before_families": [
+        "case"
+      ],
+      "after_families": [
+        "automation",
+        "capacity",
+        "market_entry"
+      ],
+      "before_unique_exact_tasks": 540,
+      "after_unique_exact_tasks": 480,
+      "checks_failed": {
+        "missing_key": 0,
+        "duplicate_options": 0,
+        "missing_explanation": 0,
+        "answer_leak": 0,
+        "not_reproducible": 0
+      },
+      "same_seed_easy_hard_changed_out_of_180": 180
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section">
+    <h1>Peer review · {{ invite.session.content.title }}</h1>
+    <p>This owner-authorised link shares completed responses and review rubrics within the same organisation. It expires on {{ invite.expires_at }}. Peer feedback is not a publisher score.</p>
+    {% for row in review_rows %}
+    <article class="card top-gap">
+        <h2>Stage {{ forloop.counter }}</h2>
+        {% if row.passage %}<p>{{ row.passage }}</p>{% endif %}
+        <p>{{ row.question }}</p>
+        {% for table in row.tables %}<div class="question-data-table"><table><caption>{{ table.caption }}</caption><thead><tr>{% for heading in table.columns %}<th scope="col">{{ heading }}</th>{% endfor %}</tr></thead><tbody>{% for cells in table.rows %}<tr>{% for cell in cells %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% endfor %}
+        <h3>Submitted response</h3><pre style="white-space: pre-wrap; overflow-wrap: anywhere">{{ row.answer }}</pre>
+        {% if row.rubric %}<h3>Review criteria</h3><ul>{% for criterion in row.rubric %}<li><strong>{{ criterion.label }}</strong>: {{ criterion.criterion }}</li>{% endfor %}</ul>{% endif %}
+        {% if row.reference %}<p>{{ row.reference }}</p>{% endif %}
+        <p>{{ row.explanation }}</p>
+    </article>
+    {% endfor %}
+    {% if saved %}<p role="status">Feedback saved for the learner.</p>{% endif %}
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    {% if can_review %}
+    <form method="post" class="card top-gap">
+        {% csrf_token %}
+        <label for="peer-feedback">Give specific feedback using the criteria. Identify one strength, one improvement and any unsupported assumption.</label>
+        <textarea id="peer-feedback" name="feedback" minlength="30" maxlength="6000" rows="8" required style="display:block;width:100%;box-sizing:border-box">{{ invite.feedback }}</textarea>
+        <button class="button" type="submit">Save peer feedback</button>
+    </form>
+    {% elif invite.feedback %}<article class="card top-gap"><h2>Peer feedback</h2><p>{{ invite.feedback }}</p></article>{% endif %}
+</section>
+{% endblock %}

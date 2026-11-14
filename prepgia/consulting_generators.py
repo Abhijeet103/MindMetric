@@ -8,7 +8,6 @@ from prepgia.question_types import (
     _build_ccat_number_options,
     _choose_batch_balanced_variant,
 )
-from prepgia.shl_generators import SHLNumericalGenerator
 
 DOMAINS = [
     ("delivery depot", "parcels", "dispatch labels"),
@@ -36,28 +35,23 @@ def question(section, difficulty, seed, prompt, options, answer, subtype):
                 "difficulty": difficulty,
                 "subtype": subtype,
                 "provenance": "original",
-                "generator_version": 1,
+                "generator_version": 2,
             },
         },
         {"answer": answer},
     )
 
 
-class ConsultingMathGenerator(SHLNumericalGenerator):
+class ConsultingMathGenerator(BaseQuestionGenerator):
     section_type = "consulting_math"
 
     def generate(self, difficulty, seed, conn=None):
-        result = super().generate(difficulty, seed, conn)
-        rows = result.payload["prompt"]["data_table"]["rows"]
-        result.payload["prompt"]["chart"] = {
-            "title": "Current-year regional revenue (£)",
-            "labels": [r[0] for r in rows],
-            "values": [r[2] * r[3] for r in rows],
-        }
-        result.payload["prompt"]["instruction"] = (
-            "Use the chart and table. A calculator is allowed; round to two decimal places where necessary."
-        )
-        return result
+        from prepgia.business_scenarios import business_math
+
+        rng = self.rng(seed)
+        prompt, answer, wrong, family = business_math(rng, difficulty, seed)
+        options, answer = _build_ccat_number_options(rng, answer, wrong)
+        return question(self.section_type, difficulty, seed, prompt, options, answer, family)
 
 
 class CriticalThinkingGenerator(BaseQuestionGenerator):
@@ -65,128 +59,14 @@ class CriticalThinkingGenerator(BaseQuestionGenerator):
         self.section_type = section_type
 
     def generate(self, difficulty, seed, conn=None):
+        from prepgia.critical_scenarios import build_critical
+
         rng = self.rng(seed)
-        level = {"easy": 1, "medium": 2, "hard": 3}.get(difficulty, 2)
-        firm, objects, code_name = rng.choice(DOMAINS)
-        total = rng.randint(8, 30) * 20 * level
-        proportion = rng.choice([20, 30, 70, 80])
-        flagged = total * proportion // 100
-        group = rng.choice(["online", "renewal", "priority", "weekend", "corporate", "local"])
-        code = rng.randint(10, 999)
-        subtype = self.section_type.removeprefix("wg_")
-        prompt = {"instruction": "Use only the passage and the stated decision rule."}
-        if subtype == "inference":
-            kind = _choose_batch_balanced_variant(
-                rng, seed, ["true", "false", "probable", "unknown"]
-            )
-            passage = f"A {firm} processed exactly {total} {objects}. Exactly {flagged} were {group}; all the others were not {group}. One is selected uniformly at random."
-            if level == 3:
-                half, flagged_half = total // 2, flagged // 2
-                passage = f"A {firm} processed {half} {objects} at office A, of which {flagged_half} were {group}, and {total - half} at office B, of which {flagged - flagged_half} were {group}. These are complete disjoint groups, and all other items were not {group}. One item is selected uniformly at random from the combined group."
-            if kind == "true":
-                claim, answer = f"Exactly {total - flagged} were not {group}.", "True"
-                explanation = f"Subtract the {flagged} {group} items from the total {total}. The exact remainder is {total - flagged}."
-            elif kind == "false":
-                claim, answer = f"All {total} were {group}.", "False"
-                explanation = f"Only {flagged} of {total} were {group}; the passage explicitly rules out the conclusion."
-            elif kind == "probable":
-                claim = f"The randomly selected item is {group}."
-                answer = "Probably true" if proportion > 50 else "Probably false"
-                explanation = f"The probability is {proportion}%. That makes the claim {'more' if proportion > 50 else 'less'} likely than not, but not certain."
-            else:
-                claim, answer = (
-                    "The new processing system reduced operating costs.",
-                    "Insufficient data",
-                )
-                explanation = "The passage reports counts, not the costs or effect of a new system."
-            options = ["True", "Probably true", "Insufficient data", "Probably false", "False"]
-            prompt["instruction"] = (
-                "Classify the conclusion: True/False means certain from the passage; Probably true/false means more/less likely than not; Insufficient data means the relevant facts are missing."
-            )
-        elif subtype == "assumptions":
-            budget = rng.randint(10, 40) * 1000
-            necessary = rng.choice([True, False])
-            passage = f"A {firm} has a fixed £{budget:,} budget and cannot obtain extra funds. Its manager recommends buying a new system immediately using only this budget, without reducing any other spending. No supplier credit or free system is available."
-            claim = (
-                "The system can be purchased within the available uncommitted budget."
-                if necessary
-                else "Every employee prefers the new system to the current one."
-            )
-            answer = "Assumption made" if necessary else "Assumption not made"
-            explanation = (
-                "If there is not enough available budget, the stated recommendation cannot be implemented under its constraints."
-                if necessary
-                else "Employee preferences need not be unanimous for the purchase recommendation to be feasible."
-            )
-            options = ["Assumption made", "Assumption not made"]
-            prompt["instruction"] = (
-                "Decide whether the proposed assumption is required by the recommendation, rather than merely helpful."
-            )
-        elif subtype == "deduction":
-            labels = list(range(code, code + level + 1))
-            rules = [f"Every {group} item receives label {labels[0]}."] + [
-                f"Every item with label {a} also receives label {b}."
-                for a, b in zip(labels, labels[1:])
-            ]
-            forward = rng.choice([True, False])
-            passage = f"At a {firm}, " + " ".join(rules)
-            if forward:
-                passage += f" Item K is {group}."
-                claim, answer = f"K receives label {labels[-1]}.", "Follows"
-                explanation = "Apply each inclusion rule in order; the final label is required."
-            else:
-                passage += f" Item K has label {labels[-1]}."
-                claim, answer = f"K must be {group}.", "Does not follow"
-                explanation = "The rules do not say that only the initial group receives the labels. Reversing the implication is invalid."
-            options = ["Follows", "Does not follow"]
-        elif subtype == "interpretation":
-            second = rng.randint(8, 30) * 20 * level
-            prompt["data_table"] = {
-                "caption": "Complete counts of processed items",
-                "columns": ["Period", "Processed", "Flagged"],
-                "rows": [["A", total, flagged], ["B", second, second * proportion // 100]],
-            }
-            valid = rng.choice([True, False])
-            passage = f"The table contains complete data for the {firm} in two periods. Flagged items were counted consistently in both periods."
-            claim = (
-                "The proportion flagged was equal in the two periods."
-                if valid
-                else "The equal proportions prove the same proportion will occur in every future period."
-            )
-            answer = "Follows" if valid else "Does not follow"
-            explanation = (
-                f"Both proportions are exactly {proportion}%."
-                if valid
-                else "Two past observations do not establish that every future period must have the same proportion."
-            )
-            options = ["Follows", "Does not follow"]
-        else:
-            good = rng.choice([True, False])
-            savings = rng.randint(2, 15) * 1000
-            passage = f"Question: Should a {firm} replace its manual {code_name} process if the aim is to reduce annual operating costs without lowering accuracy?"
-            claim = (
-                f"Yes. A representative controlled pilot found £{savings:,} annual net savings after all implementation costs, with unchanged accuracy."
-                if good
-                else "Yes. The new labels use the same font size as the current labels, regardless of any cost or accuracy effects."
-            )
-            answer = "Strong" if good else "Weak"
-            explanation = (
-                "The argument addresses both stated decision criteria with relevant evidence about net savings and accuracy."
-                if good
-                else "Matching the font size does not establish any benefit against the stated cost and accuracy criteria."
-            )
-            options = ["Strong", "Weak"]
-            prompt["instruction"] = (
-                "Assume the argument's factual statements are true. Judge its importance and relevance to the stated question."
-            )
-        if level == 3 and subtype in {"assumptions", "arguments"}:
-            passage += f" The organisation also processed {total} {objects} last month; that volume is not a purchase or cost-reduction criterion."
-        prompt.update(
-            question=f"{passage}\n\n{'Proposed assumption' if subtype == 'assumptions' else 'Argument' if subtype == 'arguments' else 'Conclusion'}: {claim}",
-            explanation=explanation,
+        prompt, options, answer, family = build_critical(
+            rng, self.section_type, difficulty, seed, rng.choice(DOMAINS)[0]
         )
         rng.shuffle(options)
-        return question(self.section_type, difficulty, seed, prompt, options, answer, subtype)
+        return question(self.section_type, difficulty, seed, prompt, options, answer, family)
 
 
 class ConsultingEvidenceGenerator(BaseQuestionGenerator):
@@ -199,7 +79,11 @@ class ConsultingEvidenceGenerator(BaseQuestionGenerator):
         before = rng.randint(20, 60)
         after = before + rng.randint(5, 25)
         sample = rng.randint(5, 20) * 20 * level
-        family = _choose_batch_balanced_variant(rng, seed, ["causality", "sampling", "decision"])
+        family = _choose_batch_balanced_variant(
+            rng,
+            seed,
+            ["causality", "sampling", "decision", "comparison", "base_rate", "opportunity_cost"],
+        )
         if family == "causality":
             passage = f"A {firm} introduced a training programme. Productivity rose from {before} to {after} {objects} per employee per day. During the same period, demand and staffing changed."
             query = "Which evidence would best isolate the effect of the training?"
@@ -222,6 +106,40 @@ class ConsultingEvidenceGenerator(BaseQuestionGenerator):
                 "Using only responses from customers who have already bought premium services.",
             ]
             explanation = "The issue is selection bias, not just sample size. Non-members must be represented when estimating all-customer demand."
+        elif family == "comparison":
+            treated = rng.randint(8, 20) * level
+            control = rng.randint(2, 7) * level
+            passage = f"A {firm} tested a workflow. Output per worker rose by {treated}% in the pilot group and {control}% in an otherwise comparable group without the workflow. The groups had equal initial output, and assume no differential influences other than the workflow."
+            query = "What uplift in percentage points is attributable to the workflow under these assumptions?"
+            options, answer = _build_ccat_number_options(
+                rng, treated - control, [treated, control, treated / control]
+            )
+            explanation = f"Subtract the contemporaneous comparison-group change: {treated} − {control} = {treated - control} percentage points. The pilot's entire gain includes the shared trend."
+        elif family == "base_rate":
+            total = rng.randint(10, 40) * 100 * level
+            defects = total // 100
+            caught = defects * 80 // 100
+            false_alerts = (total - defects) * 10 // 100
+            passage = f"A {firm} checked a complete batch of {total} items. The inspection raised {caught} alerts on genuinely defective items and {false_alerts} alerts on sound items. Each alert refers to one different item."
+            query = "What percentage of alerts identified a genuine defect? Round to two decimal places."
+            options, answer = _build_ccat_number_options(
+                rng, 100 * caught / (caught + false_alerts), [80, 90, 100 * caught / total]
+            )
+            explanation = f"Use all alerts as the denominator: {caught} / ({caught} + {false_alerts}) × 100 = {100 * caught / (caught + false_alerts):.2f}%. Sensitivity or overall accuracy does not answer the question."
+        elif family == "opportunity_cost":
+            gross = rng.randint(20, 40) * 1000 * level
+            direct = rng.randint(5, 10) * 1000 * level
+            displaced = rng.randint(2, 6) * 1000 * level
+            passage = f"A {firm} can accept a special contract worth £{gross:,}. It adds £{direct:,} direct costs and uses capacity that would otherwise earn £{displaced:,} contribution on existing work. Existing fixed overhead is unchanged."
+            query = (
+                "What is the contract's incremental operating profit (£), including displaced work?"
+            )
+            options, answer = _build_ccat_number_options(
+                rng,
+                gross - direct - displaced,
+                [gross - direct, gross - displaced, gross + displaced - direct],
+            )
+            explanation = f"Incremental profit = £{gross:,} − £{direct:,} − £{displaced:,} = £{gross - direct - displaced:,}. Lost contribution is a real opportunity cost; unchanged overhead is not incremental."
         else:
             saving = rng.randint(5, 20) * 1000 * level
             cost = rng.randint(2, 8) * 1000 * level
@@ -272,6 +190,27 @@ class LinkedCaseGenerator(BaseQuestionGenerator):
                 "Willow Equipment",
             ]
         )
+        from prepgia.business_scenarios import CASE_FAMILIES, additional_case
+
+        family = _choose_batch_balanced_variant(case_rng, f"{prefix}:{index // 4}", CASE_FAMILIES)
+        if family != "automation":
+            prompt, answer, wrong = additional_case(
+                case_rng, family, level, company, f"{company}:{prefix}:{index // 4}", index % 4
+            )
+            if isinstance(answer, str):
+                options = [answer, *wrong]
+                self.rng(seed).shuffle(options)
+            else:
+                options, answer = _build_ccat_number_options(self.rng(seed), answer, wrong)
+            return question(
+                self.section_type,
+                difficulty,
+                seed,
+                prompt,
+                options,
+                answer,
+                f"{family}_step_{index % 4 + 1}",
+            )
         volume = case_rng.randint(5, 25) * 100 * level
         price = case_rng.randint(10, 25) * 2
         variable = case_rng.randint(3, 8) * 2
@@ -315,12 +254,12 @@ class LinkedCaseGenerator(BaseQuestionGenerator):
         if step == 0:
             answer = baseline
             text = "What is current monthly operating profit?"
-            wrong = [volume * (price - variable), volume * price - fixed, baseline + fixed]
+            wrong = [volume * (price - variable), volume * price - fixed, baseline - fixed]
             explanation = f"Profit = {volume} × ({price} − {variable}) − {fixed} = £{baseline:,}."
         elif step == 1:
             answer = proposed
             text = "What would monthly operating profit be after automation?"
-            wrong = [baseline + volume * saving, baseline - fee, proposed + fee]
+            wrong = [baseline + volume * saving, baseline - fee, proposed - fee]
             explanation = f"Proposed profit = {volume} × ({price} − {variable - saving}) − ({fixed} + {fee}) = £{proposed:,}. Include the additional fee."
         elif step == 2:
             answer = math.ceil(fee / saving)
@@ -338,8 +277,8 @@ class LinkedCaseGenerator(BaseQuestionGenerator):
             options = [
                 "Adopt automation under the stated assumptions.",
                 "Keep the current process under the stated assumptions.",
-                "Adopt because the proposal increases the price per order.",
-                "Adopt because the current fixed cost disappears entirely.",
+                "Adopt because gross variable-cost savings are positive, regardless of the fee.",
+                "Keep the current process because any additional fixed fee makes automation unprofitable.",
             ]
             if proposed == baseline:
                 answer = "Both plans give equal operating profit under the stated assumptions."
@@ -351,7 +290,13 @@ class LinkedCaseGenerator(BaseQuestionGenerator):
         else:
             rng.shuffle(options)
         return question(
-            self.section_type, difficulty, seed, prompt, options, answer, f"case_step_{step + 1}"
+            self.section_type,
+            difficulty,
+            seed,
+            prompt,
+            options,
+            answer,
+            f"automation_step_{step + 1}",
         )
 
 

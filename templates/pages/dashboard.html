@@ -6,30 +6,92 @@
 {{ assessment_estimates|json_script:"dashboard-assessment-estimates" }}
 
 <section class="content-section">
-    <h1 class="section-title">Progress</h1>
+    <h1 class="section-title">Your progress</h1>
     {% if expired_attempt_count %}
         <div class="notice">{{ expired_attempt_count }} stale test{{ expired_attempt_count|pluralize }} auto-completed after crossing the 2 hour limit.</div>
     {% endif %}
 
+    <section class="applications" id="applications" aria-labelledby="applications-title">
+        <div class="applications-head">
+            <div>
+                <h2 id="applications-title">My applications</h2>
+                <p class="muted">Add the companies that sent you an assessment and when it's due. We'll suggest what to do each day.</p>
+            </div>
+        </div>
+
+        {% if study_plan %}
+            <article class="study-plan">
+                <div>
+                    <span class="study-plan-label">Today</span>
+                    <h3>{{ study_plan.headline }}</h3>
+                    <p>{{ study_plan.detail }}</p>
+                </div>
+                <a class="button" href="{{ study_plan.action_url }}" data-show-loader>{{ study_plan.action_label }}</a>
+            </article>
+        {% endif %}
+
+        {% if application_deadlines %}
+            <ul class="applications-list">
+                {% for deadline in application_deadlines %}
+                    <li class="{% if deadline.days_left <= 2 %}is-soon{% endif %}">
+                        <div class="applications-countdown mono" aria-label="{{ deadline.days_left }} days left">
+                            {% if deadline.days_left == 0 %}<strong>Today</strong>{% else %}<strong>{{ deadline.days_left }}</strong><span>day{{ deadline.days_left|pluralize }}</span>{% endif %}
+                        </div>
+                        <div class="applications-copy">
+                            <strong>{{ deadline.company }}</strong>
+                            <span class="muted">{% if deadline.test_title %}{{ deadline.test_title }}{% else %}Test not set{% endif %} · due {{ deadline.due_date|date:"D j M" }}</span>
+                        </div>
+                        <form method="post" action="{% url 'pages:application-delete' deadline.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="applications-remove" aria-label="Remove {{ deadline.company }}">Remove</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        <form method="post" action="{% url 'pages:application-add' %}" class="applications-form">
+            {% csrf_token %}
+            <label class="form-field">
+                <span>{{ deadline_form.company.label }}</span>
+                {{ deadline_form.company }}
+            </label>
+            <label class="form-field">
+                <span>{{ deadline_form.assessment_type.label }}</span>
+                {{ deadline_form.assessment_type }}
+            </label>
+            <label class="form-field">
+                <span>{{ deadline_form.due_date.label }}</span>
+                {{ deadline_form.due_date }}
+            </label>
+            <button type="submit" class="button-secondary">Add application</button>
+        </form>
+    </section>
+
     <div class="dashboard-selector" data-dashboard-selector>
-        <p class="section-copy">Choose the assessment you want to review first.</p>
+        {% if has_any_progress %}
+            <p class="section-copy">Pick a test to see your scores, pace and weakest sections.</p>
+        {% else %}
+            <div class="dashboard-empty">
+                <div>
+                    <h2>You haven't practiced yet</h2>
+                    <p class="muted">Start with a five-minute drill in the test from your application. Your scores and pace will show up here.</p>
+                </div>
+                <a href="{% url 'pages:practice' %}" class="button" data-show-loader>Choose a test</a>
+            </div>
+        {% endif %}
         <div class="dashboard-assessment-cards">
             {% for assessment in assessment_cards %}
+                {% if assessment.has_progress %}
                 <button
                     type="button"
                     class="card dashboard-assessment-card"
                     data-assessment-card="{{ assessment.key }}"
                 >
-                    <span class="eyebrow">Assessment</span>
                     <h2>{{ assessment.title }}</h2>
-                    <p class="muted">{{ assessment.description }}</p>
                     <div class="dashboard-assessment-progress">
-                        <p class="dashboard-progress-copy {% if not assessment.has_progress %}is-empty{% endif %}">
-                            {% if assessment.has_progress %}
-                                <span class="dashboard-progress-mark" aria-hidden="true">&check;</span>
-                            {% else %}
-                                <span class="dashboard-progress-mark dashboard-progress-mark--empty" aria-hidden="true">&#9675;</span>
-                            {% endif %}
+                        <p class="dashboard-progress-copy">
+                            <span class="dashboard-progress-mark" aria-hidden="true">&check;</span>
                             {{ assessment.progress_label }}
                         </p>
                         <div class="dashboard-progress-bar" aria-hidden="true">
@@ -38,10 +100,21 @@
                     </div>
                     <div class="dashboard-assessment-footer">
                         <span class="dashboard-assessment-link">
-                            View dashboard <span aria-hidden="true">&rarr;</span>
+                            See scores <span aria-hidden="true">&rarr;</span>
                         </span>
                     </div>
                 </button>
+                {% else %}
+                <a class="card dashboard-assessment-card is-not-started" href="{{ assessment.open_url }}" data-show-loader>
+                    <h2>{{ assessment.title }}</h2>
+                    <p class="muted">{{ assessment.description }}</p>
+                    <div class="dashboard-assessment-footer">
+                        <span class="dashboard-assessment-link">
+                            Start practicing <span aria-hidden="true">&rarr;</span>
+                        </span>
+                    </div>
+                </a>
+                {% endif %}
             {% endfor %}
         </div>
 
@@ -142,7 +215,7 @@
                 <tbody>
                         {% for attempt in attempts %}
                             <tr data-assessment-row="{{ attempt.assessment_key }}">
-                                <td>#{{ attempt.attempt_id }}</td>
+                                <td>{% if attempt.completed_at %}<a class="table-link" href="{% url 'pages:attempt-results' attempt.attempt_id %}">#{{ attempt.attempt_id }} · Results</a>{% else %}#{{ attempt.attempt_id }}{% endif %}</td>
                                 <td>{{ attempt.assessment_title }}</td>
                                 <td>{{ attempt.mode_label }}</td>
                                 <td>{{ attempt.section_title }}</td>
@@ -177,7 +250,7 @@
                 <tbody>
                         {% for row in full_test_rows %}
                             <tr data-assessment-row="{{ row.assessment_key }}">
-                                <td>#{{ row.attempt_id }}</td>
+                                <td>{% if row.completed_at %}<a class="table-link" href="{% url 'pages:attempt-results' row.attempt_id %}">#{{ row.attempt_id }} · Results</a>{% else %}#{{ row.attempt_id }}{% endif %}</td>
                                 <td>{{ row.assessment_title }}</td>
                                 <td>{% if row.completed_at %}{{ row.completed_at|date:"d M Y H:i" }}{% else %}in progress{% endif %}</td>
                                 <td>{{ row.overall_score }}</td>
@@ -319,6 +392,10 @@
 
         if (chart) { chart.destroy(); }
 
+        const themeColor = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+        const lineColor = themeColor("--teal", "#0f5c4c");
+        const mutedColor = themeColor("--ink-muted", "#4f5d57");
+        const gridColor = themeColor("--border", "#dde3e0");
         chart = new Chart(canvas, {
             type: "line",
             data: {
@@ -326,9 +403,9 @@
                 datasets: [{
                     label: activeMetric === "percentile" ? "Estimated percentile" : "Score",
                     data: values,
-                    borderColor: "#c8a96e",
-                    backgroundColor: "rgba(200,169,110,0.12)",
-                    pointBackgroundColor: "#c8a96e",
+                    borderColor: lineColor,
+                    backgroundColor: `${lineColor}1f`,
+                    pointBackgroundColor: lineColor,
                     pointRadius: 5,
                     pointHoverRadius: 7,
                     fill: true,
@@ -353,12 +430,12 @@
                         beginAtZero: activeMetric === "percentile",
                         suggestedMin: activeMetric === "percentile" ? 1 : undefined,
                         suggestedMax: activeMetric === "percentile" ? 99 : undefined,
-                        grid: { color: "rgba(0,0,0,0.06)" },
-                        ticks: { color: "#777" }
+                        grid: { color: gridColor },
+                        ticks: { color: mutedColor }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: "#777" }
+                        ticks: { color: mutedColor }
                     }
                 }
             }

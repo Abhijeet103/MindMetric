@@ -254,3 +254,19 @@ questions have not been copied into the bank.
 Validation includes `python manage.py test
 backend.apps.assessments.tests.test_adaptive_configuration` and
 `node scripts/check_question_player.js` for case continuity and ordering.
+
+The new tracks now include broader business-maths, critical-thinking and linked-case
+scenarios. See [the competitor quality comparison](docs/new-exam-competitor-quality-audit.md)
+for source-backed findings, before/after sample metrics and remaining gaps. Run
+`python scripts/audit_question_bank.py --output /tmp/question-audit.json` and
+`node scripts/check_question_player.js /tmp/question-audit.json` to repeat the
+structural and SVG checks; these do not replace independent editorial review.
+
+Applied workshops are available from each new track's practice page at
+`/practice/<assessment>/workshop/`. They add interactive schedules, chart building,
+sequence paths, line/stacked charts, six linked reading passages and progressive
+cases with saved writing, self-review rubrics and revocable peer-review links.
+See [workshops and quality administration](docs/applied-practice-workshops.md)
+for quotas, editorial approval, item reporting and pilot data. Deploy migrations
+through `0022`, run `python manage.py refresh_question_reviews`, and rebuild static
+assets. Editorial records start pending review; no content is automatically approved.

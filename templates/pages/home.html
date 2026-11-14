@@ -1,104 +1,144 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
-<section class="home-shell">
-    <article class="home-hero-card">
-        <div class="home-hero-copy">
-            <span class="eyebrow">Free cognitive aptitude test practice</span>
-            <h1>Practise cognitive aptitude tests for Thomas GIA and CCAT.</h1>
-            <p>Build speed with free Thomas GIA and CCAT practice questions across numerical, verbal, logical and spatial reasoning. Start with a module drill, then move to a timed full-test simulation.</p>
-            <div class="home-hero-actions">
-                <a href="{% url 'pages:practice' %}" class="button home-hero-cta" data-show-loader>
-                    <span>Start practicing</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </a>
+<div class="landing">
+    <section class="landing-hero" aria-labelledby="landing-title">
+        <div class="landing-hero-copy">
+            <span class="eyebrow">Online assessment practice for students</span>
+            <h1 id="landing-title" data-type-on>Get past the first round.</h1>
+            <p class="landing-lede">Large employers screen internship and new-grad applicants with timed aptitude tests before anyone reads a résumé. Practice the same formats here, with worked explanations, and walk in knowing what's coming.</p>
+
+            <div class="landing-picker">
+                <p class="landing-picker-label" id="landing-picker-label">Which test is in your application?</p>
+                <ul class="landing-picker-list" aria-labelledby="landing-picker-label">
+                    {% for test in home_tests %}
+                        <li>
+                            <a class="landing-pick" href="{{ test.url }}" data-show-loader>
+                                <span>{{ test.label }}</span>
+                                {% if test.hint %}<small>{{ test.hint }}</small>{% endif %}
+                            </a>
+                        </li>
+                    {% endfor %}
+                    <li>
+                        <a class="landing-pick landing-pick-ghost" href="{% url 'pages:company-lookup' %}" data-show-loader>
+                            <span>Not sure? Search a company</span>
+                        </a>
+                    </li>
+                </ul>
             </div>
-            <div class="home-hero-trust">
-                <span class="home-hero-trust-marks" aria-hidden="true">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+
+            <ul class="landing-trust">
+                <li>Free to start, no card</li>
+                <li>Original questions</li>
+                <li>Membership never auto-renews</li>
+            </ul>
+        </div>
+
+        <figure class="landing-demo" data-landing-demo aria-label="Example of a timed reasoning question being answered">
+            <div class="landing-demo-top">
+                <div class="landing-demo-progress">
+                    <span class="landing-demo-module">Reasoning · Q <span class="mono" data-demo-qn>07</span> / 10</span>
+                    <span class="landing-demo-segs" data-demo-segs aria-hidden="true">
+                        <i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-now"></i><i></i><i></i><i></i>
+                    </span>
+                </div>
+                <span class="landing-demo-ring" data-demo-ring aria-hidden="true">
+                    <svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="18"/><circle class="bar" data-demo-ringbar cx="22" cy="22" r="18"/></svg>
+                    <b class="mono" data-demo-secs>12</b>
                 </span>
-                <span>Free to try, no card required</span>
             </div>
-        </div>
-    </article>
+            <div class="landing-demo-stage"><p data-demo-stage>Who is heavier?</p></div>
+            <div class="landing-demo-options">
+                <span class="landing-demo-option" data-demo-opt="0">Leo</span>
+                <span class="landing-demo-option is-right" data-demo-opt="1">Henry</span>
+            </div>
+            <figcaption class="landing-demo-foot">
+                <span class="landing-demo-feedback is-on" data-demo-feedback>✓ Correct · 4.2s</span>
+                <button type="button" class="landing-demo-toggle" data-demo-toggle hidden>Pause</button>
+            </figcaption>
+        </figure>
+    </section>
 
-    <article class="home-benefits-card">
-        <div class="home-benefit-item">
-            <div class="home-benefit-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" class="home-benefit-svg">
-                    <path d="M12 3v3M12 18v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M3 12h3M18 12h3M4.9 19.1 7 17M17 7l2.1-2.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-            </div>
-            <div>
-                <strong>IQ-style practice series</strong>
-                <span>Verbal, numerical, abstract, and speed-based drills</span>
-            </div>
+    <section class="landing-section" aria-labelledby="landing-steps-title" data-reveal>
+        <div class="landing-section-head">
+            <span class="eyebrow">How it works</span>
+            <h2 id="landing-steps-title">You got the assessment invite. Here's your week.</h2>
         </div>
-        <div class="home-benefit-item">
-            <div class="home-benefit-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" class="home-benefit-svg">
-                    <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
-                    <path d="M8 2v4M16 2v4M3 10h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-            </div>
-            <div>
-                <strong>Multi-test preparation</strong>
-                <span>Practice full tests and module-wise sections in one place</span>
-            </div>
-        </div>
-        <div class="home-benefit-item">
-            <div class="home-benefit-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" class="home-benefit-svg">
-                    <path d="M3 3v18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="m7 15 4-6 4 3 5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <div>
-                <strong>Expanding assessment library</strong>
-                <span>Built to grow into major cognitive and psychometric tests</span>
-            </div>
-        </div>
-    </article>
+        <ol class="landing-steps">
+            <li>
+                <span class="landing-step-num mono">1</span>
+                <h3>Find your test</h3>
+                <p>Pick the test named in your invite. Each one has the same sections, timing and question styles you'll see on the day.</p>
+            </li>
+            <li>
+                <span class="landing-step-num mono">2</span>
+                <h3>Drill your weakest section</h3>
+                <p>Untimed practice shows the answer and explanation after every question, so you learn the trick behind each format.</p>
+            </li>
+            <li>
+                <span class="landing-step-num mono">3</span>
+                <h3>Run a timed simulation</h3>
+                <p>Take a full test under real time pressure and get a score for every section, so you know what to fix before the real thing.</p>
+            </li>
+        </ol>
+    </section>
 
-    <section class="home-modules-section">
-        <span class="eyebrow">Cognitive practice areas</span>
-        <div class="home-module-strip">
-            <article class="card home-module-card">
-                <svg viewBox="0 0 24 24" class="home-module-icon" aria-hidden="true">
-                    <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.75c.62.43 1 1.12 1 1.87V17h6v-.38c0-.75.38-1.44 1-1.87A7 7 0 0 0 12 2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <h3>Reasoning</h3>
+    <section class="landing-section" aria-labelledby="landing-why-title" data-reveal>
+        <div class="landing-section-head">
+            <span class="eyebrow">Why MindMetric</span>
+            <h2 id="landing-why-title">One place for every test in your applications</h2>
+            <p class="landing-section-copy">Students apply to dozens of companies in one season, and each can use a different test. Most prep sites sell one test at a time. MindMetric covers the common ones under one membership.</p>
+        </div>
+        <div class="landing-pillars">
+            <article>
+                <h3>Every common screening test</h3>
+                <p>CCAT, SHL-style reasoning, Watson–Glaser-style critical thinking, consulting problem solving and Thomas GIA.</p>
             </article>
-            <article class="card home-module-card">
-                <svg viewBox="0 0 24 24" class="home-module-icon" aria-hidden="true">
-                    <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <h3>Perceptual Speed</h3>
+            <article>
+                <h3>Feels like the real round</h3>
+                <p>Timed full tests in a distraction-free player, with a visible countdown and the same question formats.</p>
             </article>
-            <article class="card home-module-card">
-                <svg viewBox="0 0 24 24" class="home-module-icon" aria-hidden="true">
-                    <path d="M5 18V9M12 18V5M19 18v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <h3>Numerical Accuracy</h3>
-            </article>
-            <article class="card home-module-card">
-                <svg viewBox="0 0 24 24" class="home-module-icon" aria-hidden="true">
-                    <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4H19v14H7.5A2.5 2.5 0 0 0 5 20.5v-14ZM5 6.5A2.5 2.5 0 0 0 7.5 9H19" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                </svg>
-                <h3>Verbal Meaning</h3>
-            </article>
-            <article class="card home-module-card">
-                <svg viewBox="0 0 24 24" class="home-module-icon" aria-hidden="true">
-                    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 0v18M4 7.5l8 4.5 8-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                </svg>
-                <h3>Spatial Thinking</h3>
+            <article>
+                <h3>Learn why, not just what</h3>
+                <p>Every practice question comes with a worked explanation, and your average pace is tracked against the real time limits.</p>
             </article>
         </div>
     </section>
 
-</section>
+    <section class="landing-section landing-faq" aria-labelledby="landing-faq-title" data-reveal>
+        <div class="landing-section-head">
+            <span class="eyebrow">Questions</span>
+            <h2 id="landing-faq-title">Before you start</h2>
+        </div>
+        <div class="landing-faq-list">
+            <details>
+                <summary>Are these the real tests?</summary>
+                <p>No. MindMetric is independent and is not affiliated with any test publisher or employer. Our questions are original and written to match the published format and timing of each test.</p>
+            </details>
+            <details>
+                <summary>How much time do I need?</summary>
+                <p>Most online assessments arrive with a deadline of about a week. A focused hour a day is enough to learn the formats and run a couple of timed simulations. A single module drill takes about five minutes.</p>
+            </details>
+            <details>
+                <summary>What's free?</summary>
+                <p>Every module has free practice questions you can try without an account. Create a free account to take a timed full test and save your progress. No card needed.</p>
+            </details>
+            <details>
+                <summary>Does the membership renew?</summary>
+                <p>No. A membership gives you one month of full access to every test and then ends on its own. There's nothing to cancel.</p>
+            </details>
+        </div>
+    </section>
+
+    <section class="landing-cta" aria-labelledby="landing-cta-title" data-reveal>
+        <h2 id="landing-cta-title">Your first round starts with five minutes.</h2>
+        <a href="{% url 'pages:practice' %}" class="button" data-show-loader>Start practicing free</a>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/landing-motion.js' %}"></script>
+<script src="{% static 'js/landing-demo.js' %}" defer></script>
 {% endblock %}

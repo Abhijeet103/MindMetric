@@ -3,6 +3,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -62,6 +63,32 @@ class PayPalActivationTests(TestCase):
             plan_code="monthly",
             status=SubscriptionStatus.PENDING,
         )
+
+    def test_webhook_paths_verify_signatures_and_duplicate_delivery_keeps_expiry(self):
+        event = {
+            "event_type": "PAYMENT.CAPTURE.COMPLETED",
+            "resource": {"supplementary_data": {"related_ids": {"order_id": ORDER_ID}}},
+        }
+        expiry = None
+        for url in [reverse("billing-paypal-webhook"), reverse("billing-paypal-webhook-legacy")]:
+            with self.subTest(url=url):
+                with patch("backend.apps.billing.views.verify_paypal_webhook", return_value=False), patch(
+                    "backend.apps.billing.views.get_paypal_order"
+                ) as get_order:
+                    response = self.client.post(url, event, content_type="application/json")
+                    self.assertEqual(response.status_code, 400)
+                    get_order.assert_not_called()
+                with patch("backend.apps.billing.views.verify_paypal_webhook", return_value=True), patch(
+                    "backend.apps.billing.views.get_paypal_order", return_value=paypal_order(self.user)
+                ):
+                    response = self.client.post(url, event, content_type="application/json")
+                    self.assertEqual(response.status_code, 200)
+                    self.assertNotIn("Location", response)
+                self.user.refresh_from_db()
+                self.assertEqual(self.user.role, UserRole.PAID)
+                if expiry is not None:
+                    self.assertEqual(self.user.subscription_expires_at, expiry)
+                expiry = self.user.subscription_expires_at
 
     def test_completed_capture_activates_access(self):
         activate_subscription_from_paypal_order(paypal_order(self.user))
@@ -257,3 +284,116 @@ class PayPalWebhookTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.role, UserRole.PAID)
         self.assertEqual(self.user.subscription_expires_at, other_end)
+
+
+def minimal_capture_response(order):
+    """What PayPal's capture endpoint really returns by default (Prefer: return=minimal):
+    no purchase-unit amount and no custom_id, only the captures."""
+    unit = order["purchase_units"][0]
+    return {
+        "id": order["id"],
+        "status": order["status"],
+        "payer": order["payer"],
+        "purchase_units": [{"reference_id": "default", "payments": unit["payments"]}],
+    }
+
+
+def fake_paypal(order, *, capture_error=None, calls=None):
+    def fake_request(method, path, payload=None, **kwargs):
+        if calls is not None:
+            calls.append((method, path))
+        if path.endswith("/capture"):
+            if capture_error:
+                raise BillingWebhookError(capture_error)
+            order["status"] = "COMPLETED"
+            return minimal_capture_response(order)
+        return order
+
+    return fake_request
+
+
+@override_settings(**PAYPAL_SETTINGS)
+class PayPalRealResponseShapeTests(TestCase):
+    """Regression for 11 Nov 2026: a paid customer was sent to ?checkout=cancelled because the
+    minimal capture response was validated as if it were the full order."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="shape@example.com", password="secret")
+        Subscription.objects.create(
+            user=self.user, provider="paypal", provider_subscription_id=ORDER_ID,
+            plan_code="monthly", status=SubscriptionStatus.PENDING,
+        )
+        self.client.force_login(self.user)
+
+    def test_return_with_minimal_capture_response_activates_access(self):
+        order = paypal_order(self.user)
+        order["status"] = "APPROVED"
+        with patch("backend.apps.billing.services._paypal_request", side_effect=fake_paypal(order)):
+            response = self.client.get(reverse("billing-paypal-return"), {"token": ORDER_ID, "PayerID": "PAYER1"})
+        self.assertNotIn("checkout=", response["Location"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.role, UserRole.PAID)
+
+    def test_failed_return_never_says_cancelled_and_points_to_support(self):
+        order = paypal_order(self.user, capture_status="DECLINED")
+        order["status"] = "APPROVED"
+        with patch(
+            "backend.apps.billing.services._paypal_request",
+            side_effect=fake_paypal(order, capture_error="PayPal API request failed: INSTRUMENT_DECLINED"),
+        ):
+            response = self.client.get(reverse("billing-paypal-return"), {"token": ORDER_ID})
+        self.assertIn("checkout=failed", response["Location"])
+        self.assertNotIn("cancelled", response["Location"])
+        shown = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertTrue(any("support@mindmetric.store" in m for m in shown), shown)
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.role, UserRole.PAID)
+
+    def test_approved_webhook_captures_and_activates(self):
+        order = paypal_order(self.user)
+        order["status"] = "APPROVED"
+        event = {"id": "WH-1", "event_type": "CHECKOUT.ORDER.APPROVED", "resource": {"id": ORDER_ID, "status": "APPROVED"}}
+        calls = []
+        with patch("backend.apps.billing.views.verify_paypal_webhook", return_value=True), patch(
+            "backend.apps.billing.services._paypal_request", side_effect=fake_paypal(order, calls=calls)
+        ):
+            response = self.client.post(reverse("billing-paypal-webhook-legacy"), event, content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(("POST", f"/v2/checkout/orders/{ORDER_ID}/capture"), calls)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.role, UserRole.PAID)
+
+    def test_reconcile_activates_paid_pending_orders_and_respects_dry_run(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        order = paypal_order(self.user)
+        with patch("backend.apps.billing.services._paypal_request", side_effect=fake_paypal(order)):
+            out = StringIO()
+            call_command("reconcile_paypal_orders", "--dry-run", stdout=out)
+            self.assertIn("would activate", out.getvalue())
+            self.user.refresh_from_db()
+            self.assertNotEqual(self.user.role, UserRole.PAID)
+
+            call_command("reconcile_paypal_orders", stdout=StringIO())
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.role, UserRole.PAID)
+
+    def test_reconcile_never_overrides_existing_access(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        manual = Subscription.objects.create(
+            user=self.user, provider="manual", provider_subscription_id="GIFT-1", plan_code="monthly",
+            status=SubscriptionStatus.ACTIVE, current_period_end=timezone.now() + timedelta(days=20),
+        )
+        calls = []
+        with patch("backend.apps.billing.services._paypal_request", side_effect=fake_paypal(paypal_order(self.user), calls=calls)):
+            out = StringIO()
+            call_command("reconcile_paypal_orders", stdout=out)
+        self.assertIn("needs review", out.getvalue())
+        self.assertNotIn(("POST", f"/v2/checkout/orders/{ORDER_ID}/capture"), calls)
+        manual.refresh_from_db()
+        self.assertEqual(manual.status, SubscriptionStatus.ACTIVE)

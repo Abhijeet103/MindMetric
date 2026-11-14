@@ -1,4 +1,13 @@
+from backend.apps.assessments.learning_views import WorkshopPageView, WorkshopPeerReviewView
 from django.urls import path
+
+from .results import AttemptResultsView
+from .student import (
+    ApplicationDeadlineCreateView,
+    ApplicationDeadlineDeleteView,
+    CompanyLookupView,
+    LegalPageView,
+)
 
 from .views import (
     AdaptiveTestPageView,
@@ -24,6 +33,8 @@ from .views import (
 app_name = "pages"
 
 urlpatterns = [
+    path("practice/peer-review/<str:token>/", WorkshopPeerReviewView.as_view(), name="workshop-peer-review"),
+    path("practice/<slug:assessment_slug>/workshop/", WorkshopPageView.as_view(), name="assessment-workshop"),
     path("", HomePageView.as_view(), name="home"),
     path("pricing/", PricingPageView.as_view(), name="pricing"),
     path("contact-sales/", ContactInquiryCreateView.as_view(), name="contact-sales"),
@@ -47,5 +58,10 @@ urlpatterns = [
     path("sections/<slug:slug>/", SectionDetailPageView.as_view(), {"assessment_slug": "prepgia"}, name="section-detail"),
     path("login/", LoginPageView.as_view(), name="login"),
     path("dashboard/", DashboardPageView.as_view(), name="dashboard"),
+    path("results/<int:attempt_id>/", AttemptResultsView.as_view(), name="attempt-results"),
+    path("applications/add/", ApplicationDeadlineCreateView.as_view(), name="application-add"),
+    path("applications/<int:deadline_id>/delete/", ApplicationDeadlineDeleteView.as_view(), name="application-delete"),
+    path("companies/", CompanyLookupView.as_view(), name="company-lookup"),
+    path("legal/<slug:slug>/", LegalPageView.as_view(), name="legal-page"),
     path("feedback/", PortalFeedbackCreateView.as_view(), name="feedback"),
 ]

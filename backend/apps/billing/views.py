@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from django.contrib import messages
 from django.http import HttpResponseBadRequest, JsonResponse
@@ -31,7 +32,15 @@ from .services import (
 from .services import (create_paypal_order, capture_paypal_order, get_paypal_order,
     activate_subscription_from_paypal_order, paypal_webhook_is_configured, verify_paypal_webhook,
     PAYPAL_REVOKING_EVENTS, PayPalPaymentPendingError, paypal_capture_is_fully_reversed,
-    paypal_order_id_from_event, revoke_paypal_subscription)
+    paypal_order_id_from_event, revoke_paypal_subscription, complete_paypal_order)
+
+logger = logging.getLogger(__name__)
+
+PAYPAL_RETURN_FAILED_MESSAGE = (
+    "We couldn't confirm your PayPal payment yet. If PayPal shows the payment as taken, "
+    "your access will switch on automatically within a few minutes. If it doesn't, email "
+    "support@mindmetric.store with your PayPal receipt and we'll sort it out the same day."
+)
 
 class StartPayPalCheckoutView(View):
     def post(self, request, plan_code: str):
@@ -62,17 +71,32 @@ class PayPalReturnView(View):
             messages.error(request, "PayPal did not return an order token.")
             return redirect("pages:subscription")
 
+        if not request.user.subscriptions.filter(provider="paypal", provider_subscription_id=order_id).exists():
+            logger.warning("PayPal return for order %s does not belong to user=%s.", order_id, request.user.pk)
+            messages.error(request, "This checkout does not belong to your account.")
+            return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=failed")
+
         try:
-            if not request.user.subscriptions.filter(provider="paypal", provider_subscription_id=order_id).exists():
-                raise BillingWebhookError("This checkout does not belong to your account.")
             capture_payload = capture_paypal_order(order_id)
             activate_subscription_from_paypal_order(capture_payload)
         except PayPalPaymentPendingError as exc:
+            logger.info("PayPal order %s for user=%s is pending: %s", order_id, request.user.pk, exc)
             messages.info(request, str(exc))
             return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=processing")
         except (BillingConfigurationError, BillingWebhookError) as exc:
-            messages.error(request, str(exc))
-            return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=cancelled")
+            logger.exception("PayPal return failed for order %s user=%s", order_id, request.user.pk)
+            # Never tell a customer who may have paid that checkout was cancelled:
+            # retry once against PayPal's own record of the order first.
+            try:
+                complete_paypal_order(order_id)
+            except PayPalPaymentPendingError as pending:
+                messages.info(request, str(pending))
+                return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=processing")
+            except (BillingConfigurationError, BillingWebhookError):
+                logger.exception("PayPal recovery also failed for order %s user=%s", order_id, request.user.pk)
+                messages.error(request, PAYPAL_RETURN_FAILED_MESSAGE)
+                return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=failed")
+            logger.info("PayPal order %s recovered after a failed return for user=%s.", order_id, request.user.pk)
 
         messages.success(request, "PayPal payment confirmed. Your access is now active.")
         return redirect("pages:subscription")
@@ -92,9 +116,11 @@ class PayPalWebhookView(View):
         try:
             verified = verify_paypal_webhook(headers=request.headers, event_payload=event_payload)
         except (BillingConfigurationError, BillingWebhookError) as exc:
+            logger.warning("PayPal webhook verification error: %s", exc)
             return HttpResponseBadRequest(str(exc))
 
         if not verified:
+            logger.warning("PayPal webhook rejected: invalid signature (event %s).", event_payload.get("id", ""))
             return HttpResponseBadRequest("Invalid PayPal webhook signature.")
 
         event_type = event_payload.get("event_type", "")
@@ -103,11 +129,21 @@ class PayPalWebhookView(View):
                 order_id = paypal_order_id_from_event(event_payload)
                 if order_id:
                     activate_subscription_from_paypal_order(get_paypal_order(order_id))
+            elif event_type == "CHECKOUT.ORDER.APPROVED":
+                # The buyer approved but may never reach our return URL (closed
+                # tab, lost session); finish the order here so they aren't stranded.
+                order_id = (event_payload.get("resource") or {}).get("id", "")
+                if order_id:
+                    complete_paypal_order(order_id)
             elif event_type in PAYPAL_REVOKING_EVENTS:
                 order_id = paypal_order_id_from_event(event_payload)
                 if order_id and paypal_capture_is_fully_reversed(event_payload):
                     revoke_paypal_subscription(order_id, reason=event_type)
+        except PayPalPaymentPendingError:
+            # Capture is still settling; PAYMENT.CAPTURE.COMPLETED will follow.
+            return JsonResponse({"received": True, "type": event_type, "pending": True})
         except (BillingConfigurationError, BillingWebhookError) as exc:
+            logger.exception("PayPal webhook %s (%s) failed", event_type, event_payload.get("id", ""))
             return HttpResponseBadRequest(str(exc))
 
         return JsonResponse({"received": True, "type": event_type})

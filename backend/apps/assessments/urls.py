@@ -1,5 +1,7 @@
 from django.urls import path
 
+from .learning_views import WorkshopStartView, WorkshopSessionView, ItemEventView, WorkshopReviewInviteView
+
 from .views import (
     AdaptiveAdvanceView,
     AttemptEndView,
@@ -15,6 +17,10 @@ from .views import (
 )
 
 urlpatterns = [
+    path("workshops/<int:session_id>/review-invite/", WorkshopReviewInviteView.as_view(), name="workshop-review-invite"),
+    path("workshops/start/", WorkshopStartView.as_view(), name="workshop-start"),
+    path("workshops/<int:session_id>/", WorkshopSessionView.as_view(), name="workshop-session"),
+    path("item-events/", ItemEventView.as_view(), name="item-event"),
     path("adaptive/<int:attempt_id>/next/", AdaptiveAdvanceView.as_view(), name="adaptive-advance"),
     path("sections/", SectionCatalogView.as_view(), name="sections"),
     path("attempts/start/", AttemptStartView.as_view(), name="attempt-start"),

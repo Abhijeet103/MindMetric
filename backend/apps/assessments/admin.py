@@ -13,6 +13,7 @@ from backend.apps.tenants.admin_mixins import TenantScopedAdminMixin
 
 from .emails import send_track_release_email
 from .models import (
+    EditorialReview, ItemExposure, ItemReport, LearningSession,
     AssessmentResource,
     TestConfiguration,
     AssessmentTrack,
@@ -372,3 +373,81 @@ class AssessmentResourceAdmin(admin.ModelAdmin):
     has_add_permission = has_view_permission
     has_change_permission = has_view_permission
     has_delete_permission = has_view_permission
+
+
+@admin.register(EditorialReview)
+class EditorialReviewAdmin(admin.ModelAdmin):
+    list_display = ("title", "status", "reviewer", "reviewed_at")
+    list_filter = ("status",)
+    search_fields = ("title", "content_key")
+    readonly_fields = ("reviewed_at",)
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def save_model(self, request, obj, form, change):
+        if obj.status == "approved":
+            obj.reviewed_at = timezone.now()
+        else:
+            obj.reviewed_at = None
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(ItemExposure)
+class ItemExposureAdmin(TenantScopedAdminMixin):
+    list_display = ("section_type", "tenant", "user", "is_correct", "response_ms", "issued_at", "answered_at")
+    list_filter = ("section_type", "is_correct", "tenant")
+    readonly_fields = tuple(f.name for f in ItemExposure._meta.fields)
+    actions = ("export_pilot_summary",)
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.action(description="Export aggregate pilot observations (not calibrated scores)")
+    def export_pilot_summary(self, request, queryset):
+        from django.db.models import Count, Avg, Q
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="practice-pilot-summary.csv"'
+        writer = csv.writer(response)
+        writer.writerow(["section", "answered_count", "correct_count", "mean_client_response_ms", "note"])
+        for row in queryset.filter(answered_at__isnull=False).values("section_type").annotate(n=Count("id"), correct=Count("id", filter=Q(is_correct=True)), mean_ms=Avg("response_ms")):
+            writer.writerow([row["section_type"], row["n"], row["correct"], row["mean_ms"], "Descriptive practice observations; client timing may include idle time; not calibrated"])
+        return response
+
+
+@admin.register(ItemReport)
+class ItemReportAdmin(TenantScopedAdminMixin):
+    list_display = ("reason", "tenant", "status", "created_at")
+    list_filter = ("status", "reason", "tenant")
+    readonly_fields = ("user", "tenant", "exposure", "session", "stage_index", "reason", "detail", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(LearningSession)
+class LearningSessionAdmin(TenantScopedAdminMixin):
+    list_display = ("assessment_type", "kind", "tenant", "user", "completed_at", "reviewed_at")
+    list_filter = ("assessment_type", "kind", "tenant")
+    readonly_fields = tuple(f.name for f in LearningSession._meta.fields if f.name != "review_notes")
+
+    def has_add_permission(self, request):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if "review_notes" in form.changed_data:
+            obj.reviewer = request.user
+            obj.reviewed_at = timezone.now() if obj.review_notes.strip() else None
+        super().save_model(request, obj, form, change)

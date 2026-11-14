@@ -6,6 +6,7 @@ logic constraints and answer derivations are generated together for validation.
 
 from __future__ import annotations
 
+import math
 import uuid
 
 from prepgia.question_types import (
@@ -19,7 +20,17 @@ from prepgia.question_types import (
 
 class SHLNumericalGenerator(BaseQuestionGenerator):
     section_type = "shl_numerical"
-    FAMILIES = ["growth", "share", "profit", "weighted_average", "ratio", "difference"]
+    FAMILIES = [
+        "growth",
+        "share",
+        "profit",
+        "weighted_average",
+        "ratio",
+        "difference",
+        "revenue_growth",
+        "contribution_margin",
+        "target_profit",
+    ]
 
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
@@ -82,6 +93,39 @@ class SHLNumericalGenerator(BaseQuestionGenerator):
             question = f"How many times {other[0]}'s current units did {name} sell this year?"
             wrong = [other[2] / current, previous / other[1], answer + 1]
             explanation = f"Divide {name}'s {current} units by {other[0]}'s {other[2]} units: {_format_ccat_number(answer)} times."
+        elif subtype == "revenue_growth":
+            previous_revenue = sum(r[1] * r[3] for r in rows)
+            current_revenue = sum(r[2] * r[3] for r in rows)
+            answer = (current_revenue / previous_revenue - 1) * 100
+            question = "What is the percentage change in total revenue across all regions? Use the unchanged regional prices and a negative percentage for a decline."
+            wrong = [
+                100 * (sum(r[2] for r in rows) / sum(r[1] for r in rows) - 1),
+                100 * (current_revenue - previous_revenue) / current_revenue,
+                current_revenue / previous_revenue * 100,
+            ]
+            explanation = f"Previous revenue = £{previous_revenue:,}; current revenue = £{current_revenue:,}. Change = ({current_revenue}/{previous_revenue} − 1) × 100 = {answer:.2f}%. Different prices mean unit growth is not necessarily revenue growth."
+        elif subtype == "contribution_margin":
+            revenue = sum(r[2] * r[3] for r in rows)
+            contribution = sum(r[2] * (r[3] - r[4]) for r in rows)
+            answer = 100 * contribution / revenue
+            question = "What is this year's total contribution margin, as a percentage of total sales revenue?"
+            wrong = [
+                100 * contribution / (revenue - contribution),
+                sum(100 * (r[3] - r[4]) / r[3] for r in rows) / len(rows),
+                contribution / sum(r[2] for r in rows),
+            ]
+            explanation = f"Contribution = £{contribution:,}; revenue = £{revenue:,}. Divide contribution by revenue, not by costs: {contribution}/{revenue} × 100 = {answer:.2f}%."
+        elif subtype == "target_profit":
+            target = rng.randint(10, 30) * 1000 * level
+            fixed = rng.randint(2, 8) * 1000
+            answer = math.ceil((target + fixed) / (price - cost))
+            question = f"If {name} operates alone at its listed price and variable cost, how many whole units must it sell to earn at least £{target:,} annual operating profit after £{fixed:,} fixed costs? There is no capacity or demand limit."
+            wrong = [
+                target / (price - cost),
+                (target + fixed) / price,
+                (target - fixed) / (price - cost),
+            ]
+            explanation = f"Required contribution = target profit + fixed costs = £{target + fixed:,}. Divide by unit contribution £{price - cost}, then round up: {answer:,} units."
         else:
             other = rows[1]
             answer = (current * price) - (other[2] * other[3])
@@ -113,7 +157,7 @@ class SHLNumericalGenerator(BaseQuestionGenerator):
                     },
                 },
                 "options": options,
-                "metadata": {"difficulty": difficulty, "subtype": subtype, "generator_version": 1},
+                "metadata": {"difficulty": difficulty, "subtype": subtype, "generator_version": 2},
             },
             {"answer": correct},
         )
@@ -121,7 +165,7 @@ class SHLNumericalGenerator(BaseQuestionGenerator):
 
 class SHLDeductiveGenerator(BaseQuestionGenerator):
     section_type = "shl_deductive"
-    FAMILIES = ["ordering", "conditional", "syllogism", "scheduling"]
+    FAMILIES = ["ordering", "conditional", "syllogism", "scheduling", "feasible_schedule"]
 
     def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
         rng = self.rng(seed)
@@ -130,7 +174,7 @@ class SHLDeductiveGenerator(BaseQuestionGenerator):
         names = rng.sample(
             ["Asha", "Ben", "Cora", "Dev", "Ella", "Finn", "Gita", "Hugo"], level + 2
         )
-        metadata = {"difficulty": difficulty, "subtype": subtype, "generator_version": 1}
+        metadata = {"difficulty": difficulty, "subtype": subtype, "generator_version": 2}
         if subtype in {"ordering", "scheduling"}:
             order = rng.sample(names, len(names))
             constraints = list(zip(order, order[1:]))
@@ -159,6 +203,38 @@ class SHLDeductiveGenerator(BaseQuestionGenerator):
                 + f". Position {rank + 1} is {answer}."
             )
             metadata.update({"constraints": constraints, "rank": rank, "people": names})
+        elif subtype == "feasible_schedule":
+            import itertools
+
+            order = rng.sample(names, len(names))
+            constraints = [(order[0], order[1])]
+            if level > 1:
+                constraints.append((order[1], order[-1]))
+            not_adjacent = (order[0], order[-1]) if level == 3 else None
+
+            def valid(candidate):
+                return all(candidate.index(a) < candidate.index(b) for a, b in constraints) and (
+                    not not_adjacent
+                    or abs(candidate.index(not_adjacent[0]) - candidate.index(not_adjacent[1])) != 1
+                )
+
+            permutations = list(itertools.permutations(names))
+            legal = [candidate for candidate in permutations if valid(candidate)]
+            illegal = [candidate for candidate in permutations if not valid(candidate)]
+            selected = rng.choice(legal)
+            answer = " → ".join(selected)
+            options = [answer, *[" → ".join(candidate) for candidate in rng.sample(illegal, 3)]]
+            statements = [f"{a} is earlier than {b}." for a, b in constraints]
+            if not_adjacent:
+                statements.append(
+                    f"{not_adjacent[0]} and {not_adjacent[1]} cannot occupy adjacent slots."
+                )
+            question = (
+                " ".join(statements)
+                + " Each person occupies one distinct slot, with no empty slots. Which proposed schedule satisfies every rule, from earliest to latest?"
+            )
+            explanation = f"{answer} obeys every precedence and adjacency constraint. Other schedules may also be possible, but each other offered option violates at least one stated rule."
+            metadata.update(people=names, constraints=constraints, not_adjacent=not_adjacent)
         elif subtype == "conditional":
             codes = rng.sample(range(100, 999), level + 2)
             statements = [

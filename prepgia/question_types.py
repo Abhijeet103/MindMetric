@@ -82,6 +82,8 @@ def semantic_question_signature(payload: dict) -> str:
         for key, value in payload["prompt"].items()
         if key not in {"explanation", "instruction"}
     }
+    if isinstance(prompt.get("case_study"), dict):
+        prompt["case_study"] = {key: value for key, value in prompt["case_study"].items() if key != "id"}
     for key in ("words", "numbers"):
         if key in prompt:
             prompt[key] = sorted(prompt[key])

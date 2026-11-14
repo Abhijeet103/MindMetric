@@ -2,9 +2,9 @@
 
 {% block content %}
 <section class="content-section">
-    <span class="eyebrow">Free aptitude test practice</span>
-    <h1 class="section-title">Aptitude and psychometric practice tests</h1>
-    <p class="section-copy">Start free Thomas GIA or Criteria Cognitive Aptitude Test (CCAT) practice today. SHL Verify and Watson-Glaser Critical Thinking Appraisal preparation are listed as upcoming while they complete testing.</p>
+    <span class="eyebrow">All tests</span>
+    <h1 class="section-title">Choose the test in your application</h1>
+    <p class="section-copy">Every test has free practice questions you can try right now. Create a free account to take a timed full test and save your progress. All questions are original, and MindMetric is not affiliated with any test publisher.</p>
 
     <div class="practice-card-grid practice-assessment-grid">
         {% for assessment in assessments %}
@@ -26,15 +26,14 @@
                     </div>
 
                     <div class="practice-track-body">
-                        <span class="practice-track-eyebrow">Assessment</span>
-                        <h2 class="practice-card-title">{{ assessment.title }}</h2>
+                                                <h2 class="practice-card-title">{{ assessment.title }}</h2>
 
                         <div class="practice-card-meta practice-card-meta--count">
                             <span>
                                 <svg viewBox="0 0 24 24" class="practice-meta-icon" aria-hidden="true">
                                     <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                 </svg>
-                                {{ assessment.module_count }} modules
+                                {{ assessment.module_count }} module{{ assessment.module_count|pluralize }}
                             </span>
                         </div>
 
@@ -51,7 +50,7 @@
                             </div>
                         {% endif %}
 
-                        {% if assessment.available_languages %}
+                        {% if assessment.available_languages|length > 1 %}
                             <div class="practice-track-language-group">
                                 <span class="practice-track-language-label">Available languages</span>
                                 <div class="practice-track-language-pills">
@@ -87,15 +86,14 @@
                     </div>
 
                     <div class="practice-track-body">
-                        <span class="practice-track-eyebrow">Assessment</span>
-                        <h2 class="practice-card-title">{{ assessment.title }}</h2>
+                                                <h2 class="practice-card-title">{{ assessment.title }}</h2>
 
                         <div class="practice-card-meta practice-card-meta--count">
                             <span>
                                 <svg viewBox="0 0 24 24" class="practice-meta-icon" aria-hidden="true">
                                     <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                 </svg>
-                                {{ assessment.module_count }} modules planned
+                                {{ assessment.module_count }} module{{ assessment.module_count|pluralize }} planned
                             </span>
                         </div>
 
