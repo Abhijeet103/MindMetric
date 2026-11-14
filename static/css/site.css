@@ -6242,3 +6242,27 @@ body[data-view-name="pages:adaptive-test"] .footer { display: none; }
   .landing-finder-field input { flex-basis: calc(100% - 30px); }
   .landing-finder-go { flex-basis: 100%; }
 }
+
+/* ---- Test cards: consistent icons, green labels, aligned rows ---- */
+.practice-track-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.practice-track-card > :last-child { margin-top: auto; }
+.practice-track-trust-icon { color: var(--teal); }
+.practice-track-language-label {
+  color: var(--teal);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+}
+
+/* Longer headline: smaller scale and a measure that breaks into ~3 lines. */
+.landing-hero-copy h1 {
+  font-size: clamp(2.2rem, 4.4vw, 3.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  max-width: 15ch;
+}

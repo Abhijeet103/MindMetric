@@ -334,11 +334,11 @@ class HomePageView(TemplateView):
         all_questions = get_questions()
         context.update(
             {
-                "page_title": "Pass the Online Assessment: CCAT, SHL & Aptitude Test Practice | MindMetric",
+                "page_title": "Aptitude Test Practice for Internships & Grad Jobs: CCAT, SHL | MindMetric",
                 "meta_description": (
-                    "Practice the online aptitude assessments large employers use to screen "
-                    "internship and new-grad applicants: CCAT, SHL-style, Watson-Glaser-style, "
-                    "consulting and Thomas GIA. Start free."
+                    "Pass the test that decides if your CV gets read. Free timed practice for the "
+                    "aptitude tests employers use to screen internship and graduate applicants: "
+                    "CCAT, SHL-style, Watson-Glaser-style, consulting and Thomas GIA."
                 ),
                 "question_count": len(all_questions),
                 "sections": _section_cards(ASSESSMENT_PREPGIA),

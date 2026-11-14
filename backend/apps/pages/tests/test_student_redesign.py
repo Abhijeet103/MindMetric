@@ -19,7 +19,7 @@ def make_user(email="student@example.com"):
 class HomePageTests(TestCase):
     def test_home_leads_with_student_positioning_and_live_test_picker(self):
         response = self.client.get(reverse("pages:home"))
-        self.assertContains(response, "Get past the first round.")
+        self.assertContains(response, "Pass the test that decides if your CV gets read.")
         self.assertContains(response, reverse("pages:assessment-practice", args=["ccat"]))
         self.assertContains(response, reverse("pages:company-lookup"))
         picker = response.context["home_tests"]
