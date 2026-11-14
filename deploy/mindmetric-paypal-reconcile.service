@@ -1,0 +1,10 @@
+[Unit]
+Description=MindMetric: activate PayPal checkouts that PayPal reports as paid
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/ec2-user/ThomasGia
+EnvironmentFile=/home/ec2-user/ThomasGia/.env
+ExecStart=/home/ec2-user/ThomasGia/.venv/bin/python manage.py reconcile_paypal_orders --hours 48

@@ -37,6 +37,8 @@ python manage.py check
 
 echo "Copying config files..."
 sudo cp deploy/mindmetric.service /etc/systemd/system/mindmetric.service
+sudo cp deploy/mindmetric-paypal-reconcile.service /etc/systemd/system/mindmetric-paypal-reconcile.service
+sudo cp deploy/mindmetric-paypal-reconcile.timer /etc/systemd/system/mindmetric-paypal-reconcile.timer
 sudo mkdir -p /var/www/certbot
 echo "Syncing nginx site config without overwriting Certbot-managed HTTPS settings..."
 if [ -f /etc/nginx/conf.d/mindmetric.conf ]; then
@@ -76,6 +78,7 @@ echo "Reloading services..."
 sudo systemctl daemon-reload
 sudo nginx -t
 sudo systemctl restart mindmetric
+sudo systemctl enable --now mindmetric-paypal-reconcile.timer
 sudo systemctl restart nginx
 
 echo "Deploy complete."
