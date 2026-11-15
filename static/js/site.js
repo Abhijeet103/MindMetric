@@ -294,6 +294,10 @@ function initFeedback() {
     openFeedback({category: trigger.dataset.feedbackCategory || ""});
   });
 
+  if (new URLSearchParams(window.location.search).get("feedback") === "open") {
+    openFeedback();
+  }
+
   const toast = document.querySelector("[data-problem-toast]");
   toast?.querySelector("[data-problem-dismiss]")?.addEventListener("click", () => toast.setAttribute("hidden", ""));
   toast?.querySelector("[data-problem-report]")?.addEventListener("click", () => {

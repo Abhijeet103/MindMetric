@@ -6,6 +6,7 @@ from django.contrib import admin, messages
 from django.contrib.admin import helpers
 from django.core.mail import get_connection
 from django.core.exceptions import PermissionDenied
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
@@ -15,7 +16,7 @@ from backend.apps.accounts.models import User
 from backend.apps.tenants.admin_mixins import TenantScopedAdminMixin
 
 from .models import AdminEmail, AudienceContact, PortalFeedback, SaleInquiry, TestSuggestion
-from .emails import build_branded_email
+from .emails import build_branded_email, campaign_email_initial
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,10 @@ class AudienceContactAdmin(admin.ModelAdmin):
     list_filter = ("marketing_opt_in", "source", "tenant", "updated_at")
     search_fields = ("email", "full_name")
     readonly_fields = ("created_at", "updated_at", "last_campaign_sent_at")
+    change_list_template = "admin/pages/audiencecontact/change_list.html"
     actions = (
+        "send_product_update",
+        "send_feedback_request",
         "send_marketing_email",
         "gift_one_month_access",
         "subscribe_selected_contacts",
@@ -154,55 +158,107 @@ class AudienceContactAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return bool(request.user.is_superuser)
 
+    def get_urls(self):
+        return [
+            path("email/<str:kind>/", self.admin_site.admin_view(self.email_everyone_view),
+                 name="pages_audiencecontact_email_everyone"),
+        ] + super().get_urls()
+
+    def email_everyone_view(self, request, kind):
+        if not request.user.is_superuser:
+            raise PermissionDenied
+        if kind not in {"product_update", "feedback_request"}:
+            raise Http404
+        return self.campaign_view(request, self.get_queryset(request), kind, everyone=True)
+
+    @admin.action(description="Send MindMetric updates / new tests to selected subscribed contacts")
+    def send_product_update(self, request, queryset):
+        return self.campaign_view(request, queryset, "product_update")
+
+    @admin.action(description="Request feedback from selected subscribed contacts")
+    def send_feedback_request(self, request, queryset):
+        return self.campaign_view(request, queryset, "feedback_request")
+
     @admin.action(description="Send marketing email to selected subscribed contacts")
     def send_marketing_email(self, request, queryset):
+        return self.campaign_view(request, queryset, "marketing_email")
+
+    def campaign_view(self, request, queryset, kind, *, everyone=False):
+        if not request.user.is_superuser:
+            raise PermissionDenied
         recipients = queryset.filter(marketing_opt_in=True, unsubscribed_at__isnull=True)
-        if "send_campaign" in request.POST:
-            form = MarketingEmailForm(request.POST)
-            if form.is_valid():
-                recipient_list = list(recipients)
-                if not recipient_list:
-                    self.message_user(
-                        request,
-                        "No subscribed contacts were selected; no email was sent.",
-                        level=messages.WARNING,
+        titles = {
+            "product_update": "Send MindMetric updates and new tests",
+            "feedback_request": "Request MindMetric feedback",
+            "marketing_email": "Send marketing email",
+        }
+        form = MarketingEmailForm(
+            request.POST if "send_campaign" in request.POST else None,
+            initial=campaign_email_initial(kind),
+        )
+        cancel_url = reverse("admin:pages_audiencecontact_changelist")
+        valid = "send_campaign" in request.POST and form.is_valid()
+        if (
+            valid and kind == "product_update"
+            and "[Add the new tests, features, or improvements here before sending.]" in form.cleaned_data["body"]
+        ):
+            form.add_error("body", "Replace the placeholder with your new tests or features before sending.")
+            valid = False
+        if valid:
+            if not recipients.exists():
+                self.message_user(request, "No subscribed contacts were selected; no email was sent.", messages.WARNING)
+                return redirect(cancel_url)
+            sent = failed = 0
+            # Individual sends let us record only confirmed messages and continue
+            # after one recipient fails, without exposing anyone else's address.
+            connection = get_connection(fail_silently=False)
+            try:
+                connection.open()
+                for contact in recipients.iterator():
+                    try:
+                        count = build_branded_email(
+                            subject=form.cleaned_data["subject"],
+                            body=form.cleaned_data["body"],
+                            recipient=contact.email,
+                            connection=connection,
+                        ).send(fail_silently=False)
+                        if count != 1:
+                            raise RuntimeError("Email backend did not accept the message")
+                    except Exception:
+                        failed += 1
+                        logger.exception("Campaign email failed for contact=%s", contact.pk)
+                        continue
+                    sent += 1
+                    AudienceContact.objects.filter(pk=contact.pk).update(last_campaign_sent_at=timezone.now())
+                    AdminEmail.objects.create(
+                        recipient=contact.email, sent_by=request.user, **form.cleaned_data,
                     )
-                    return None
-                connection = get_connection(fail_silently=False)
-                email_messages = [
-                    build_branded_email(
-                        subject=form.cleaned_data["subject"],
-                        body=form.cleaned_data["body"],
-                        recipient=contact.email,
-                        connection=connection,
-                    )
-                    for contact in recipient_list
-                ]
-                connection.send_messages(email_messages)
-                recipients.update(last_campaign_sent_at=timezone.now())
+            except Exception:
+                logger.exception("Campaign email service failed")
+                form.add_error(None, "The email service failed. Check sent history before retrying; your message has been preserved.")
+            else:
                 self.message_user(
                     request,
-                    f"Sent the marketing email to {len(recipient_list)} subscribed contact(s).",
-                    level=messages.SUCCESS,
+                    f"Email service accepted {sent} email(s); failed for {failed} subscribed contact(s).",
+                    level=messages.SUCCESS if sent and not failed else messages.WARNING,
                 )
-                return None
-        else:
-            form = MarketingEmailForm()
+                return redirect(cancel_url)
+            finally:
+                connection.close()
 
-        return render(
-            request,
-            "admin/pages/audiencecontact/send_marketing_email.html",
-            {
-                **self.admin_site.each_context(request),
-                "opts": self.model._meta,
-                "title": "Send marketing email",
-                "contacts": recipients,
-                "form": form,
-                "action_name": "send_marketing_email",
-                "action_checkbox_name": helpers.ACTION_CHECKBOX_NAME,
-                "cancel_url": reverse("admin:pages_audiencecontact_changelist"),
-            },
-        )
+        return render(request, "admin/pages/audiencecontact/send_marketing_email.html", {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": titles[kind],
+            "recipient_count": recipients.count(),
+            "selected_ids": request.POST.getlist(helpers.ACTION_CHECKBOX_NAME),
+            "form": form,
+            "everyone": everyone,
+            "select_across": request.POST.get("select_across", "0"),
+            "action_name": "send_" + kind,
+            "action_checkbox_name": helpers.ACTION_CHECKBOX_NAME,
+            "cancel_url": cancel_url,
+        })
 
     @admin.action(description="Gift one month of paid trial access to selected subscribed contacts")
     def gift_one_month_access(self, request, queryset):

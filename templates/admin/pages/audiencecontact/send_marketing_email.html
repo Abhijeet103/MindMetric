@@ -3,13 +3,17 @@
 {% block content %}
 <h1>{{ title }}</h1>
 <p>Only contacts with marketing consent are included. This sends one individual email per selected contact.</p>
-<p><strong>{{ contacts|length }}</strong> subscribed contact{{ contacts|length|pluralize }} selected.</p>
+{% if everyone %}<p>This campaign includes <strong>everyone subscribed</strong> in the mailing list.</p>{% endif %}
+<p><strong>{{ recipient_count }}</strong> subscribed contact{{ recipient_count|pluralize }} selected.</p>
 <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
-    {% for contact in contacts %}
-        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ contact.pk }}">
+    {% if not everyone %}
+    <input type="hidden" name="select_across" value="{{ select_across }}">
+    {% for selected_id in selected_ids %}
+        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ selected_id }}">
     {% endfor %}
+    {% endif %}
     <input type="hidden" name="action" value="{{ action_name }}">
     <input type="hidden" name="send_campaign" value="1">
     <input type="submit" value="Send email" class="default">

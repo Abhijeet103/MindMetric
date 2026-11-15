@@ -270,3 +270,16 @@ See [workshops and quality administration](docs/applied-practice-workshops.md)
 for quotas, editorial approval, item reporting and pilot data. Deploy migrations
 through `0022`, run `python manage.py refresh_question_reviews`, and rebuild static
 assets. Editorial records start pending review; no content is automatically approved.
+
+Superusers can open **Admin → Pages → Audience contacts** to send **MindMetric
+updates / new tests** or **feedback requests**. Use the “Email everyone” buttons
+for the full subscribed mailing list, or select contacts and choose the matching
+action for a smaller audience (Django's “Select all” includes all filtered pages).
+Review and edit the subject and message before pressing **Send email**; replace
+the update draft's placeholder with the actual new features and tests. Feedback
+emails link directly to the feedback popup, which also works for guests.
+Opted-out contacts are excluded when sending. Each recipient receives an
+individual branded email; confirmed sends appear under **Admin emails** and
+update the contact's last campaign timestamp. Failures are counted separately.
+Check sent history before retrying a partially successful campaign to avoid
+sending duplicates.

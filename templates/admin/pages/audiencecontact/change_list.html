@@ -1,0 +1,6 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+<li><a href="{% url 'admin:pages_audiencecontact_email_everyone' 'product_update' %}">Email everyone: updates / new tests</a></li>
+<li><a href="{% url 'admin:pages_audiencecontact_email_everyone' 'feedback_request' %}">Email everyone: request feedback</a></li>
+{{ block.super }}
+{% endblock %}

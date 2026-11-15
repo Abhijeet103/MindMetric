@@ -6,6 +6,35 @@ from django.templatetags.static import static
 from django.template.loader import render_to_string
 
 
+def campaign_email_initial(kind):
+    site_url = settings.SITE_URL.rstrip("/") + "/"
+    if kind == "product_update":
+        return {
+            "subject": "Discover what's new on MindMetric",
+            "body": (
+                "Hi there,\n\n"
+                "Explore MindMetric for practice tests and tools to help you prepare.\n\n"
+                "What's new:\n[Add the new tests, features, or improvements here before sending.]\n\n"
+                f"Visit MindMetric: {site_url}\n"
+                f"Start practising: {urljoin(site_url, 'practice/')}\n\n"
+                "We'd love to hear what you think. Just reply to this email."
+            ),
+        }
+    if kind == "feedback_request":
+        return {
+            "subject": "How can we make MindMetric better for you?",
+            "body": (
+                "Hi there,\n\n"
+                "Have you tried MindMetric? We'd love to hear about your experience. "
+                "Tell us what works well, what we could improve, and which tests "
+                "or features you'd like us to add next.\n\n"
+                f"Share your feedback: {site_url}?feedback=open#feedback-modal\n\n"
+                "You can also reply directly to this email. Thank you for helping us improve MindMetric."
+            ),
+        }
+    return {}
+
+
 def build_branded_email(*, subject, body, recipient, connection=None):
     """Keep admin-authored content plain text and escape it in the HTML layout."""
     site_url = settings.SITE_URL.rstrip("/") + "/"
