@@ -48,8 +48,10 @@ def _activate_manual_subscription_for_user(user: User, plan_code: str) -> None:
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
     model = User
-    ordering = ("email",)
-    list_display = ("email", "tenant", "first_name", "last_name", "role", "is_tenant_admin", "subscription_expires_at", "is_staff")
+    # Newest sign-ups first; every date column header can be clicked to re-sort.
+    ordering = ("-date_joined",)
+    list_display = ("email", "tenant", "first_name", "last_name", "role", "date_joined", "last_login", "subscription_expires_at", "is_tenant_admin", "is_staff")
+    date_hierarchy = "date_joined"
     search_fields = ("email", "first_name", "last_name")
     actions = (
         "gift_one_month_access",
