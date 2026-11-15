@@ -148,6 +148,11 @@ class PortalFeedback(models.Model):
     category = models.CharField(max_length=16, choices=Category.choices, default=Category.GENERAL)
     message = models.TextField()
     source_page = models.CharField(max_length=255, blank=True)
+    context = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="What the browser reported when the problem happened: error, page, test and browser.",
+    )
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.NEW)
     created_at = models.DateTimeField(auto_now_add=True)
 

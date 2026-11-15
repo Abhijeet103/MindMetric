@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initSectionPlayer();
   initFullTestPlayer();
   initModalDialogs();
+  initFeedback();
   initPlayerKeyboardShortcuts();
   initThemeToggle();
 });
@@ -205,6 +206,147 @@ function initButtonLoaders() {
   });
 
   window.addEventListener("pageshow", resetButtonLoading);
+}
+
+// ---- Site-wide feedback and "Something went wrong" reporting ----
+// One popup (partials/feedback_modal.html) opened from the floating button,
+// footer, account menu and dashboard. When something fails, reportProblem()
+// shows a small notice; "Report this problem" opens the popup pre-filled with
+// the error and technical details so the team can fix it.
+const reportedProblems = new Set();
+
+function problemContext(message) {
+  const player = document.querySelector("[data-test-player], [data-full-test-player]");
+  return {
+    error: message || "",
+    page: `${window.location.pathname}${window.location.search}`,
+    test: player?.dataset.assessmentType || player?.dataset.assessmentTitle || "",
+    section: player?.dataset.sectionKey || "",
+    mode: player?.dataset.mode || player?.dataset.fullTestMode || "",
+    language: document.documentElement.lang || "",
+    browser: navigator.userAgent,
+    screen: `${window.innerWidth}x${window.innerHeight}`,
+    time: new Date().toISOString(),
+  };
+}
+
+function openFeedback({category = "", message = "", context = null} = {}) {
+  const modal = document.querySelector("[data-feedback-modal]");
+  if (!modal) return;
+  const form = modal.querySelector("[data-feedback-form]");
+  const title = modal.querySelector("[data-feedback-title]");
+  const select = modal.querySelector("[data-feedback-category]");
+  const textarea = modal.querySelector("[data-feedback-message]");
+  const details = modal.querySelector("[data-feedback-details]");
+  const contextField = modal.querySelector("[data-feedback-context]");
+  const status = modal.querySelector("[data-feedback-status]");
+  if (select && category) select.value = category;
+  if (title) title.textContent = category === "issue" ? title.dataset.issueTitle : title.dataset.defaultTitle;
+  if (textarea && message && !textarea.value.trim()) textarea.value = message;
+  if (contextField) contextField.value = context ? JSON.stringify(context) : "";
+  if (details) details.hidden = !context;
+  if (status) { status.textContent = ""; status.className = "feedback-status"; }
+  const source = form?.querySelector("[data-feedback-source]");
+  if (source) source.value = `${window.location.pathname}${window.location.search}`;
+  modal.removeAttribute("hidden");
+  document.body.classList.add("has-open-modal");
+  window.setTimeout(() => textarea?.focus(), 30);
+}
+
+function reportProblem(message, error) {
+  const text = String(message || error?.message || "").trim() || tr("An unexpected error occurred.");
+  if (reportedProblems.has(text)) return;
+  reportedProblems.add(text);
+  const show = () => {
+    const toast = document.querySelector("[data-problem-toast]");
+    if (!toast) return;
+    toast.querySelector("[data-problem-toast-message]").textContent = text;
+    toast.dataset.problemMessage = text;
+    toast.removeAttribute("hidden");
+  };
+  // A fullscreen test hides everything else; show the notice once it closes.
+  if (document.fullscreenElement) {
+    const onExit = () => {
+      if (document.fullscreenElement) return;
+      document.removeEventListener("fullscreenchange", onExit);
+      show();
+    };
+    document.addEventListener("fullscreenchange", onExit);
+  } else {
+    show();
+  }
+}
+window.reportProblem = reportProblem;
+
+function initFeedback() {
+  const modal = document.querySelector("[data-feedback-modal]");
+  if (!modal || modal.dataset.feedbackReady) return;
+  modal.dataset.feedbackReady = "true";
+  const form = modal.querySelector("[data-feedback-form]");
+  const status = modal.querySelector("[data-feedback-status]");
+  const submit = modal.querySelector("[data-feedback-submit]");
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-feedback-open]");
+    if (!trigger) return;
+    event.preventDefault();
+    trigger.closest("details")?.removeAttribute("open");
+    openFeedback({category: trigger.dataset.feedbackCategory || ""});
+  });
+
+  const toast = document.querySelector("[data-problem-toast]");
+  toast?.querySelector("[data-problem-dismiss]")?.addEventListener("click", () => toast.setAttribute("hidden", ""));
+  toast?.querySelector("[data-problem-report]")?.addEventListener("click", () => {
+    const message = toast.dataset.problemMessage || "";
+    toast.setAttribute("hidden", "");
+    openFeedback({
+      category: "issue",
+      message: tr("I ran into this problem: {message}", {message}),
+      context: problemContext(message),
+    });
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    submit.disabled = true;
+    status.className = "feedback-status";
+    status.textContent = tr("Sending…");
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {"Accept": "application/json", "X-CSRFToken": getCookie("csrftoken")},
+        credentials: "same-origin",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        const fieldError = Object.values(result.errors || {}).flat()[0];
+        throw new Error(fieldError || result.message || tr("Your message couldn't be sent."));
+      }
+      status.className = "feedback-status is-success";
+      status.textContent = tr("Thanks! Your message has been sent.");
+      form.reset();
+      window.setTimeout(() => {
+        modal.setAttribute("hidden", "");
+        document.body.classList.remove("has-open-modal");
+        status.textContent = "";
+      }, 1800);
+    } catch (error) {
+      status.className = "feedback-status is-error";
+      status.textContent = error.message && error.message !== "Failed to fetch"
+        ? error.message
+        : tr("Your message couldn't be sent. Check your connection, or email support@mindmetric.store.");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  // Script errors from our own files also offer the report notice.
+  window.addEventListener("error", (event) => {
+    if (!event.filename || !event.filename.startsWith(window.location.origin)) return;
+    reportProblem(tr("Part of this page stopped working."));
+  });
 }
 
 function initModalDialogs() {
@@ -603,6 +745,8 @@ function initSectionPlayer() {
       if (outcome.authenticationRequired) {
         login?.removeAttribute("hidden");
         player.dataset.authenticated = "false";
+      } else {
+        reportProblem(tr("This answer could not be saved. Check your connection before continuing; the dashboard may be incomplete."));
       }
     }
   };
@@ -662,6 +806,7 @@ function initSectionPlayer() {
         if (completeSummaryEl) {
           completeSummaryEl.textContent = error.message || tr("Could not save the section test result.");
         }
+        reportProblem(error.message || tr("Could not save the section test result."));
       }
     }
     showStage(completeStage);
@@ -811,6 +956,7 @@ function initSectionPlayer() {
         showUpgradePrompt(error.message, error.upgradeUrl);
       } else {
         showFeedback(error.message || tr("Could not start test mode."), "wrong");
+        reportProblem(error.message || tr("Could not start test mode."));
       }
       return;
     }
@@ -1319,6 +1465,7 @@ function initFullTestPlayer() {
         completeSummaryEl.textContent = error.message || tr("There was a problem loading the test question.");
       }
       showStage(completeStage);
+      reportProblem(error.message || tr("There was a problem loading the test question."));
     }
   };
 
@@ -1451,6 +1598,7 @@ function initFullTestPlayer() {
         completeSummaryEl.textContent = error.message || tr("Could not save the completed section.");
       }
       showStage(completeStage);
+      reportProblem(error.message || tr("Could not save the completed section."));
       return;
     }
 
@@ -1488,6 +1636,7 @@ function initFullTestPlayer() {
       }
     } catch (error) {
       showFeedback(error.message || tr("The test could not be loaded. Please try again."), "wrong");
+      reportProblem(error.message || tr("The test could not be loaded. Please try again."));
     } finally {
       window.clearButtonLoading?.(button);
       window.hidePageLoader?.();
@@ -1628,6 +1777,7 @@ function initFullTestPlayer() {
       if (completeSummaryEl) {
         completeSummaryEl.textContent = error.message || tr("There was a problem submitting the test.");
       }
+      reportProblem(error.message || tr("There was a problem submitting the test."));
       isSubmitting = false;
     }
 

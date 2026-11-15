@@ -104,6 +104,7 @@
                                 {% else %}
                                     <a href="{% url 'pages:pricing' %}" data-show-loader>Pricing</a>
                                 {% endif %}
+                                <a href="#feedback-modal" data-feedback-open>Send feedback</a>
                             </div>
                             <form method="post" action="{% url 'account_logout' %}" class="user-menu-form" data-show-loader>
                                 {% csrf_token %}
@@ -116,6 +117,7 @@
                             </div>
                             <div class="user-menu-links">
                                 <a href="{% url 'pages:pricing' %}" data-show-loader>Pricing</a>
+                                <a href="#feedback-modal" data-feedback-open>Send feedback</a>
                             </div>
                             <a href="{% url 'pages:login' %}" data-show-loader class="button user-menu-button">Sign in</a>
                         {% endif %}
@@ -173,6 +175,8 @@
                         <div class="footer-col">
                             <h4>Support</h4>
                             <ul>
+                                <li><a href="#feedback-modal" data-feedback-open>Send feedback</a></li>
+                                <li><a href="#feedback-modal" data-feedback-open data-feedback-category="issue">Report a problem</a></li>
                                 <li><a href="mailto:support@mindmetric.store">Contact</a></li>
                                 <li><a href="mailto:support@mindmetric.store">support@mindmetric.store</a></li>
                             </ul>
@@ -190,6 +194,7 @@
             </div>
         </footer>
     </div>
+    {% include "partials/feedback_modal.html" %}
     {% if google_analytics_measurement_id %}
         <aside class="analytics-consent" data-analytics-consent hidden aria-labelledby="analytics-consent-title">
             <div class="analytics-consent-copy">

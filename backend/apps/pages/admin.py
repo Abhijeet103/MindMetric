@@ -343,11 +343,11 @@ class TestSuggestionAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
 
 @admin.register(PortalFeedback)
 class PortalFeedbackAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
-    list_display = ("created_at", "category", "email", "tenant", "status")
+    list_display = ("created_at", "category", "email", "source_page", "tenant", "status")
     list_filter = ("status", "category", "tenant", "created_at")
-    search_fields = ("email", "message", "user__first_name", "user__last_name")
-    readonly_fields = ("user", "email", "message", "source_page", "created_at")
-    fields = ("tenant", "user", "email", "category", "message", "source_page", "status", "created_at")
+    search_fields = ("email", "message", "source_page", "user__first_name", "user__last_name")
+    readonly_fields = ("user", "email", "message", "source_page", "context", "created_at")
+    fields = ("tenant", "user", "email", "category", "message", "source_page", "context", "status", "created_at")
 
 
 from .models import ApplicationDeadline, EmployerAssessment, LegalPage  # noqa: E402

@@ -25,6 +25,26 @@ def build_branded_email(*, subject, body, recipient, connection=None):
     return message
 
 
+def send_problem_report_notification(feedback) -> None:
+    """Email the team when a student reports a problem, so it is seen quickly."""
+    if not settings.EMAIL_NOTIFICATIONS_ENABLED:
+        return
+    details = "\n".join(f"{key}: {value}" for key, value in (feedback.context or {}).items()) or "N/A"
+    send_mail(
+        subject=f"Problem reported on MindMetric by {feedback.email}",
+        message=(
+            "A student reported a problem.\n\n"
+            f"Email: {feedback.email}\n"
+            f"Page: {feedback.source_page or 'N/A'}\n\n"
+            f"Message:\n{feedback.message}\n\n"
+            f"Technical details:\n{details}\n"
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[settings.SALES_INQUIRY_NOTIFICATION_EMAIL],
+        fail_silently=True,
+    )
+
+
 def send_sale_inquiry_notification(inquiry) -> None:
     if not settings.EMAIL_NOTIFICATIONS_ENABLED:
         return

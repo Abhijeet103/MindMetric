@@ -71,8 +71,9 @@ from backend.apps.tenants.utils import get_default_tenant
 from backend.apps.assessments.policies import resolve_test_configuration, runtime_assessment_config
 from prepgia.preview_data import get_questions
 
-from .emails import send_sale_inquiry_notification
+from .emails import send_problem_report_notification, send_sale_inquiry_notification
 from .forms import PortalFeedbackForm, SaleInquiryForm, TestSuggestionForm, TrackWaitlistForm
+from .models import PortalFeedback
 from .guides import (
     MODULE_GUIDES,
     get_assessment_guide_url,
@@ -659,23 +660,80 @@ class TestSuggestionCreateView(FormView):
         return url
 
 
-class PortalFeedbackCreateView(LoginRequiredMixin, FormView):
+FEEDBACK_RATE_LIMIT = 6  # submissions per person (or IP for guests) per window
+FEEDBACK_RATE_WINDOW_SECONDS = 15 * 60
+FEEDBACK_CONTEXT_KEYS = ("error", "page", "test", "section", "mode", "language", "browser", "screen", "time")
+
+
+def _feedback_context(raw: str) -> dict:
+    """Keep only short, known diagnostic fields sent by the browser."""
+    import json
+
+    try:
+        data = json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {key: str(data[key])[:500] for key in FEEDBACK_CONTEXT_KEYS if data.get(key) not in (None, "")}
+
+
+class PortalFeedbackCreateView(FormView):
+    """Feedback from anywhere on the site, by signed-in users or guests.
+
+    The site-wide popup posts with ``Accept: application/json`` and stays on
+    the page; plain form posts redirect back to where the user came from.
+    """
+
     form_class = PortalFeedbackForm
     http_method_names = ["post"]
-    login_url = "/login/"
+
+    def _wants_json(self) -> bool:
+        return "application/json" in self.request.headers.get("Accept", "")
+
+    def _respond(self, ok: bool, message: str, status: int = 200, errors=None):
+        if self._wants_json():
+            return JsonResponse({"ok": ok, "message": message, "errors": errors or {}}, status=status)
+        (messages.success if ok else messages.error)(self.request, message)
+        target = self.request.POST.get("source_page") or ""
+        if not url_has_allowed_host_and_scheme(target, allowed_hosts={self.request.get_host()}, require_https=self.request.is_secure()):
+            target = reverse("pages:dashboard") if self.request.user.is_authenticated else "/"
+        return redirect(target)
+
+    def _rate_limited(self) -> bool:
+        from django.core.cache import cache
+
+        who = f"user:{self.request.user.pk}" if self.request.user.is_authenticated else f"ip:{self.request.META.get('REMOTE_ADDR', '')}"
+        key = f"feedback-rate:{who}"
+        count = cache.get(key, 0)
+        if count >= FEEDBACK_RATE_LIMIT:
+            return True
+        cache.set(key, count + 1, FEEDBACK_RATE_WINDOW_SECONDS)
+        return False
 
     def form_valid(self, form):
-        form.instance.user = self.request.user
-        form.instance.email = self.request.user.email
+        if form.cleaned_data.get("website"):
+            # Bot filled the hidden field: pretend success, store nothing.
+            return self._respond(True, "Thanks for your feedback.")
+        user = self.request.user
+        email = user.email if user.is_authenticated else form.cleaned_data.get("email")
+        if not email:
+            return self._respond(False, "Please add your email so we can reply.", status=400, errors={"email": ["Please add your email so we can reply."]})
+        if self._rate_limited():
+            return self._respond(False, "You've sent several messages in a short time. Please try again in a few minutes.", status=429)
+        form.instance.user = user if user.is_authenticated else None
+        form.instance.email = email
         form.instance.tenant = _current_tenant(self.request)
         form.instance.source_page = self.request.POST.get("source_page", "")[:255]
-        form.save()
-        messages.success(self.request, "Thanks for your feedback. We appreciate you helping us improve MindMetric.")
-        return redirect("pages:dashboard")
+        form.instance.context = _feedback_context(self.request.POST.get("context"))
+        feedback = form.save()
+        if feedback.category == PortalFeedback.Category.ISSUE:
+            send_problem_report_notification(feedback)
+        return self._respond(True, "Thanks for your feedback. We appreciate you helping us improve MindMetric.")
 
     def form_invalid(self, form):
-        messages.error(self.request, "Please check your feedback and try again.")
-        return redirect("pages:dashboard")
+        errors = {field: [str(error) for error in field_errors] for field, field_errors in form.errors.items()}
+        return self._respond(False, "Please check your feedback and try again.", status=400, errors=errors)
 
 
 class TrackWaitlistCreateView(LoginRequiredMixin, FormView):

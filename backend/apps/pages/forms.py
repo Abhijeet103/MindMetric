@@ -54,6 +54,11 @@ class TestSuggestionForm(forms.ModelForm):
 
 
 class PortalFeedbackForm(forms.ModelForm):
+    # Guests leave an email so we can reply; signed-in users use their account email.
+    email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={"class": "form-input", "autocomplete": "email"}))
+    # Honeypot: hidden from people, filled in by bots.
+    website = forms.CharField(required=False)
+
     class Meta:
         model = PortalFeedback
         fields = ("category", "message")

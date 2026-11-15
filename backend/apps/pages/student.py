@@ -209,3 +209,10 @@ def legal_links(request):
     except Exception:  # Database not ready (e.g. during migrate).
         published = set()
     return {"legal_published": published}
+
+
+def feedback_categories(request):
+    """Categories for the site-wide feedback popup in base.html."""
+    from .models import PortalFeedback
+
+    return {"feedback_categories": PortalFeedback.Category.choices}

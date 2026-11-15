@@ -264,6 +264,34 @@ _DE = {
         "Mit Zeitlimit wie im echten Test und mit einem Ergebnis für jeden Abschnitt am Ende.",
     "Timed like the real test, and the difficulty adjusts to your answers.":
         "Mit Zeitlimit wie im echten Test; der Schwierigkeitsgrad passt sich Ihren Antworten an.",
+    "Feedback": "Feedback",
+    "Something went wrong.": "Etwas ist schiefgelaufen.",
+    "Report this problem": "Problem melden",
+    "Dismiss": "Schließen",
+    "Close": "Schließen",
+    "Your feedback": "Ihr Feedback",
+    "Share feedback": "Feedback geben",
+    "Report a problem": "Problem melden",
+    "Tell us what you think, ask a question, or report a problem. Our team reads every message.":
+        "Sagen Sie uns Ihre Meinung, stellen Sie eine Frage oder melden Sie ein Problem. Wir lesen jede Nachricht.",
+    "What is this about?": "Worum geht es?",
+    "Your message": "Ihre Nachricht",
+    "Tell us what worked well, what went wrong, or what we could improve…":
+        "Was hat gut funktioniert, was ist schiefgelaufen, was können wir verbessern?",
+    "Your email, so we can reply": "Ihre E-Mail-Adresse für unsere Antwort",
+    "We'll include technical details about the error (page, test and browser) to help us fix it.":
+        "Wir senden technische Angaben zum Fehler (Seite, Test und Browser) mit, damit wir ihn beheben können.",
+    "Send": "Senden",
+    "General feedback": "Allgemeines Feedback",
+    "Suggestion": "Vorschlag",
+    "An unexpected error occurred.": "Ein unerwarteter Fehler ist aufgetreten.",
+    "I ran into this problem: {message}": "Dieses Problem ist aufgetreten: {message}",
+    "Sending…": "Wird gesendet …",
+    "Your message couldn't be sent.": "Ihre Nachricht konnte nicht gesendet werden.",
+    "Thanks! Your message has been sent.": "Danke! Ihre Nachricht wurde gesendet.",
+    "Your message couldn't be sent. Check your connection, or email support@mindmetric.store.":
+        "Ihre Nachricht konnte nicht gesendet werden. Prüfen Sie Ihre Verbindung oder schreiben Sie an support@mindmetric.store.",
+    "Part of this page stopped working.": "Ein Teil dieser Seite funktioniert nicht mehr.",
 }
 
 _ES = {
@@ -514,6 +542,34 @@ _ES = {
         "Con tiempo, como la prueba real, y con una puntuación por sección al final.",
     "Timed like the real test, and the difficulty adjusts to your answers.":
         "Con tiempo, como la prueba real; la dificultad se adapta a sus respuestas.",
+    "Feedback": "Comentarios",
+    "Something went wrong.": "Algo ha fallado.",
+    "Report this problem": "Informar del problema",
+    "Dismiss": "Cerrar",
+    "Close": "Cerrar",
+    "Your feedback": "Sus comentarios",
+    "Share feedback": "Enviar comentarios",
+    "Report a problem": "Informar de un problema",
+    "Tell us what you think, ask a question, or report a problem. Our team reads every message.":
+        "Díganos qué le parece, haga una pregunta o informe de un problema. Leemos todos los mensajes.",
+    "What is this about?": "¿De qué se trata?",
+    "Your message": "Su mensaje",
+    "Tell us what worked well, what went wrong, or what we could improve…":
+        "Cuéntenos qué funcionó bien, qué falló o qué podemos mejorar…",
+    "Your email, so we can reply": "Su correo electrónico, para poder responderle",
+    "We'll include technical details about the error (page, test and browser) to help us fix it.":
+        "Incluiremos datos técnicos del error (página, prueba y navegador) para poder solucionarlo.",
+    "Send": "Enviar",
+    "General feedback": "Comentario general",
+    "Suggestion": "Sugerencia",
+    "An unexpected error occurred.": "Se ha producido un error inesperado.",
+    "I ran into this problem: {message}": "He tenido este problema: {message}",
+    "Sending…": "Enviando…",
+    "Your message couldn't be sent.": "No se pudo enviar su mensaje.",
+    "Thanks! Your message has been sent.": "¡Gracias! Su mensaje se ha enviado.",
+    "Your message couldn't be sent. Check your connection, or email support@mindmetric.store.":
+        "No se pudo enviar su mensaje. Compruebe su conexión o escriba a support@mindmetric.store.",
+    "Part of this page stopped working.": "Una parte de esta página ha dejado de funcionar.",
 }
 
 TRANSLATIONS = {"de": _DE, "es": _ES}
