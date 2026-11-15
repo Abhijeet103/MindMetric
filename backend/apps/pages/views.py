@@ -47,8 +47,8 @@ from backend.apps.assessments.services import (
     has_unlimited_module_access,
     serialize_full_test_attempt_for_frontend,
 )
-from backend.apps.billing.models import BillingCurrency, format_money
-from backend.apps.billing.regions import get_request_country_code, pricing_region_for_country
+from backend.apps.billing.models import format_money
+from backend.apps.billing.regions import display_currency_for_country, get_request_country_code
 from backend.apps.billing.services import (
     PAYPAL_SUPPORTED_CURRENCIES,
     build_plan_cards,
@@ -144,21 +144,19 @@ def _contact_form_initial(request, source_page: str) -> dict[str, str]:
 
 def _visible_frontend_plans(request, active_subscription):
     country_code = get_request_country_code(request)
-    plans = build_plan_cards(request.user, active_subscription, country_code=country_code)
-    monthly_plan = next((plan for plan in plans if plan["code"] == "monthly"), None)
     paypal_only = paypal_is_configured() and not razorpay_is_configured() and not stripe_is_configured()
-    if paypal_only and monthly_plan and monthly_plan["currency"] not in PAYPAL_SUPPORTED_CURRENCIES:
-        plans = build_plan_cards(request.user, active_subscription, country_code="US")
+    # With PayPal as the only checkout, show the price PayPal will actually
+    # charge: regional rows in currencies it can't take are skipped.
+    currencies = PAYPAL_SUPPORTED_CURRENCIES if paypal_only else None
+    plans = build_plan_cards(request.user, active_subscription, country_code=country_code, currencies=currencies)
     return [plan for plan in plans if plan["code"] == "monthly"]
 
 
-def _free_price_display(request) -> str:
-    # A free allowance follows the visitor's regional currency even if an
-    # administrator intentionally lists a paid plan in another currency.
-    country = get_request_country_code(request)
-    region = pricing_region_for_country(country)
-    regional_currency = "CHF" if country == "CH" else {"IN": "INR", "GB": "GBP", "EU": "EUR"}.get(region, BillingCurrency.USD)
-    return format_money(regional_currency, Decimal("0")).removesuffix(".00")
+def _free_price_display(request, plans=None) -> str:
+    # Show "free" in the same currency as the paid plan beside it, falling back
+    # to the visitor's regional currency when no paid plan is listed.
+    currency = plans[0]["currency"] if plans else display_currency_for_country(get_request_country_code(request))
+    return format_money(currency, Decimal("0")).removesuffix(".00")
 
 
 def _home_sample_practice(request, home_tests):
@@ -365,7 +363,7 @@ class HomePageView(TemplateView):
                 "home_tests": home_tests,
                 "home_finder": _home_finder_data(self.request),
                 "home_plans": home_plans,
-                "free_price_display": _free_price_display(self.request),
+                "free_price_display": _free_price_display(self.request, home_plans),
                 "sample_practice_url": sample_url,
                 "sample_free_count": sample_free_count,
             }
@@ -450,7 +448,7 @@ class PricingPageView(TemplateView):
             sync_user_subscription_access(self.request.user)
             active_subscription = self.request.user.subscriptions.filter(status="active").order_by("-updated_at").first()
         plans = _visible_frontend_plans(self.request, active_subscription)
-        free_price_display = _free_price_display(self.request)
+        free_price_display = _free_price_display(self.request, plans)
         context.update(
             {
                 "page_title": "Psychometric Test Practice Plans & Pricing | MindMetric",

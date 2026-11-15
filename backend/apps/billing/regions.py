@@ -12,17 +12,40 @@ logger = logging.getLogger(__name__)
 
 COUNTRY_SESSION_KEY = "billing_country_code"
 
-# Countries whose regional storefront price is shown in euros. Exact country
-# rows in the admin still take precedence over this shared EU row.
-EUROPEAN_COUNTRY_CODES = frozenset(
+# Pricing regions. Each region has a shared price row in the admin under its
+# code (EU, EE, LA, IN, GB); an exact country row (CA, MX, PL, CH, ...) takes
+# precedence over its region's row. Everything else pays the base USD plan.
+WESTERN_EUROPE_COUNTRY_CODES = frozenset(
     {
-        "AD", "AL", "AT", "AX", "BA", "BE", "BG", "BY", "CH", "CY",
-        "CZ", "DE", "DK", "EE", "ES", "FI", "FO", "FR", "GG", "GI",
-        "GR", "HR", "HU", "IE", "IM", "IS", "IT", "JE", "LI", "LT",
-        "LU", "LV", "MC", "MD", "ME", "MK", "MT", "NL", "NO", "PL",
-        "PT", "RO", "RS", "SE", "SI", "SK", "SM", "UA", "VA",
+        "AD", "AT", "AX", "BE", "CH", "DE", "DK", "ES", "FI", "FO",
+        "FR", "GG", "GI", "IE", "IM", "IS", "IT", "JE", "LI", "LU",
+        "MC", "MT", "NL", "NO", "PT", "SE", "SM", "VA",
     }
 )
+# Rest of Europe: central, eastern and south-eastern Europe, priced lower.
+OTHER_EUROPE_COUNTRY_CODES = frozenset(
+    {
+        "AL", "BA", "BG", "BY", "CY", "CZ", "EE", "GR", "HR", "HU",
+        "LT", "LV", "MD", "ME", "MK", "PL", "RO", "RS", "SI", "SK",
+        "UA", "XK",
+    }
+)
+EUROPEAN_COUNTRY_CODES = WESTERN_EUROPE_COUNTRY_CODES | OTHER_EUROPE_COUNTRY_CODES
+LATIN_AMERICA_COUNTRY_CODES = frozenset(
+    {
+        "AR", "BO", "BR", "BZ", "CL", "CO", "CR", "CU", "DO", "EC",
+        "GT", "GY", "HN", "HT", "JM", "MX", "NI", "PA", "PE", "PY",
+        "SR", "SV", "TT", "UY", "VE",
+    }
+)
+
+# Currency a visitor's prices are shown in when the admin has set up that
+# country's or region's price row. Anything not listed is shown in USD.
+COUNTRY_DISPLAY_CURRENCIES = {
+    "GB": "GBP", "CH": "CHF", "CA": "CAD", "MX": "MXN", "PL": "PLN",
+    "CZ": "CZK", "HU": "HUF", "SE": "SEK", "NO": "NOK", "DK": "DKK",
+}
+REGION_DISPLAY_CURRENCIES = {"EU": "EUR", "EE": "EUR"}
 
 
 def normalize_country_code(value: str | None) -> str | None:
@@ -38,19 +61,32 @@ def pricing_region_for_country(country_code: str | None) -> str:
         return "IN"
     if country_code == "GB":
         return "GB"
-    if country_code in EUROPEAN_COUNTRY_CODES:
+    if country_code in WESTERN_EUROPE_COUNTRY_CODES:
         return "EU"
+    if country_code in OTHER_EUROPE_COUNTRY_CODES:
+        return "EE"
+    if country_code in LATIN_AMERICA_COUNTRY_CODES:
+        return "LA"
     return "US"
 
 
 def price_override_codes(country_code: str | None) -> tuple[str, ...]:
+    """Admin price rows to try for a country, most specific first."""
     country_code = normalize_country_code(country_code)
     region = pricing_region_for_country(country_code)
-    if country_code and country_code != region and region != "US":
-        return country_code, region
-    if region != "US":
-        return (region,)
-    return ()
+    codes = []
+    if country_code and country_code != "US":
+        codes.append(country_code)
+    if region != "US" and region not in codes:
+        codes.append(region)
+    return tuple(codes)
+
+
+def display_currency_for_country(country_code: str | None) -> str:
+    country_code = normalize_country_code(country_code)
+    if country_code in COUNTRY_DISPLAY_CURRENCIES:
+        return COUNTRY_DISPLAY_CURRENCIES[country_code]
+    return REGION_DISPLAY_CURRENCIES.get(pricing_region_for_country(country_code), "USD")
 
 
 def _country_from_proxy_header(request) -> str | None:

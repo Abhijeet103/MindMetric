@@ -6,7 +6,7 @@ import hmac
 import json
 import logging
 from base64 import b64encode
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
 from urllib.error import HTTPError, URLError
@@ -24,11 +24,16 @@ from backend.apps.accounts.emails import (
 from backend.apps.accounts.models import User, UserRole
 from backend.apps.tenants.utils import get_current_tenant
 
-from .models import BillingPlan, BillingPlanCountryPrice, Subscription, SubscriptionStatus, format_money
+from .models import BillingPlan, BillingPlanCountryPrice, Subscription, SubscriptionStatus, format_money, payment_amount_value
 from .regions import normalize_country_code, price_override_codes
 
 logger = logging.getLogger(__name__)
-PAYPAL_SUPPORTED_CURRENCIES = frozenset({"USD", "EUR", "GBP", "CHF"})
+# Currencies this account charges through PayPal. PayPal lists more, but BRL
+# and INR only work for in-country merchant accounts, so those buyers pay
+# their region's USD price instead.
+PAYPAL_SUPPORTED_CURRENCIES = frozenset(
+    {"USD", "EUR", "GBP", "CHF", "CAD", "MXN", "PLN", "CZK", "HUF", "SEK", "NOK", "DKK"}
+)
 
 
 def paypal_is_configured() -> bool:
@@ -152,13 +157,9 @@ def create_paypal_order(
     if not paypal_is_configured():
         raise BillingConfigurationError("PayPal is not configured yet.")
 
-    plan = get_purchasable_plan(plan_code, country_code)
+    plan = get_purchasable_plan(plan_code, country_code, currencies=PAYPAL_SUPPORTED_CURRENCIES)
     if plan.currency not in PAYPAL_SUPPORTED_CURRENCIES:
-        regional_country_code = plan.country_code
-        plan = get_purchasable_plan(plan_code, country_code="US")
-        if plan.currency != "USD":
-            raise BillingConfigurationError("PayPal checkout is unavailable for this currency.")
-        plan = replace(plan, country_code=regional_country_code)
+        raise BillingConfigurationError("PayPal checkout is unavailable for this currency.")
     return_url = _build_absolute_url(reverse("billing-paypal-return"), base_url=base_url)
     cancel_url = _build_absolute_url(f"{reverse('pages:subscription')}?checkout=cancelled", base_url=base_url)
 
@@ -507,7 +508,10 @@ def _safe_plan_rank(plan_code: str | None) -> int | None:
         return None
 
 
-def get_plan_catalog(country_code: str | None = None) -> list[PlanDefinition]:
+def get_plan_catalog(country_code: str | None = None, currencies=None) -> list[PlanDefinition]:
+    """Plans priced for a country. With ``currencies``, regional rows in any
+    other currency are skipped, so a country falls back to its region's row and
+    then to the base plan (for example when the checkout can't take INR)."""
     plans = list(BillingPlan.objects.filter(is_active=True))
     normalized_country = normalize_country_code(country_code) or "US"
     override_codes = price_override_codes(normalized_country)
@@ -518,6 +522,8 @@ def get_plan_catalog(country_code: str | None = None) -> list[PlanDefinition]:
             country_code__in=override_codes,
             is_active=True,
         )
+        if currencies is not None:
+            overrides = overrides.filter(currency__in=currencies)
         code_priority = {code: index for index, code in enumerate(override_codes)}
         for override in sorted(
             overrides,
@@ -538,7 +544,7 @@ def get_plan_catalog(country_code: str | None = None) -> list[PlanDefinition]:
                 code=plan.code,
                 title=plan.title,
                 price_display=price_source.effective_price_display,
-                price_value=f"{price_source.effective_price:.2f}",
+                price_value=payment_amount_value(price_source.currency, price_source.effective_price),
                 regular_price_display=price_source.price_display,
                 discount_amount_display=format_money(
                     price_source.currency,
@@ -556,8 +562,8 @@ def get_plan_catalog(country_code: str | None = None) -> list[PlanDefinition]:
     return catalog
 
 
-def get_plan_definition(plan_code: str, country_code: str | None = None) -> PlanDefinition:
-    plans = {plan.code: plan for plan in get_plan_catalog(country_code)}
+def get_plan_definition(plan_code: str, country_code: str | None = None, currencies=None) -> PlanDefinition:
+    plans = {plan.code: plan for plan in get_plan_catalog(country_code, currencies)}
     try:
         return plans[plan_code]
     except KeyError as exc:
@@ -568,10 +574,10 @@ def stripe_is_configured() -> bool:
     return bool(settings.STRIPE_ENABLED and settings.STRIPE_SECRET_KEY and settings.STRIPE_WEBHOOK_SECRET)
 
 
-def get_purchasable_plan(plan_code: str, country_code: str | None = None) -> PlanDefinition:
+def get_purchasable_plan(plan_code: str, country_code: str | None = None, currencies=None) -> PlanDefinition:
     if plan_code != "monthly":
         raise BillingConfigurationError("Only the monthly plan is available for purchase.")
-    return get_plan_definition(plan_code, country_code)
+    return get_plan_definition(plan_code, country_code, currencies)
 
 
 RAZORPAY_API_BASE = "https://api.razorpay.com/v1"
@@ -725,12 +731,13 @@ def build_plan_cards(
     user: User | None,
     active_subscription: Subscription | None,
     country_code: str | None = None,
+    currencies=None,
 ) -> list[dict[str, object]]:
     current_plan_code = active_subscription.plan_code if active_subscription else None
     has_active_subscription = bool(active_subscription and active_subscription.status == SubscriptionStatus.ACTIVE)
     current_plan_rank = _safe_plan_rank(current_plan_code)
     cards: list[dict[str, object]] = []
-    for plan in get_plan_catalog(country_code):
+    for plan in get_plan_catalog(country_code, currencies):
         is_current = plan.code == current_plan_code
         plan_rank = _plan_rank(plan.code)
         show_action = True

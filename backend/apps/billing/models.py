@@ -21,18 +21,41 @@ class BillingCurrency(models.TextChoices):
     EUR = "EUR", "Euro"
     INR = "INR", "Indian rupee"
     CHF = "CHF", "Swiss franc"
+    CAD = "CAD", "Canadian dollar"
+    MXN = "MXN", "Mexican peso"
+    PLN = "PLN", "Polish zloty"
+    CZK = "CZK", "Czech koruna"
+    HUF = "HUF", "Hungarian forint"
+    SEK = "SEK", "Swedish krona"
+    NOK = "NOK", "Norwegian krone"
+    DKK = "DKK", "Danish krone"
+
+
+# PayPal rejects decimal amounts in these currencies.
+ZERO_DECIMAL_CURRENCIES = frozenset({"HUF"})
+_PREFIX_SYMBOLS = {"USD": "$", "GBP": "£", "EUR": "€", "INR": "₹", "CHF": "CHF ", "CAD": "CA$", "MXN": "MX$"}
+_SUFFIX_SYMBOLS = {"PLN": " zł", "CZK": " Kč", "HUF": " Ft", "SEK": " kr", "NOK": " kr", "DKK": " kr"}
 
 
 def format_money(currency: str, amount: Decimal) -> str:
-    symbols = {
-        BillingCurrency.USD: "$",
-        BillingCurrency.GBP: "£",
-        BillingCurrency.EUR: "€",
-        BillingCurrency.INR: "₹",
-        BillingCurrency.CHF: "CHF ",
-    }
-    symbol = symbols.get(currency.upper())
-    return f"{symbol}{amount:.2f}" if symbol else f"{currency.upper()} {amount:.2f}"
+    currency = currency.upper()
+    if currency in _SUFFIX_SYMBOLS:
+        # Local convention for these currencies: whole amounts without decimals,
+        # thousands grouped ("3,990 Ft", "69 zł").
+        if currency in ZERO_DECIMAL_CURRENCIES or amount == amount.to_integral_value():
+            return f"{amount:,.0f}{_SUFFIX_SYMBOLS[currency]}"
+        return f"{amount:,.2f}{_SUFFIX_SYMBOLS[currency]}"
+    symbol = _PREFIX_SYMBOLS.get(currency)
+    if currency == "MXN" and amount == amount.to_integral_value():
+        return f"{symbol}{amount:,.0f}"  # Peso prices are usually whole: MX$179.
+    return f"{symbol}{amount:.2f}" if symbol else f"{currency} {amount:.2f}"
+
+
+def payment_amount_value(currency: str, amount: Decimal) -> str:
+    """Amount string for payment APIs: whole units for zero-decimal currencies."""
+    if currency.upper() in ZERO_DECIMAL_CURRENCIES:
+        return f"{amount.quantize(Decimal('1'), rounding=ROUND_HALF_UP)}"
+    return f"{amount:.2f}"
 
 
 class BillingPlan(models.Model):
@@ -119,8 +142,9 @@ class BillingPlanCountryPrice(models.Model):
     country_code = models.CharField(
         max_length=2,
         help_text=(
-            "Two-letter ISO country code. Use EU for the shared European price. "
-            "An exact country override takes precedence over EU."
+            "Two-letter ISO country code, or a region code: EU (Western Europe), "
+            "EE (rest of Europe), LA (Latin America), GB, IN. An exact country "
+            "row takes precedence over its region's row."
         ),
     )
     currency = models.CharField(max_length=3, choices=BillingCurrency.choices)
@@ -160,8 +184,13 @@ class BillingPlanCountryPrice(models.Model):
         self.currency = self.currency.strip().upper()
         if len(self.country_code) != 2 or not self.country_code.isalpha():
             raise ValidationError(
-                {"country_code": "Enter a two-letter country code, or EU."}
+                {"country_code": "Enter a two-letter country code, or a region code such as EU."}
             )
+        if self.currency in ZERO_DECIMAL_CURRENCIES:
+            for field in ("price", "sale_price"):
+                value = getattr(self, field)
+                if value is not None and value != value.to_integral_value():
+                    raise ValidationError({field: f"{self.currency} prices must be whole amounts."})
         if self.sale_price is not None and self.sale_price > self.price:
             raise ValidationError(
                 {"sale_price": "Sale price cannot be greater than the regular price."}

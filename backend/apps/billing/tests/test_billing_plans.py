@@ -111,7 +111,10 @@ class BillingPlanTests(TestCase):
             "US": "$0",
             "GB": "£0",
             "DE": "€0",
-            "IN": "₹0",
+            # India pays a discounted USD price through PayPal.
+            "IN": "$0",
+            "MX": "MX$0",
+            "PL": "0 zł",
         }
 
         for country_code, expected_price in expected_prices.items():
