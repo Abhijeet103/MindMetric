@@ -397,3 +397,24 @@ class PayPalRealResponseShapeTests(TestCase):
         self.assertNotIn(("POST", f"/v2/checkout/orders/{ORDER_ID}/capture"), calls)
         manual.refresh_from_db()
         self.assertEqual(manual.status, SubscriptionStatus.ACTIVE)
+
+    def test_reconcile_expires_old_never_approved_orders_but_not_recent_ones(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        recent = Subscription.objects.create(
+            user=self.user, provider="paypal", provider_subscription_id="RECENT1",
+            plan_code="monthly", status=SubscriptionStatus.PENDING,
+        )
+        Subscription.objects.filter(provider_subscription_id=ORDER_ID).update(created_at=timezone.now() - timedelta(hours=7))
+        not_found = BillingWebhookError('PayPal API request failed: {"name":"RESOURCE_NOT_FOUND"}')
+        with patch("backend.apps.billing.services._paypal_request", side_effect=not_found):
+            out = StringIO()
+            call_command("reconcile_paypal_orders", "--dry-run", stdout=out)
+            self.assertIn("would expire", out.getvalue())
+            self.assertEqual(Subscription.objects.get(provider_subscription_id=ORDER_ID).status, SubscriptionStatus.PENDING)
+            call_command("reconcile_paypal_orders", stdout=StringIO())
+        self.assertEqual(Subscription.objects.get(provider_subscription_id=ORDER_ID).status, SubscriptionStatus.EXPIRED)
+        recent.refresh_from_db()
+        self.assertEqual(recent.status, SubscriptionStatus.PENDING)

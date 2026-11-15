@@ -256,6 +256,10 @@ def complete_paypal_order(order_id: str) -> Subscription:
     return activate_subscription_from_paypal_order(order)
 
 
+# PayPal discards orders that were never approved after a few hours.
+PAYPAL_ABANDONED_AFTER = timedelta(hours=6)
+
+
 def reconcile_pending_paypal_orders(*, since, dry_run: bool = False) -> list[dict]:
     """Find PayPal checkouts still marked pending here and settle the ones PayPal says are paid.
 
@@ -271,7 +275,17 @@ def reconcile_pending_paypal_orders(*, since, dry_run: bool = False) -> list[dic
         try:
             order = get_paypal_order(order_id)
         except BillingWebhookError as exc:
-            outcomes.append({"order_id": order_id, "paypal_status": "unavailable", "action": "skipped", "detail": str(exc)[:160]})
+            abandoned = "RESOURCE_NOT_FOUND" in str(exc) and subscription.created_at <= timezone.now() - PAYPAL_ABANDONED_AFTER
+            if abandoned:
+                # PayPal deletes orders the buyer never approved, so this checkout
+                # can never be paid. Expire it so we stop asking PayPal about it.
+                if not dry_run:
+                    Subscription.objects.filter(pk=subscription.pk, status=SubscriptionStatus.PENDING).update(
+                        status=SubscriptionStatus.EXPIRED, updated_at=timezone.now()
+                    )
+                outcomes.append({"order_id": order_id, "paypal_status": "not found", "action": "would expire" if dry_run else "expired (never approved)"})
+            else:
+                outcomes.append({"order_id": order_id, "paypal_status": "unavailable", "action": "skipped", "detail": str(exc)[:160]})
             continue
         status = order.get("status", "")
         if status not in {"COMPLETED", "APPROVED"}:

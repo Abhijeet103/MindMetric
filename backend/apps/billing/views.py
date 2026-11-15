@@ -83,7 +83,7 @@ class PayPalReturnView(View):
             logger.info("PayPal order %s for user=%s is pending: %s", order_id, request.user.pk, exc)
             messages.info(request, str(exc))
             return redirect(f"{request.build_absolute_uri('/subscription/')}?checkout=processing")
-        except (BillingConfigurationError, BillingWebhookError) as exc:
+        except (BillingConfigurationError, BillingWebhookError):
             logger.exception("PayPal return failed for order %s user=%s", order_id, request.user.pk)
             # Never tell a customer who may have paid that checkout was cancelled:
             # retry once against PayPal's own record of the order first.
