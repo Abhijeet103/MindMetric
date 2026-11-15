@@ -6234,3 +6234,35 @@ body[data-view-name="pages:adaptive-test"] .footer { display: none; }
   .nav-links a, .nav-cta { padding: 7px 7px; }
   .theme-toggle { width: 36px; height: 36px; }
 }
+
+/* ---- Language switcher on localized tests (Thomas GIA) ---- */
+.language-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 4px 0 12px;
+  font-size: 0.9rem;
+}
+.language-switch-label { color: var(--ink-muted); margin-right: 2px; }
+.language-switch a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.language-switch a:hover { border-color: var(--teal); }
+.language-switch a.is-current { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 12%, transparent); color: var(--teal); font-weight: 600; }
+.language-switch-beta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+.language-switch-note { margin: 0 0 16px; font-size: 0.86rem; color: var(--ink-muted); max-width: 70ch; }

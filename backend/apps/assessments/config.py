@@ -322,7 +322,7 @@ PRACTICE_TRACK_LIBRARY = {
         "description": "Thomas International GIA cognitive ability practice with timed tests and section-wise drills.",
         "module_count": len(ASSESSMENT_CONFIG[ASSESSMENT_PREPGIA]["modules"]),
         "trust_line": "Used by 30,000+ employers across the UK and Europe",
-        "available_languages": ["English", "German (coming soon)"],
+        "available_languages": ["English", "Deutsch (Beta)", "Español (Beta)"],
         "route_enabled": True,
         "default_visibility_state": "accessible",
     },

@@ -215,6 +215,12 @@ class WordMeaningItem(models.Model):
     explanation = models.TextField(blank=True)
     odd_word = models.CharField(max_length=128)
     difficulty = models.CharField(max_length=16, default="easy")
+    language = models.CharField(
+        max_length=8,
+        default="en",
+        db_index=True,
+        help_text="Language of the words: en, de or es.",
+    )
     tags = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

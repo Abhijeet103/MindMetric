@@ -1,0 +1,10 @@
+{% load mm_i18n %}
+{% if language_links %}
+<nav class="language-switch" aria-label="{% t 'Language' %}">
+    <span class="language-switch-label">{% t "Language" %}</span>
+    {% for link in language_links %}
+        <a href="{{ link.url }}" lang="{{ link.code }}" hreflang="{{ link.code }}"{% if link.current %} class="is-current" aria-current="true"{% endif %}>{{ link.label }}{% if link.beta %} <span class="language-switch-beta">{% t "Beta" %}</span>{% endif %}</a>
+    {% endfor %}
+</nav>
+{% if ui_lang != "en" %}<p class="language-switch-note">{% t "German and Spanish questions are new. Spotted a mistake? Use “Report a question issue” below any question." %}</p>{% endif %}
+{% endif %}

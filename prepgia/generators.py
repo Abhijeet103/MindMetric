@@ -9,6 +9,7 @@ import uuid
 
 from backend.apps.assessments.models import WordMeaningItem
 from prepgia.verbal_bank import VERBAL_BANK, unrelated_entries
+from prepgia import gia_languages as gl
 from prepgia.question_types import (
     BaseQuestionGenerator,
     GeneratedQuestion,
@@ -217,10 +218,22 @@ CCAT_SPATIAL_RULES = [
 ]
 
 
+def _difficulty_templates(templates, difficulty: str, negation: str):
+    if difficulty == "easy":
+        return [(template, role) for template, role in templates if negation not in template]
+    if difficulty == "hard":
+        return [(template, role) for template, role in templates if negation in template]
+    return list(templates)
+
+
 class ReasoningGenerator(BaseQuestionGenerator):
     section_type = "reasoning"
 
-    def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
+    def generate(self, difficulty: str, seed: str, conn=None, language: str = "en") -> GeneratedQuestion:
+        if language == "de":
+            return self._generate_german(difficulty, seed)
+        if language == "es":
+            return self._generate_spanish(difficulty, seed)
         rng = self.rng(seed)
         names = rng.sample(NAMES, 2)
         greater_word, lesser_word, greater_base, lesser_base = rng.choice(COMPARATIVE_TRAITS)
@@ -270,11 +283,69 @@ class ReasoningGenerator(BaseQuestionGenerator):
         }
         return GeneratedQuestion(self.section_type, difficulty, seed, payload, {"answer": answer})
 
+    def _payload(self, statement, question, explanation, names, difficulty, trait, template, language):
+        return {
+            "question_id": str(uuid.uuid4()),
+            "section_type": self.section_type,
+            "prompt": {"statements": [statement], "question": question, "explanation": explanation},
+            "options": names,
+            "metadata": {"difficulty": difficulty, "trait": trait, "comparison_template": template, "language": language},
+        }
+
+    def _generate_german(self, difficulty: str, seed: str) -> GeneratedQuestion:
+        rng = self.rng(seed)
+        names = rng.sample(gl.DE_NAMES, 2)
+        templates = _difficulty_templates(gl.DE_COMPARISON_TEMPLATES, difficulty, "nicht so")
+        greater_word, lesser_word, greater_base, lesser_base = rng.choice(
+            [trait for trait in gl.DE_TRAITS if trait[3] is not None or difficulty != "hard"]
+        )
+        templates = [(t, r) for t, r in templates if lesser_base is not None or "{lesser_base}" not in t]
+        template, first_role = rng.choice(templates)
+        greater, lesser = rng.sample(names, 2)
+        first, second = (greater, lesser) if first_role == "greater" else (lesser, greater)
+        statement = template.format(first=first, second=second, greater=greater_word, lesser=lesser_word,
+                                    greater_base=greater_base, lesser_base=lesser_base)
+        ask_for_greater = rng.choice([True, False])
+        answer = greater if ask_for_greater else lesser
+        question = rng.choice(gl.DE_QUESTION_TEMPLATES).format(comparative=greater_word if ask_for_greater else lesser_word)
+        explanation = gl.DE_REASONING_EXPLANATION.format(greater=greater, greater_word=greater_word, lesser=lesser, answer=answer)
+        payload = self._payload(statement, question, explanation, names, difficulty, greater_base, template, "de")
+        return GeneratedQuestion(self.section_type, difficulty, seed, payload, {"answer": answer})
+
+    def _generate_spanish(self, difficulty: str, seed: str) -> GeneratedQuestion:
+        rng = self.rng(seed)
+        gender = rng.choice(["m", "f"])
+        g = 0 if gender == "m" else 1
+        names = rng.sample(gl.ES_NAMES[gender], 2)
+        traits = [trait for trait in gl.ES_TRAITS if difficulty != "hard" or trait[2] is not None]
+        greater_comp, lesser_comp, greater_base, lesser_base = rng.choice(traits)
+        templates = _difficulty_templates(gl.ES_COMPARISON_TEMPLATES, difficulty, "no es tan")
+        templates = [
+            (t, r) for t, r in templates
+            if (greater_base is not None or "{greater_base}" not in t) and (lesser_base is not None or "{lesser_base}" not in t)
+        ]
+        template, first_role = rng.choice(templates)
+        greater, lesser = rng.sample(names, 2)
+        first, second = (greater, lesser) if first_role == "greater" else (lesser, greater)
+        statement = template.format(
+            first=first, second=second, greater=greater_comp[g], lesser=lesser_comp[g],
+            greater_base=greater_base[g] if greater_base else "", lesser_base=lesser_base[g] if lesser_base else "",
+        )
+        ask_for_greater = rng.choice([True, False])
+        answer = greater if ask_for_greater else lesser
+        question = rng.choice(gl.ES_QUESTION_TEMPLATES[gender]).format(
+            comparative=greater_comp[g] if ask_for_greater else lesser_comp[g]
+        )
+        explanation = gl.ES_REASONING_EXPLANATION.format(greater=greater, greater_word=greater_comp[g], lesser=lesser, answer=answer)
+        trait = greater_base[0] if greater_base else greater_comp[0]
+        payload = self._payload(statement, question, explanation, names, difficulty, trait, template, "es")
+        return GeneratedQuestion(self.section_type, difficulty, seed, payload, {"answer": answer})
+
 
 class PerceptualSpeedGenerator(BaseQuestionGenerator):
     section_type = "perceptual_speed"
 
-    def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
+    def generate(self, difficulty: str, seed: str, conn=None, language: str = "en") -> GeneratedQuestion:
         rng = self.rng(seed)
         length = 4
         letter_pool = PERCEPTUAL_SPEED_LETTER_POOLS.get(
@@ -296,13 +367,18 @@ class PerceptualSpeedGenerator(BaseQuestionGenerator):
                 right = different
             pairs.append({"left": left, "right": right})
 
+        matching = ", ".join(str(i + 1) for i, pair in enumerate(pairs) if pair["left"].lower() == pair["right"].lower())
         payload = {
             "question_id": str(uuid.uuid4()),
             "section_type": self.section_type,
             "prompt": {
-                "instruction": rng.choice(PERCEPTUAL_SPEED_INSTRUCTIONS),
+                "instruction": rng.choice(gl.PERCEPTUAL_INSTRUCTIONS.get(language, PERCEPTUAL_SPEED_INSTRUCTIONS)),
                 "pairs": pairs,
-                "explanation": f"The matching pairs are {', '.join(str(i + 1) for i, pair in enumerate(pairs) if pair['left'].lower() == pair['right'].lower()) or 'none'}. There are {match_count} matches.",
+                "explanation": (
+                    gl.perceptual_explanation(language, matching, match_count)
+                    if language in gl.PERCEPTUAL_EXPLANATION
+                    else f"The matching pairs are {matching or 'none'}. There are {match_count} matches."
+                ),
             },
             "options": list(range(length + 1)),
             "metadata": {
@@ -318,7 +394,7 @@ class PerceptualSpeedGenerator(BaseQuestionGenerator):
 class NumberSpeedAccuracyGenerator(BaseQuestionGenerator):
     section_type = "number_speed_accuracy"
 
-    def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
+    def generate(self, difficulty: str, seed: str, conn=None, language: str = "en") -> GeneratedQuestion:
         rng = self.rng(seed)
         upper = {"easy": 50, "medium": 100, "hard": 200}.get(difficulty, 100)
 
@@ -339,9 +415,13 @@ class NumberSpeedAccuracyGenerator(BaseQuestionGenerator):
             "question_id": str(uuid.uuid4()),
             "section_type": self.section_type,
             "prompt": {
-                "instruction": "Which number is furthest from the middle value?",
+                "instruction": gl.NUMBER_INSTRUCTION.get(language, "Which number is furthest from the middle value?"),
                 "numbers": numbers,
-                "explanation": f"In order: {ordered[0]}, {ordered[1]}, {ordered[2]}. The gaps are {low_gap} and {high_gap}; {answer} is farther from {ordered[1]}.",
+                "explanation": (
+                    gl.NUMBER_EXPLANATION[language].format(a=ordered[0], b=ordered[1], c=ordered[2], low=low_gap, high=high_gap, answer=answer)
+                    if language in gl.NUMBER_EXPLANATION
+                    else f"In order: {ordered[0]}, {ordered[1]}, {ordered[2]}. The gaps are {low_gap} and {high_gap}; {answer} is farther from {ordered[1]}."
+                ),
             },
             "options": numbers,
             "metadata": {"difficulty": difficulty},
@@ -352,9 +432,9 @@ class NumberSpeedAccuracyGenerator(BaseQuestionGenerator):
 class WordMeaningGenerator(BaseQuestionGenerator):
     section_type = "word_meaning"
 
-    def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
+    def generate(self, difficulty: str, seed: str, conn=None, language: str = "en") -> GeneratedQuestion:
         rng = self.rng(seed)
-        queryset = WordMeaningItem.objects.filter(is_active=True)
+        queryset = WordMeaningItem.objects.filter(is_active=True, language=gl.normalize_language(language))
         candidates = list(queryset.filter(difficulty=difficulty).order_by("id"))
         if not candidates:
             raise ValueError(f"No word meaning items available for {difficulty}.")
@@ -367,7 +447,7 @@ class WordMeaningGenerator(BaseQuestionGenerator):
             "question_id": str(uuid.uuid4()),
             "section_type": self.section_type,
             "prompt": {
-                "instruction": rng.choice(WORD_MEANING_INSTRUCTIONS),
+                "instruction": rng.choice(gl.WORD_MEANING_INSTRUCTIONS.get(language, WORD_MEANING_INSTRUCTIONS)),
                 "words": words,
                 "explanation": row.explanation
                 or f"{row.pair_word_1} and {row.pair_word_2} are related ({row.relationship_type.replace('_', ' ')}); {row.odd_word} does not share that relationship.",
@@ -405,7 +485,7 @@ class SpatialVisualizationGenerator(BaseQuestionGenerator):
     LETTERS = ["F", "P", "R", "L", "b", "q"]
     ROTATIONS = [90, 180, 270]
 
-    def generate(self, difficulty: str, seed: str, conn=None) -> GeneratedQuestion:
+    def generate(self, difficulty: str, seed: str, conn=None, language: str = "en") -> GeneratedQuestion:
         rng = self.rng(seed)
         letters = rng.sample(self.LETTERS, 2)
         pairs = []
@@ -432,13 +512,18 @@ class SpatialVisualizationGenerator(BaseQuestionGenerator):
             "question_id": str(uuid.uuid4()),
             "section_type": self.section_type,
             "prompt": {
-                "instruction": "How many pairs show the same image?",
+                "instruction": gl.SPATIAL_INSTRUCTION.get(language, "How many pairs show the same image?"),
                 "letter_pairs": pairs,
-                "explanation": " ".join(
-                    f"Pair {i + 1} is {'a rotated match' if pair['same'] else 'a rotated mirror image'}."
-                    for i, pair in enumerate(pairs)
-                )
-                + f" Total matching pairs: {match_count}.",
+                "explanation": (
+                    " ".join(gl.SPATIAL_PAIR_EXPLANATION[language][0 if pair["same"] else 1].format(n=i + 1) for i, pair in enumerate(pairs))
+                    + gl.SPATIAL_TOTAL[language].format(count=match_count)
+                    if language in gl.SPATIAL_INSTRUCTION
+                    else " ".join(
+                        f"Pair {i + 1} is {'a rotated match' if pair['same'] else 'a rotated mirror image'}."
+                        for i, pair in enumerate(pairs)
+                    )
+                    + f" Total matching pairs: {match_count}."
+                ),
             },
             "options": ["0", "1", "2"],
             "metadata": {"difficulty": difficulty},
@@ -1349,14 +1434,24 @@ GENERATOR_MAP.update(
 )
 
 
+# Sections that can be generated in German and Spanish (Thomas GIA).
+LOCALIZED_SECTION_TYPES = frozenset(
+    {"reasoning", "perceptual_speed", "number_speed_accuracy", "word_meaning", "spatial_visualization"}
+)
+
+
 def generate_question(
     section_type: str,
     difficulty: str,
     seed: str,
     conn=None,
+    language: str = "en",
 ) -> GeneratedQuestion:
     try:
         generator = GENERATOR_MAP[section_type]
     except KeyError as exc:
         raise ValueError(f"Unsupported section type: {section_type}") from exc
+    language = gl.normalize_language(language)
+    if language != "en" and section_type in LOCALIZED_SECTION_TYPES:
+        return generator.generate(difficulty=difficulty, seed=seed, conn=conn, language=language)
     return generator.generate(difficulty=difficulty, seed=seed, conn=conn)

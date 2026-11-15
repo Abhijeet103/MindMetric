@@ -47,6 +47,15 @@ from backend.apps.assessments.services import (
     has_unlimited_module_access,
     serialize_full_test_attempt_for_frontend,
 )
+from backend.apps.assessments.i18n import (
+    is_localized,
+    language_links,
+    localize,
+    localize_assessment,
+    player_strings,
+    request_language,
+    translate,
+)
 from backend.apps.billing.models import format_money
 from backend.apps.billing.regions import display_currency_for_country, get_request_country_code
 from backend.apps.billing.services import (
@@ -166,6 +175,21 @@ def _home_sample_practice(request, home_tests):
         url = reverse("pages:assessment-section-detail", args=[ASSESSMENT_PREPGIA, SectionType.REASONING.value])
         return url, max(limit.practice_question_limit, 0)
     return reverse("pages:practice"), 0
+
+
+def _language_context(request, assessment_type: str) -> tuple[str, dict]:
+    """The student's language for this test plus the template context for it.
+
+    Only Thomas GIA is localized; other tests get English and no extra context.
+    """
+    language = request_language(request, assessment_type)
+    if not is_localized(assessment_type):
+        return "en", {}
+    return language, {
+        "ui_lang": language,
+        "player_i18n": player_strings(language),
+        "language_links": language_links(request, language),
+    }
 
 
 def _contact_sales_open_url(request) -> str:
@@ -810,8 +834,10 @@ class AssessmentPracticePageView(TemplateView):
         from backend.apps.assessments.models import AssessmentResource
         resource_assessments = ["consulting", "consulting_cases"] if assessment_type in {"consulting", "consulting_cases"} else [assessment_type]
         context["official_resources"] = AssessmentResource.objects.filter(assessment_type__in=resource_assessments, is_active=True).order_by("publisher", "title")
-        context["real_test_facts"] = REAL_TEST_FACTS.get(assessment_type, [])
-        sections = _practice_section_cards(self.request, assessment_type)
+        language, language_context = _language_context(self.request, assessment_type)
+        assessment_config = localize_assessment(assessment_config, language)
+        context["real_test_facts"] = localize(REAL_TEST_FACTS.get(assessment_type, []), language)
+        sections = localize(_practice_section_cards(self.request, assessment_type), language)
         user = self.request.user
         if user.is_authenticated and (
             getattr(user, "role", UserRole.FREE) == UserRole.PAID
@@ -839,6 +865,7 @@ class AssessmentPracticePageView(TemplateView):
                 "sections_total": len(sections),
                 "full_test_attempts_left": full_test_attempts_left,
                 "assessment_guide_url": get_assessment_guide_url(assessment_type),
+                **language_context,
             }
         )
         return context
@@ -886,14 +913,15 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
         assessment_type = self.kwargs.get("assessment_slug", ASSESSMENT_PREPGIA)
         if not tenant_allows_assessment(_current_tenant(self.request), assessment_type):
             raise Http404("Assessment not available for this institution.")
-        assessment_config = runtime_assessment_config(_current_tenant(self.request), assessment_type)
+        language, language_context = _language_context(self.request, assessment_type)
+        assessment_config = localize_assessment(runtime_assessment_config(_current_tenant(self.request), assessment_type), language)
         section_meta = {module["key"]: {"title": module["title"], "description": module["description"]} for module in assessment_config["modules"]}
         instructions = {module["key"]: module["instruction"] for module in assessment_config["modules"]}
         full_test_data = []
         full_test_attempt_id = None
         access_error = None
         try:
-            attempt = get_or_create_full_test_attempt(self.request.user, assessment_type=assessment_type)
+            attempt = get_or_create_full_test_attempt(self.request.user, assessment_type=assessment_type, language=language)
             full_test_attempt_id = attempt.id
             if attempt.configuration.get("test_type") == "adaptive":
                 context["adaptive_url"] = reverse("pages:adaptive-test", args=[attempt.id])
@@ -904,10 +932,10 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
                 assessment_config["full_test_practice_count"],
             )
         except PermissionError as exc:
-            access_error = str(exc)
+            access_error = translate(str(exc), language)
         except FullTestSessionError:
             logger.exception("Full test setup failed because the active Redis-backed session was unavailable.")
-            access_error = "Full test is temporarily unavailable. Please try again in a moment."
+            access_error = translate("Full test is temporarily unavailable. Please try again in a moment.", language)
         context.update(
             {
                 "page_title": f"{assessment_config['title']} Full Test | MindMetric",
@@ -923,6 +951,7 @@ class FullTestPageView(LoginRequiredMixin, TemplateView):
                 "full_test_access_error": access_error,
                 "full_test_mode": assessment_config.get("full_test_mode", "staged"),
                 "full_test_duration_seconds": int(assessment_config.get("full_test_duration_minutes", 45) * 60),
+                **language_context,
             }
         )
         return context
@@ -950,6 +979,7 @@ class SectionDetailPageView(TemplateView):
         if mode not in {"practice", "test"}:
             mode = "practice"
 
+        language, language_context = _language_context(self.request, assessment_type)
         meta = get_module_meta(section_type)
         seo_metadata = module_seo_metadata(
             assessment_type,
@@ -989,7 +1019,11 @@ class SectionDetailPageView(TemplateView):
             "practice",
             user=self.request.user,
             question_count=practice_remaining,
+            language=language,
         )
+        # SEO metadata above stays English; the page itself follows the language.
+        assessment_config = localize_assessment(assessment_config, language)
+        meta = localize(meta, language)
         context.update(
             {
                 "page_title": seo_metadata["page_title"],
@@ -1017,6 +1051,7 @@ class SectionDetailPageView(TemplateView):
                     "test_setup_url": reverse("pages:assessment-section-test-setup", args=[assessment_type, section_type]),
                     "guide_url": get_module_guide_url(assessment_type, str(section_type)),
                 },
+                **language_context,
             }
         )
         return context
@@ -1036,19 +1071,20 @@ class SectionTestSetupView(LoginRequiredMixin, View):
         if section_type not in get_assessment_module_keys(assessment_type):
             raise Http404("Section not found.")
 
+        language = request_language(request, assessment_type)
         try:
-            attempt = get_or_create_section_attempt(request.user, section_type, assessment_type=assessment_type)
+            attempt = get_or_create_section_attempt(request.user, section_type, assessment_type=assessment_type, language=language)
             if attempt.configuration.get("test_type") == "adaptive":
                 return JsonResponse({"adaptive_url": reverse("pages:adaptive-test", args=[attempt.id])})
             previews = get_section_test_previews(attempt)
         except PermissionError as exc:
             return JsonResponse(
-                {"detail": str(exc), "access_requires_upgrade": True, "upgrade_url": reverse("pages:pricing")},
+                {"detail": translate(str(exc), language), "access_requires_upgrade": True, "upgrade_url": reverse("pages:pricing")},
                 status=403,
             )
         except FullTestSessionError:
             logger.exception("Section test setup failed because the active Redis-backed session was unavailable.")
-            return JsonResponse({"detail": "Section test is temporarily unavailable. Please try again in a moment."}, status=503)
+            return JsonResponse({"detail": translate("Section test is temporarily unavailable. Please try again in a moment.", language)}, status=503)
 
         return JsonResponse(
             {
@@ -1493,7 +1529,7 @@ def _practice_section_cards(request, assessment_type: str):
     return cards
 
 
-def _build_section_questions(section_type: str, mode: str, user=None, question_count: int | None = None) -> list[dict]:
+def _build_section_questions(section_type: str, mode: str, user=None, question_count: int | None = None, language: str = "en") -> list[dict]:
     difficulty = "easy" if mode == "practice" else "medium"
     if question_count is not None:
         question_count = max(0, question_count)
@@ -1505,7 +1541,7 @@ def _build_section_questions(section_type: str, mode: str, user=None, question_c
     group_size = get_module_meta(section_type).get("case_group_size", 1)
     question_count = ((question_count + group_size - 1) // group_size) * group_size
     session_id = uuid.uuid4().hex
-    generated = _build_question_batch(session_id, section_type, mode, question_count, difficulty, user=user)
+    generated = _build_question_batch(session_id, section_type, mode, question_count, difficulty, user=user, language=language)
     from backend.apps.assessments.quality import issue_question
     from backend.apps.tenants.utils import get_current_tenant
     previews = []

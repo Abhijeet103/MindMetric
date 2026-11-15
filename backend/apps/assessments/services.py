@@ -150,12 +150,18 @@ def can_start_attempt(
 
 
 @transaction.atomic
+def attempt_language(attempt: Attempt) -> str:
+    """Language the attempt's questions are generated in (Thomas GIA only)."""
+    return (attempt.configuration or {}).get("language", "en")
+
+
 def create_attempt(
     user: User,
     mode: str,
     difficulty: str = "easy",
     section_type: str | None = None,
     assessment_type: str = ASSESSMENT_PREPGIA,
+    language: str = "en",
 ) -> Attempt:
     decision = can_start_attempt(
         user,
@@ -166,12 +172,14 @@ def create_attempt(
     if not decision.allowed:
         raise PermissionError(decision.message)
     if mode == AttemptMode.FULL_TEST:
-        return get_or_create_full_test_attempt(user, assessment_type)
+        return get_or_create_full_test_attempt(user, assessment_type, language=language)
 
     tenant = get_current_tenant() or user.tenant
     configuration = resolve_test_configuration(tenant, assessment_type, section_type or "")
     keys = [section_type] if section_type else get_assessment_module_keys(assessment_type)
     configuration["modules"] = {key: resolve_test_configuration(tenant, assessment_type, key) for key in keys}
+    if language != "en":
+        configuration["language"] = language
     tenant_user = get_or_create_tenant_user(tenant=tenant, user=user)
     attempt = Attempt.objects.create(
         user=user,
@@ -213,7 +221,7 @@ def create_attempt(
                 difficulty,
                 question_target,
             )
-            payloads = _build_question_batch(attempt.id, section_key, "test", question_target, difficulty, user=attempt.user, tenant=attempt.tenant)
+            payloads = _build_question_batch(attempt.id, section_key, "test", question_target, difficulty, user=attempt.user, tenant=attempt.tenant, language=language)
             _save_section_test_session(
                 attempt.id,
                 {
@@ -239,7 +247,7 @@ def create_attempt(
 
 
 @transaction.atomic
-def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMENT_PREPGIA) -> Attempt:
+def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMENT_PREPGIA, language: str = "en") -> Attempt:
     tenant = get_current_tenant() or user.tenant
     if tenant_allows_assessment(tenant, assessment_type) and (not is_institution_tenant(tenant) or get_tenant_access(tenant=tenant, user=user, auto_enroll=False).allowed):
         active = Attempt.objects.filter(user=user, tenant=tenant, assessment_type=assessment_type, mode=AttemptMode.FULL_TEST, status__in=[AttemptStatus.CREATED, AttemptStatus.IN_PROGRESS], configuration__test_type="adaptive").order_by("-id").first()
@@ -252,6 +260,8 @@ def get_or_create_full_test_attempt(user: User, assessment_type: str = ASSESSMEN
     assessment_config = runtime_assessment_config(tenant, assessment_type)
     configuration = resolve_test_configuration(tenant, assessment_type)
     configuration["modules"] = {key: resolve_test_configuration(tenant, assessment_type, key) for key in get_assessment_module_keys(assessment_type)}
+    if language != "en":
+        configuration["language"] = language
     full_test_practice_count = assessment_config["full_test_practice_count"]
     tenant = get_current_tenant() or user.tenant
     tenant_user = get_or_create_tenant_user(tenant=tenant, user=user)
@@ -339,9 +349,10 @@ def get_or_create_section_attempt(
     section_type: str,
     difficulty: str = "medium",
     assessment_type: str | None = None,
+    language: str = "en",
 ) -> Attempt:
     resolved_assessment_type = assessment_type or get_module_assessment_type(section_type)
-    active_attempt = (
+    active_candidates = (
         Attempt.objects.filter(
             user=user,
             tenant=get_current_tenant() or user.tenant,
@@ -352,8 +363,9 @@ def get_or_create_section_attempt(
         )
         .prefetch_related("sections")
         .order_by("-started_at")
-        .first()
     )
+    # Only resume an attempt in the language the student picked.
+    active_attempt = next((item for item in active_candidates if attempt_language(item) == language), None)
     if active_attempt is not None:
         if active_attempt.configuration.get("test_type") == "adaptive":
             return active_attempt
@@ -373,6 +385,7 @@ def get_or_create_section_attempt(
                     section.question_count,
                     section.difficulty,
                     user=active_attempt.user, tenant=active_attempt.tenant,
+                    language=attempt_language(active_attempt),
                 )
                 _save_section_test_session(
                     active_attempt.id,
@@ -395,6 +408,7 @@ def get_or_create_section_attempt(
         difficulty=difficulty,
         section_type=section_type,
         assessment_type=resolved_assessment_type,
+        language=language,
     )
     logger.info("Created new section attempt attempt_id=%s user_id=%s section=%s", attempt.id, user.id, section_type)
     return attempt
@@ -557,7 +571,7 @@ def _ensure_full_test_section_phase_generated(
         difficulty,
         count,
     )
-    section[question_key] = _build_question_batch(attempt.id, section_type, phase, count, difficulty, user=attempt.user, tenant=attempt.tenant)
+    section[question_key] = _build_question_batch(attempt.id, section_type, phase, count, difficulty, user=attempt.user, tenant=attempt.tenant, language=attempt_language(attempt))
     section[generated_flag] = True
     _save_full_test_session(attempt.id, session)
 
@@ -585,6 +599,7 @@ def get_section_test_previews(attempt: Attempt) -> list[dict[str, Any]]:
             section.question_count,
             section.difficulty,
             user=attempt.user, tenant=attempt.tenant,
+            language=attempt_language(attempt),
         )
         session["questions"] = questions
         session["submitted_answers"] = []
@@ -951,7 +966,7 @@ def recompute_section_progress_for_user(user: User, assessment_type: str | None 
     return updates
 
 
-def _build_question_batch(attempt_id: int, section_type: str, phase: str, count: int, difficulty: str, user=None, tenant=None) -> list[dict[str, Any]]:
+def _build_question_batch(attempt_id: int, section_type: str, phase: str, count: int, difficulty: str, user=None, tenant=None, language: str = "en") -> list[dict[str, Any]]:
     from .quality import recent_signatures, item_signature, family_key, withdrawn_families
     from backend.apps.tenants.utils import get_current_tenant
     if user and user.is_authenticated:
@@ -967,9 +982,11 @@ def _build_question_batch(attempt_id: int, section_type: str, phase: str, count:
         effective_difficulty = ["easy", "medium", "medium", "hard"][(start // group_size) % 4] if difficulty == "mixed" else difficulty
         for retry in range(100):
             namespace = f"{attempt_id}:{section_type}:{phase}:{effective_difficulty}"
+            if language != "en":
+                namespace += f":{language}"
             if retry:
                 namespace += f":retry-{retry}"
-            candidates = [generate_question(section_type, effective_difficulty, f"{namespace}:{index}") for index in range(start, start + group_size)]
+            candidates = [generate_question(section_type, effective_difficulty, f"{namespace}:{index}", language=language) for index in range(start, start + group_size)]
             signatures = [semantic_question_signature(candidate.payload) for candidate in candidates]
             # Prefer unseen recent items, then fall back after 60 tries so a
             # small reviewed bank does not make practice impossible.

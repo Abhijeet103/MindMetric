@@ -283,8 +283,8 @@ class SectionProgressAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
 
 @admin.register(WordMeaningItem)
 class WordMeaningItemAdmin(admin.ModelAdmin):
-    list_display = ("id", "pair_word_1", "pair_word_2", "odd_word", "relationship_type", "difficulty", "is_active")
-    list_filter = ("difficulty", "relationship_type", "is_active")
+    list_display = ("id", "pair_word_1", "pair_word_2", "odd_word", "relationship_type", "difficulty", "language", "is_active")
+    list_filter = ("language", "difficulty", "relationship_type", "is_active")
     search_fields = ("pair_word_1", "pair_word_2", "odd_word")
 
     def has_module_permission(self, request):

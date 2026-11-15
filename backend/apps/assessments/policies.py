@@ -97,6 +97,9 @@ def runtime_assessment_config(tenant, assessment_type):
     }
     count = sum(config["full_test_question_counts"].values())
     is_adaptive = policy["test_type"] == "adaptive"
+    # Raw values, so localized pages can rebuild the two sentences below.
+    config["full_test_question_total"] = count
+    config["full_test_adaptive"] = is_adaptive
     config["full_test_meta_tail"] = f"{count} questions" + (" · Adaptive" if is_adaptive else "")
     config["full_test_description"] = (
         f"Every section, back to back, in {policy['full_test_time_seconds'] / 60:g} minutes. "

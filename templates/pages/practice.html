@@ -1,20 +1,22 @@
 {% extends "base.html" %}
+{% load mm_i18n %}
 
 {% block content %}
 <section class="content-section">
     {% include "partials/assessment_guide_popover.html" %}
+    {% include "partials/language_switch.html" %}
 
     {% if real_test_facts %}
-        <aside class="test-facts" aria-label="About the real test">
-            <span class="test-facts-label">The real test</span>
+        <aside class="test-facts" aria-label="{% t 'About the real test' %}">
+            <span class="test-facts-label">{% t "The real test" %}</span>
             <ul>{% for fact in real_test_facts %}<li>{{ fact }}</li>{% endfor %}</ul>
         </aside>
     {% endif %}
 
-    <ol class="test-path" aria-label="Recommended way to prepare">
-        <li><span class="mono">1</span> Practice each section untimed and read the explanations</li>
-        <li><span class="mono">2</span> Take a timed test in your weakest section</li>
-        <li><span class="mono">3</span> Finish with a full timed test</li>
+    <ol class="test-path" aria-label="{% t 'Recommended way to prepare' %}">
+        <li><span class="mono">1</span> {% t "Practice each section untimed and read the explanations" %}</li>
+        <li><span class="mono">2</span> {% t "Take a timed test in your weakest section" %}</li>
+        <li><span class="mono">3</span> {% t "Finish with a full timed test" %}</li>
     </ol>
 
     <article class="card practice-full-banner">
@@ -26,25 +28,25 @@
                     <svg viewBox="0 0 24 24" class="practice-meta-icon" aria-hidden="true">
                         <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     </svg>
-                    {{ sections_total }} section{{ sections_total|pluralize }}
+                    {% t "{n} section" plural="{n} sections" n=sections_total %}
                 </span>
                 <span>
                     <svg viewBox="0 0 24 24" class="practice-meta-icon" aria-hidden="true">
                         <path d="M12 7v5l3 3M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    {{ assessment.full_test_duration_minutes|default:45|floatformat:"-1" }} min
+                    {% t "{n} min" n=assessment.full_test_duration_minutes|default:45|floatformat:"-1" %}
                 </span>
                 <span>{{ assessment.full_test_meta_tail }}</span>
                 <span>
                     {% if full_test_attempts_left is None %}
-                        Unlimited attempts
+                        {% t "Unlimited attempts" %}
                     {% else %}
-                        {{ full_test_attempts_left }} free attempt{{ full_test_attempts_left|pluralize }} left
+                        {% t "{n} free attempt left" plural="{n} free attempts left" n=full_test_attempts_left %}
                     {% endif %}
                 </span>
             </div>
         </div>
-        <a href="{% url 'pages:assessment-full-test' assessment_slug %}" class="button practice-full-banner-button">Start full test</a>
+        <a href="{% url 'pages:assessment-full-test' assessment_slug %}" class="button practice-full-banner-button">{% t "Start full test" %}</a>
     </article>
 
     {% if assessment_slug == "shl_verify" or assessment_slug == "consulting" or assessment_slug == "watson_glaser" or assessment_slug == "consulting_cases" %}
@@ -56,7 +58,7 @@
     {% endif %}
     <div class="practice-section-header top-gap"{% if assessment_slug == "prepgia" %} id="gia-practice-modules"{% elif assessment_slug == "ccat" %} id="ccat-practice-modules"{% endif %}>
         <h1 class="section-title practice-sections-title">{{ assessment.title }} {{ assessment.module_label }}</h1>
-        <p class="practice-started-summary">{{ sections_started }} of {{ sections_total }} modules started</p>
+        <p class="practice-started-summary">{% t "{n} of {total} modules started" n=sections_started total=sections_total %}</p>
     </div>
 
     <div class="practice-card-grid">
@@ -104,20 +106,20 @@
                         <svg viewBox="0 0 24 24" class="practice-meta-icon" aria-hidden="true">
                             <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                         </svg>
-                        {{ section.free_practice_question_limit }} free questions
+                        {% t "{n} free questions" n=section.free_practice_question_limit %}
                     </span>
                     <span>
                         <svg viewBox="0 0 24 24" class="practice-meta-icon" aria-hidden="true">
                             <path d="M12 7v5l3 3M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        {{ section.duration_minutes }} min
+                        {% t "{n} min" n=section.duration_minutes %}
                     </span>
                 </div>
 
                 {% if section.practice_solved or section.tests_taken %}
                 <div class="practice-card-stats">
-                    <span>{{ section.practice_solved }} solved</span>
-                    <span>{{ section.tests_taken }} test{{ section.tests_taken|pluralize }} taken</span>
+                    <span>{% t "{n} solved" n=section.practice_solved %}</span>
+                    <span>{% t "{n} test taken" plural="{n} tests taken" n=section.tests_taken %}</span>
                 </div>
                 {% endif %}
 

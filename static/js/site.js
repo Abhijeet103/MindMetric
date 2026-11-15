@@ -1,3 +1,26 @@
+// Interface translations for localized players (Thomas GIA in German and
+// Spanish). Pages embed {"English text": "translation"} in #player-i18n; the
+// English text is both the key and the fallback, so English pages are unchanged.
+let PLAYER_I18N = null;
+function tr(text, vars) {
+  if (PLAYER_I18N === null) {
+    PLAYER_I18N = {};
+    const el = document.getElementById("player-i18n");
+    if (el) {
+      try {
+        PLAYER_I18N = JSON.parse(el.textContent || "{}") || {};
+      } catch (error) {
+        PLAYER_I18N = {};
+      }
+    }
+  }
+  let out = Object.prototype.hasOwnProperty.call(PLAYER_I18N, text) ? PLAYER_I18N[text] : text;
+  if (vars) {
+    out = out.replace(/\{(\w+)\}/g, (match, key) => (key in vars ? String(vars[key]) : match));
+  }
+  return out;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const body = document.body;
   const role = body.dataset.role;
@@ -413,11 +436,11 @@ function initSectionPlayer() {
     feedbackEl.textContent = "";
     feedbackEl.className = "section-inline-feedback feedback-upgrade";
     const text = document.createElement("span");
-    text.textContent = `${message || "Timed tests are part of membership."} `;
+    text.textContent = `${message || tr("Timed tests are part of membership.")} `;
     const link = document.createElement("a");
     link.href = upgradeUrl || "/pricing/";
     link.className = "feedback-upgrade-link";
-    link.textContent = "See membership";
+    link.textContent = tr("See membership");
     feedbackEl.append(text, link);
     feedbackEl.removeAttribute("hidden");
     link.focus({preventScroll: true});
@@ -443,12 +466,12 @@ function initSectionPlayer() {
         const suggestedSeconds = practiceTotal ? Math.max(1, Math.round(timeLimitSeconds / practiceTotal)) : 0;
         setTimerText(suggestedSeconds
           ? `Target ${formatSeconds(suggestedSeconds)}`
-          : "Ready");
+          : tr("Ready"));
         return;
       }
       const solvedCount = Math.max(practiceSolved, 1);
       const averageSeconds = Math.round(practiceElapsedSeconds / solvedCount);
-      setTimerText(`Avg ${formatSeconds(averageSeconds)}`);
+      setTimerText(tr("Avg {time}", {time: formatSeconds(averageSeconds)}));
       return;
     }
     const minutes = Math.floor(remainingSeconds / 60);
@@ -461,7 +484,7 @@ function initSectionPlayer() {
     const total = questions.length;
     const displayIndex = Math.min(currentIndex + 1, total || 1);
     if (progressEl) {
-      progressEl.textContent = `Question ${displayIndex} of ${total}`;
+      progressEl.textContent = tr("Question {n} of {total}", {n: displayIndex, total});
     }
     if (railProgressEl) {
       railProgressEl.textContent = `${displayIndex} / ${total || 1}`;
@@ -477,7 +500,7 @@ function initSectionPlayer() {
       progressFillEl.parentElement?.setAttribute("aria-valuenow", String(progressPercent));
     }
     if (practiceProgressCopyEl && !isTestMode()) {
-      practiceProgressCopyEl.textContent = `${practiceSolved} of ${practiceTotal} practice questions solved`;
+      practiceProgressCopyEl.textContent = tr("{solved} of {total} practice questions solved", {solved: practiceSolved, total: practiceTotal});
     }
   };
 
@@ -493,7 +516,7 @@ function initSectionPlayer() {
       modeCopyEl.textContent = isTestMode() ? (modeCopyEl.dataset.testCopy || "") : (modeCopyEl.dataset.practiceCopy || "");
     }
     if (railPhaseEl) {
-      railPhaseEl.textContent = isTestMode() ? "Test" : "Practice";
+      railPhaseEl.textContent = isTestMode() ? tr("Test") : tr("Practice");
     }
     modeButtons.forEach((button) => {
       const selected = button.dataset.playerMode === activeMode;
@@ -542,7 +565,7 @@ function initSectionPlayer() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      const error = new Error(payload.detail || "Could not start test mode.");
+      const error = new Error(payload.detail || tr("Could not start test mode."));
       error.requiresUpgrade = Boolean(payload.access_requires_upgrade);
       error.upgradeUrl = payload.upgrade_url || "/pricing/";
       throw error;
@@ -575,8 +598,8 @@ function initSectionPlayer() {
     if (!outcome.saved) {
       notice?.removeAttribute("hidden");
       if (message) message.textContent = outcome.authenticationRequired
-        ? "Your session has expired. This answer was not saved."
-        : "This answer could not be saved. Check your connection before continuing; the dashboard may be incomplete.";
+        ? tr("Your session has expired. This answer was not saved.")
+        : tr("This answer could not be saved. Check your connection before continuing; the dashboard may be incomplete.");
       if (outcome.authenticationRequired) {
         login?.removeAttribute("hidden");
         player.dataset.authenticated = "false";
@@ -598,17 +621,17 @@ function initSectionPlayer() {
     }
     if (completeSummaryEl) {
       const questions = getQuestions();
-      const base = `You answered ${correctCount} out of ${questions.length} correctly.`;
+      const base = tr("You answered {correct} out of {total} correctly.", {correct: correctCount, total: questions.length});
       completeSummaryEl.textContent =
         !isTestMode()
-          ? `${base} Practice mode shows immediate feedback after each answer.`
-          : `${base} Test mode finished without per-question feedback.`;
+          ? `${base} ${tr("Practice mode shows immediate feedback after each answer.")}`
+          : `${base} ${tr("Test mode finished without per-question feedback.")}`;
     }
     hideFeedback();
     if (isTestMode() && player.dataset.submitUrl) {
       window.showPageLoader?.();
       if (completeSummaryEl) {
-        completeSummaryEl.textContent = "Saving your section test result...";
+        completeSummaryEl.textContent = tr("Saving your section test result...");
       }
       try {
         const response = await fetch(player.dataset.submitUrl, {
@@ -621,10 +644,10 @@ function initSectionPlayer() {
         });
         const result = await response.json();
         if (!response.ok) {
-          throw new Error(result.detail || "Could not save the section test result.");
+          throw new Error(result.detail || tr("Could not save the section test result."));
         }
         if (completeSummaryEl) {
-          completeSummaryEl.textContent = `Final section score: ${result.section_score}.`;
+          completeSummaryEl.textContent = tr("Final section score: {score}.", {score: result.section_score});
         }
         if (result.results_url) {
           window.location.assign(result.results_url);
@@ -637,7 +660,7 @@ function initSectionPlayer() {
       } catch (error) {
         window.hidePageLoader?.();
         if (completeSummaryEl) {
-          completeSummaryEl.textContent = error.message || "Could not save the section test result.";
+          completeSummaryEl.textContent = error.message || tr("Could not save the section test result.");
         }
       }
     }
@@ -716,7 +739,7 @@ function initSectionPlayer() {
               practiceSolved += 1;
               syncPracticeProgress();
               updateProgress();
-              showFeedback(`Correct. ${practiceExplanation(item)}`, "correct");
+              showFeedback(`${tr("Correct.")} ${practiceExplanation(item)}`, "correct");
               optionsEl.querySelectorAll(".answer-option").forEach((node) => { node.disabled = true; });
               appendFeedbackContinue(feedbackEl, () => {
                 hideFeedback();
@@ -787,14 +810,14 @@ function initSectionPlayer() {
       if (error.requiresUpgrade) {
         showUpgradePrompt(error.message, error.upgradeUrl);
       } else {
-        showFeedback(error.message || "Could not start test mode.", "wrong");
+        showFeedback(error.message || tr("Could not start test mode."), "wrong");
       }
       return;
     }
     const enteredFullscreen = await requestFullscreenFor(player);
     if (!enteredFullscreen) {
       window.hidePageLoader?.();
-      showFeedback("Fullscreen is required to start test mode.", "wrong");
+      showFeedback(tr("Fullscreen is required to start test mode."), "wrong");
       return;
     }
     activeMode = "test";
@@ -878,7 +901,7 @@ function initFullTestPlayer() {
   const isMixedFullTest = player.dataset.fullTestMode === "mixed";
   const fullTestDurationSeconds = Number(player.dataset.fullTestDurationSeconds || 0);
   const fullTestDescription = player.dataset.fullTestDescription || "";
-  const assessmentTitle = player.dataset.assessmentTitle || "Assessment";
+  const assessmentTitle = player.dataset.assessmentTitle || tr("Assessment");
   let sectionIndex = 0;
   let phase = "intro";
   let questionIndex = 0;
@@ -994,18 +1017,18 @@ function initFullTestPlayer() {
   };
   const getRailPhaseLabel = () => {
     if (isMixedFullTest && phase === "intro") {
-      return "Ready";
+      return tr("Ready");
     }
     if (phase === "practice") {
-      return "Practice";
+      return tr("Practice");
     }
     if (phase === "test") {
-      return "Timed test";
+      return tr("Timed test");
     }
     if (phase === "test-intro") {
-      return "Ready";
+      return tr("Ready");
     }
-    return "Intro";
+    return tr("Intro");
   };
   const updateRail = () => {
     const section = getCurrentSection();
@@ -1033,7 +1056,7 @@ function initFullTestPlayer() {
     }
 
     if (railSectionEl) {
-      railSectionEl.textContent = isMixedFullTest ? assessmentTitle : section?.title || "Section";
+      railSectionEl.textContent = isMixedFullTest ? assessmentTitle : section?.title || tr("Section");
     }
     if (railPhaseEl) {
       railPhaseEl.textContent = getRailPhaseLabel();
@@ -1150,7 +1173,7 @@ function initFullTestPlayer() {
   const loadSectionRuntime = async (force = false) => {
     const section = getCurrentSection();
     if (!section) {
-      throw new Error("Could not load the current test section.");
+      throw new Error(tr("Could not load the current test section."));
     }
     if (!force && currentSectionRuntime?.section_id === section.section_id) {
       return currentSectionRuntime;
@@ -1165,7 +1188,7 @@ function initFullTestPlayer() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.detail || "Could not load the full test section.");
+      throw new Error(payload.detail || tr("Could not load the full test section."));
     }
     currentSectionRuntime = payload;
     return payload;
@@ -1188,7 +1211,7 @@ function initFullTestPlayer() {
         });
         const payload = await response.json();
         if (!response.ok) {
-          throw new Error(payload.detail || `Could not load ${section.title || "an assessment section"}.`);
+          throw new Error(payload.detail || tr("Could not load {title}.", {title: section.title || tr("an assessment section")}));
         }
         return (payload.test_questions || []).map((question, sourceQuestionIndex) => ({
           ...question,
@@ -1253,7 +1276,7 @@ function initFullTestPlayer() {
                   node.classList.add("is-correct-answer");
                 }
               });
-              showInlineFeedback(isCorrect ? `Correct. ${practiceExplanation(activeQuestion)}` : wrongPracticeFeedback(activeQuestion, selected), isCorrect ? "correct" : "wrong");
+              showInlineFeedback(isCorrect ? `${tr("Correct.")} ${practiceExplanation(activeQuestion)}` : wrongPracticeFeedback(activeQuestion, selected), isCorrect ? "correct" : "wrong");
               appendFeedbackContinue(inlineFeedbackEl, () => {
                 hideInlineFeedback();
                 questionIndex += 1;
@@ -1293,7 +1316,7 @@ function initFullTestPlayer() {
       }
     } catch (error) {
       if (completeSummaryEl) {
-        completeSummaryEl.textContent = error.message || "There was a problem loading the test question.";
+        completeSummaryEl.textContent = error.message || tr("There was a problem loading the test question.");
       }
       showStage(completeStage);
     }
@@ -1314,18 +1337,18 @@ function initFullTestPlayer() {
       if (titleEl) titleEl.textContent = assessmentTitle;
       if (descriptionEl) descriptionEl.textContent = fullTestDescription;
       if (instructionEl) {
-        instructionEl.textContent = "Work quickly and accurately. Calculators are not permitted.";
+        instructionEl.textContent = tr("Work quickly and accurately. Calculators are not permitted.");
       }
-      if (phaseLabelEl) phaseLabelEl.textContent = "Full test";
-      if (startButton) startButton.textContent = `Enter fullscreen and start ${assessmentTitle}`;
+      if (phaseLabelEl) phaseLabelEl.textContent = tr("Full test");
+      if (startButton) startButton.textContent = tr("Enter fullscreen and start {title}", {title: assessmentTitle});
     } else {
       if (titleEl) titleEl.textContent = section.title;
       if (descriptionEl) descriptionEl.textContent = section.description;
       if (instructionEl) instructionEl.textContent = section.instruction;
       if (phaseLabelEl) {
-        phaseLabelEl.textContent = phase === "test-intro" ? "Timed test" : "Section intro";
+        phaseLabelEl.textContent = phase === "test-intro" ? tr("Timed test") : tr("Section intro");
       }
-      if (startButton) startButton.textContent = "Enter fullscreen and start full test";
+      if (startButton) startButton.textContent = tr("Enter fullscreen and start full test");
     }
     updateRail();
     showStage(introStage);
@@ -1389,7 +1412,7 @@ function initFullTestPlayer() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.detail || "Could not save the completed section.");
+      throw new Error(payload.detail || tr("Could not save the completed section."));
     }
   };
 
@@ -1411,10 +1434,10 @@ function initFullTestPlayer() {
       shouldAdvanceDirectlyToNextSection = false;
       updateEndTestButton();
       updateSkipPracticeButton();
-      if (sectionCompleteLabelEl) sectionCompleteLabelEl.textContent = "Practice complete";
-      if (sectionCompleteTitleEl) sectionCompleteTitleEl.textContent = `${section.title} practice complete`;
-      if (sectionCompleteCopyEl) sectionCompleteCopyEl.textContent = "Next, start the timed test for this section.";
-      if (nextPhaseButton) nextPhaseButton.textContent = "Start timed test";
+      if (sectionCompleteLabelEl) sectionCompleteLabelEl.textContent = tr("Practice complete");
+      if (sectionCompleteTitleEl) sectionCompleteTitleEl.textContent = tr("{title} practice complete", {title: section.title});
+      if (sectionCompleteCopyEl) sectionCompleteCopyEl.textContent = tr("Next, start the timed test for this section.");
+      if (nextPhaseButton) nextPhaseButton.textContent = tr("Start timed test");
       showStage(sectionCompleteStage);
       return;
     }
@@ -1425,7 +1448,7 @@ function initFullTestPlayer() {
     } catch (error) {
       window.hidePageLoader?.();
       if (completeSummaryEl) {
-        completeSummaryEl.textContent = error.message || "Could not save the completed section.";
+        completeSummaryEl.textContent = error.message || tr("Could not save the completed section.");
       }
       showStage(completeStage);
       return;
@@ -1441,10 +1464,10 @@ function initFullTestPlayer() {
 
     phase = "intro";
     shouldAdvanceDirectlyToNextSection = true;
-    if (sectionCompleteLabelEl) sectionCompleteLabelEl.textContent = "Section complete";
-    if (sectionCompleteTitleEl) sectionCompleteTitleEl.textContent = `${section.title} test complete`;
-    if (sectionCompleteCopyEl) sectionCompleteCopyEl.textContent = "Continue directly into the next section practice flow.";
-    if (nextPhaseButton) nextPhaseButton.textContent = "Next section";
+    if (sectionCompleteLabelEl) sectionCompleteLabelEl.textContent = tr("Section complete");
+    if (sectionCompleteTitleEl) sectionCompleteTitleEl.textContent = tr("{title} test complete", {title: section.title});
+    if (sectionCompleteCopyEl) sectionCompleteCopyEl.textContent = tr("Continue directly into the next section practice flow.");
+    if (nextPhaseButton) nextPhaseButton.textContent = tr("Next section");
     showStage(sectionCompleteStage);
     window.hidePageLoader?.();
   };
@@ -1464,7 +1487,7 @@ function initFullTestPlayer() {
         await stagedStart();
       }
     } catch (error) {
-      showFeedback(error.message || "The test could not be loaded. Please try again.", "wrong");
+      showFeedback(error.message || tr("The test could not be loaded. Please try again."), "wrong");
     } finally {
       window.clearButtonLoading?.(button);
       window.hidePageLoader?.();
@@ -1474,7 +1497,7 @@ function initFullTestPlayer() {
   startButton?.addEventListener("click", async () => {
     await startFullTestFromButton(
       startButton,
-      "Fullscreen is required to start the full test.",
+      tr("Fullscreen is required to start the full test."),
       startSectionPractice,
     );
   });
@@ -1482,7 +1505,7 @@ function initFullTestPlayer() {
   fullscreenStartButton?.addEventListener("click", async () => {
     await startFullTestFromButton(
       fullscreenStartButton,
-      "Fullscreen is required to start timed test mode.",
+      tr("Fullscreen is required to start timed test mode."),
       async () => {
         hideFeedback();
         questionIndex = 0;
@@ -1527,7 +1550,7 @@ function initFullTestPlayer() {
         if (!enteredFullscreen) {
           window.clearButtonLoading?.(nextPhaseButton);
           window.hidePageLoader?.();
-          showFeedback("Fullscreen is required to continue into the next section.", "wrong");
+          showFeedback(tr("Fullscreen is required to continue into the next section."), "wrong");
           return;
         }
       }
@@ -1584,13 +1607,13 @@ function initFullTestPlayer() {
       });
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.detail || "Submission failed.");
+        throw new Error(result.detail || tr("Submission failed."));
       }
       if (completeSummaryEl) {
         const breakdown = (result.section_scores || [])
           .map((item) => `${item.section_type}: ${item.score}`)
           .join(" | ");
-        completeSummaryEl.textContent = `Final score: ${result.overall_score}. ${breakdown}`;
+        completeSummaryEl.textContent = `${tr("Final score: {score}.", {score: result.overall_score})} ${breakdown}`;
       }
       if (result.results_url) {
         window.location.assign(result.results_url);
@@ -1603,7 +1626,7 @@ function initFullTestPlayer() {
     } catch (error) {
       window.hidePageLoader?.();
       if (completeSummaryEl) {
-        completeSummaryEl.textContent = error.message || "There was a problem submitting the test.";
+        completeSummaryEl.textContent = error.message || tr("There was a problem submitting the test.");
       }
       isSubmitting = false;
     }
@@ -2057,18 +2080,18 @@ function renderItemReporting(shell, item) {
   item.displayedAt = performance.now();
   if (!item.report_token) return;
   const details = document.createElement("details"); details.dataset.itemReport = ""; details.className = "item-report";
-  const summary = document.createElement("summary"); summary.textContent = "Report a question issue";
-  const reason = document.createElement("select"); reason.setAttribute("aria-label", "Issue type");
-  [["ambiguous", "Ambiguous wording"], ["answer", "Answer key"], ["display", "Display problem"], ["other", "Other"]].forEach(([value, label]) => { const option = document.createElement("option"); option.value = value; option.textContent = label; reason.appendChild(option); });
-  const text = document.createElement("textarea"); text.maxLength = 2000; text.setAttribute("aria-label", "Describe the issue");
-  const button = document.createElement("button"); button.type = "button"; button.textContent = "Send issue for review";
+  const summary = document.createElement("summary"); summary.textContent = tr("Report a question issue");
+  const reason = document.createElement("select"); reason.setAttribute("aria-label", tr("Issue type"));
+  [["ambiguous", tr("Ambiguous wording")], ["answer", tr("Answer key")], ["display", tr("Display problem")], ["other", tr("Other")]].forEach(([value, label]) => { const option = document.createElement("option"); option.value = value; option.textContent = label; reason.appendChild(option); });
+  const text = document.createElement("textarea"); text.maxLength = 2000; text.setAttribute("aria-label", tr("Describe the issue"));
+  const button = document.createElement("button"); button.type = "button"; button.textContent = tr("Send issue for review");
   const status = document.createElement("p"); status.setAttribute("role", "status");
   button.addEventListener("click", async () => {
     button.disabled = true;
     try {
       const response = await fetch("/api/tests/item-events/", {method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken")}, body: JSON.stringify({action: "report", token: item.report_token, reason: reason.value, detail: text.value})});
-      if (!response.ok || response.redirected) throw new Error("Could not send the report. Sign in and retry.");
-      status.textContent = "Saved for editorial review.";
+      if (!response.ok || response.redirected) throw new Error(tr("Could not send the report. Sign in and retry."));
+      status.textContent = tr("Saved for editorial review.");
     } catch (error) { status.textContent = error.message; button.disabled = false; }
   });
   details.append(summary, reason, text, button, status); shell.appendChild(details);
@@ -2145,7 +2168,7 @@ function renderCcatSpatialOption(button, item, option, optionIndex) {
   }
   const spec = getCcatSpatialPresentation(item).options[optionIndex];
   button.classList.add("ccat-spatial-answer-option");
-  button.setAttribute("aria-label", `Option ${optionIndex + 1}`);
+  button.setAttribute("aria-label", tr("Option {n}", {n: optionIndex + 1}));
   button.appendChild(renderCcatSpatialSvg(spec || { shape: "missing" }));
   appendOptionKeyHint(button, optionIndex);
 }
@@ -2183,7 +2206,7 @@ function applyCountdownState(timerEl, remaining, total) {
   timerEl.classList.add("is-countdown");
   timerEl.classList.toggle("is-low", remaining <= Math.max(10, total * 0.1));
   timerEl.style.setProperty("--timer-pct", pct.toFixed(1));
-  timerEl.setAttribute("aria-label", `${Math.floor(remaining / 60)} minutes ${remaining % 60} seconds left`);
+  timerEl.setAttribute("aria-label", tr("{minutes} minutes {seconds} seconds left", {minutes: Math.floor(remaining / 60), seconds: remaining % 60}));
 }
 
 // Keyboard: 1-9 picks an answer, Enter/Space reveals the question or moves on.
@@ -2227,7 +2250,7 @@ function appendFeedbackContinue(container, onContinue) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "button button-small feedback-continue";
-  button.textContent = "Next question ";
+  button.textContent = tr("Next question ");
   const key = document.createElement("kbd");
   key.setAttribute("aria-hidden", "true");
   key.textContent = "Enter";
@@ -2239,18 +2262,18 @@ function appendFeedbackContinue(container, onContinue) {
 function practiceExplanation(item) {
   if (item.explanation) return String(item.explanation);
   const kind = String(item.context_kind || "");
-  if (kind === "pairs") return "Count only pairs whose letters match apart from upper- and lower-case.";
-  if (kind === "numbers") return "Order the three values, identify the middle one, then compare each outer value's distance from it.";
-  if (kind === "words") return "Find the relationship shared by two words; choose the third word that does not fit that relationship.";
-  if (kind === "letter_pairs") return "A figure can be rotated and still match, but a mirror image reverses its handedness.";
-  if (kind === "statements") return "Use the comparison statement to determine the relationship before choosing the named person or thing.";
-  if (kind === "ccat_spatial") return "Check every visual property—shape, position, count, fill, and rotation—before selecting an option.";
-  return "Re-read the condition and eliminate any option that does not satisfy every part of it.";
+  if (kind === "pairs") return tr("Count only pairs whose letters match apart from upper- and lower-case.");
+  if (kind === "numbers") return tr("Order the three values, identify the middle one, then compare each outer value's distance from it.");
+  if (kind === "words") return tr("Find the relationship shared by two words; choose the third word that does not fit that relationship.");
+  if (kind === "letter_pairs") return tr("A figure can be rotated and still match, but a mirror image reverses its handedness.");
+  if (kind === "statements") return tr("Use the comparison statement to determine the relationship before choosing the named person or thing.");
+  if (kind === "ccat_spatial") return tr("Check every visual property—shape, position, count, fill, and rotation—before selecting an option.");
+  return tr("Re-read the condition and eliminate any option that does not satisfy every part of it.");
 }
 
 function wrongPracticeFeedback(item, selected) {
   const correct = String(item.correct_answer || "");
-  return `Wrong: “${selected}” does not satisfy the rule. ${practiceExplanation(item)} The correct answer is ${correct}.`;
+  return `${tr("Wrong: “{selected}” does not satisfy the rule.", {selected})} ${practiceExplanation(item)} ${tr("The correct answer is {correct}.", {correct})}`;
 }
 
 function renderContext(container, item) {
@@ -2405,7 +2428,7 @@ function normalizePlayerQuestion(item) {
       ...fromPayload,
       context_kind: "statements",
       context_lines: Array.isArray(prompt.statements) ? prompt.statements.map((line) => String(line)) : [],
-      question_text: String(prompt.question || "Choose one answer."),
+      question_text: String(prompt.question || tr("Choose one answer.")),
     };
   }
 
@@ -2415,7 +2438,7 @@ function normalizePlayerQuestion(item) {
       context_kind: "pairs",
       instruction: String(prompt.instruction || ""),
       pairs: Array.isArray(prompt.pairs) ? prompt.pairs : [],
-      question_text: "How many matching pairs are there?",
+      question_text: tr("How many matching pairs are there?"),
     };
   }
 
@@ -2425,7 +2448,7 @@ function normalizePlayerQuestion(item) {
       context_kind: "numbers",
       instruction: String(prompt.instruction || ""),
       numbers: Array.isArray(prompt.numbers) ? prompt.numbers : [],
-      question_text: String(prompt.instruction || "Choose one answer."),
+      question_text: String(prompt.instruction || tr("Choose one answer.")),
       reveal_mode: "question_only",
     };
   }
@@ -2436,7 +2459,7 @@ function normalizePlayerQuestion(item) {
       context_kind: "words",
       instruction: String(prompt.instruction || ""),
       words: Array.isArray(prompt.words) ? prompt.words : [],
-      question_text: String(prompt.instruction || "Choose one answer."),
+      question_text: String(prompt.instruction || tr("Choose one answer.")),
       reveal_mode: "question_only",
     };
   }
@@ -2447,7 +2470,7 @@ function normalizePlayerQuestion(item) {
       context_kind: "letter_pairs",
       instruction: String(prompt.instruction || ""),
       letter_pairs: Array.isArray(prompt.letter_pairs) ? prompt.letter_pairs : [],
-      question_text: "How many pairs show the same image?",
+      question_text: tr("How many pairs show the same image?"),
     };
   }
 
@@ -2458,7 +2481,7 @@ function normalizePlayerQuestion(item) {
       instruction: String(prompt.instruction || ""),
       spatial_stimulus: Array.isArray(prompt.stimulus) ? prompt.stimulus : [],
       option_visuals: Array.isArray(payload.option_visuals) ? payload.option_visuals : [],
-      question_text: String(prompt.question || "Choose the missing figure."),
+      question_text: String(prompt.question || tr("Choose the missing figure.")),
       reveal_mode: "question_only",
     };
   }
@@ -2467,7 +2490,7 @@ function normalizePlayerQuestion(item) {
     return {
       ...fromPayload,
       instruction: String(prompt.instruction || ""),
-      question_text: String(prompt.question || prompt.instruction || "Choose one answer."),
+      question_text: String(prompt.question || prompt.instruction || tr("Choose one answer.")),
       reveal_mode: "question_only",
     };
   }

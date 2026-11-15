@@ -1,25 +1,27 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static mm_i18n %}
 
 {% block content %}
 <section class="content-section section-detail-shell">
-    <a href="{% url 'pages:assessment-practice' assessment_slug %}" class="back-link section-detail-back">← Back to practice</a>
+    <a href="{% url 'pages:assessment-practice' assessment_slug %}" class="back-link section-detail-back">{% t "← Back to practice" %}</a>
+    {% include "partials/language_switch.html" %}
     <div class="section-detail-header">
         <div class="section-detail-heading-group">
-            <h1 class="section-title section-detail-title">{{ section.title|lower|capfirst }}</h1>
+            <h1 class="section-title section-detail-title">{% if ui_lang and ui_lang != "en" %}{{ section.title }}{% else %}{{ section.title|lower|capfirst }}{% endif %}</h1>
             <p class="section-copy section-detail-copy">{{ section.description }}</p>
         </div>
 
         {% if section.guide_url %}
             <div class="section-help-wrap">
                 <a href="{{ section.guide_url }}" class="section-help-button" data-show-loader>
-                    How this works <span aria-hidden="true">&#8594;</span>
+                    {% t "How this works" %} <span aria-hidden="true">&#8594;</span>
                 </a>
             </div>
         {% endif %}
     </div>
 
     {% if section.practice_previews %}
+        {% if player_i18n %}{{ player_i18n|json_script:"player-i18n" }}{% endif %}
         {{ section.practice_previews|json_script:"section-practice-question-data" }}
         <script id="section-test-question-data" type="application/json">[]</script>
         <section
@@ -39,10 +41,10 @@
             data-practice-progress-url="{% url 'practice-progress' %}"
         >
             <p class="section-inline-feedback" data-practice-save-status role="status" aria-live="polite"{% if request.user.is_authenticated %} hidden{% endif %}>
-                <span data-practice-save-message>You're practicing as a guest, so progress lasts only for this visit.</span>
-                <a data-practice-save-login href="{% url 'pages:login' %}?next={{ request.get_full_path|urlencode }}"{% if request.user.is_authenticated %} hidden{% endif %}>Sign in to save your progress</a>
+                <span data-practice-save-message>{% t "You're practicing as a guest, so progress lasts only for this visit." %}</span>
+                <a data-practice-save-login href="{% url 'pages:login' %}?next={{ request.get_full_path|urlencode }}"{% if request.user.is_authenticated %} hidden{% endif %}>{% t "Sign in to save your progress" %}</a>
             </p>
-            <div class="player-loader" data-player-loader hidden aria-live="polite" aria-label="Loading">
+            <div class="player-loader" data-player-loader hidden aria-live="polite" aria-label="{% t 'Loading' %}">
                 <div class="page-loader-dots" aria-hidden="true">
                     <span class="page-loader-dot"></span>
                     <span class="page-loader-dot"></span>
@@ -52,16 +54,16 @@
                 </div>
             </div>
             <article class="card section-mode-card">
-                <div class="section-mode-switch" role="tablist" aria-label="Mode switch">
-                    <button type="button" class="{% if section.mode == 'practice' %}button{% else %}button-secondary{% endif %} section-mode-pill" data-player-mode="practice">Practice mode</button>
-                    <button type="button" class="{% if section.mode == 'test' %}button{% else %}button-secondary{% endif %} section-mode-pill" data-player-mode="test">Test mode</button>
+                <div class="section-mode-switch" role="tablist" aria-label="{% t 'Mode switch' %}">
+                    <button type="button" class="{% if section.mode == 'practice' %}button{% else %}button-secondary{% endif %} section-mode-pill" data-player-mode="practice">{% t "Practice mode" %}</button>
+                    <button type="button" class="{% if section.mode == 'test' %}button{% else %}button-secondary{% endif %} section-mode-pill" data-player-mode="test">{% t "Test mode" %}</button>
                 </div>
                 <p
                     class="muted section-mode-copy"
-                    data-practice-copy="No timer. You'll see the answer and an explanation after each question."
-                    data-test-copy="Timed, like the real test. Opens fullscreen, and results are shown at the end."
+                    data-practice-copy="{% t "No timer. You'll see the answer and an explanation after each question." %}"
+                    data-test-copy="{% t "Timed, like the real test. Opens fullscreen, and results are shown at the end." %}"
                 >
-                    {% if section.mode == "test" %}Timed, like the real test. Opens fullscreen, and results are shown at the end.{% else %}No timer. You'll see the answer and an explanation after each question.{% endif %}
+                    {% if section.mode == "test" %}{% t "Timed, like the real test. Opens fullscreen, and results are shown at the end." %}{% else %}{% t "No timer. You'll see the answer and an explanation after each question." %}{% endif %}
                 </p>
             </article>
 
@@ -77,46 +79,46 @@
                     <span class="full-test-section-name">{{ section.title }}</span>
                 </div>
                 <div class="full-test-rail-progress section-player-rail-progress">
-                    <span class="full-test-phase-pill" data-test-rail-phase>{% if section.mode == "test" %}Test{% else %}Practice{% endif %}</span>
-                    <span class="full-test-progress-copy" data-test-progress>Question 1 of {{ section.practice_previews|length }}</span>
+                    <span class="full-test-phase-pill" data-test-rail-phase>{% if section.mode == "test" %}{% t "Test" %}{% else %}{% t "Practice" %}{% endif %}</span>
+                    <span class="full-test-progress-copy" data-test-progress>{% t "Question {n} of {total}" n=1 total=section.practice_previews|length %}</span>
                     <span class="full-test-progress-track" aria-hidden="true">
                         <span class="full-test-progress-fill" data-test-progress-fill style="width: {{ section.practice_progress_percent }}%;"></span>
                     </span>
                 </div>
                 <div class="full-test-topbar-actions section-player-topbar-actions">
-                    <button type="button" class="button-secondary button-small full-test-action section-end-test-button" data-test-end hidden>End test</button>
+                    <button type="button" class="button-secondary button-small full-test-action section-end-test-button" data-test-end hidden>{% t "End test" %}</button>
                 </div>
             </div>
 
             <div class="test-stage full-test-stage" data-test-stage="practice-intro" {% if section.mode == "test" %}hidden{% endif %}>
-                <p class="muted test-label">Practice mode</p>
-                <h3>Ready when you are</h3>
-                <p class="muted">We track your average time per question so you can compare your pace with the timed test.</p>
-                <button type="button" class="button" data-test-practice-start>Start practice</button>
+                <p class="muted test-label">{% t "Practice mode" %}</p>
+                <h3>{% t "Ready when you are" %}</h3>
+                <p class="muted">{% t "We track your average time per question so you can compare your pace with the timed test." %}</p>
+                <button type="button" class="button" data-test-practice-start>{% t "Start practice" %}</button>
             </div>
 
             <div class="test-stage full-test-stage" data-test-stage="test-intro" {% if section.mode != "test" %}hidden{% endif %}>
-                <p class="muted test-label">Test mode</p>
-                <h3>Enter fullscreen to begin</h3>
-                <p class="muted">The timer starts when the test opens fullscreen. You can't pause once it begins.</p>
-                <button type="button" class="button" data-test-fullscreen-start>Enter fullscreen and start</button>
+                <p class="muted test-label">{% t "Test mode" %}</p>
+                <h3>{% t "Enter fullscreen to begin" %}</h3>
+                <p class="muted">{% t "The timer starts when the test opens fullscreen. You can't pause once it begins." %}</p>
+                <button type="button" class="button" data-test-fullscreen-start>{% t "Enter fullscreen and start" %}</button>
             </div>
 
             <div class="test-stage full-test-stage" data-test-stage="context" hidden>
                 <div class="full-test-stage-stack">
                     <div class="full-test-stage-meta">
-                        <p class="muted test-label">Context</p>
+                        <p class="muted test-label">{% t "Context" %}</p>
                         <p class="test-timer full-test-timer-pill" data-test-timer></p>
                     </div>
                     <div class="test-context test-context-large test-shell section-question-shell section-stage-box full-test-stage-shell full-test-context-shell" data-test-context></div>
-                    <button type="button" class="button reveal-question-button full-test-stage-helper" data-test-context-helper>Show question <kbd aria-hidden="true">Enter</kbd></button>
+                    <button type="button" class="button reveal-question-button full-test-stage-helper" data-test-context-helper>{% t "Show question" %} <kbd aria-hidden="true">Enter</kbd></button>
                 </div>
             </div>
 
             <div class="test-stage full-test-stage" data-test-stage="question" hidden>
                 <div class="full-test-stage-stack">
                     <div class="full-test-stage-meta">
-                        <p class="muted test-label">Question</p>
+                        <p class="muted test-label">{% t "Question" %}</p>
                         <p class="test-timer full-test-timer-pill" data-test-timer></p>
                     </div>
                     <div class="test-context test-context-large test-shell section-question-shell section-stage-box full-test-stage-shell full-test-question-shell">
@@ -128,23 +130,23 @@
             </div>
 
             <div class="test-stage" data-test-stage="complete" hidden>
-                <p class="muted test-label">Section complete</p>
-                <h3>You have reached the end of this question set.</h3>
-                <p class="muted" data-complete-summary>Refresh the page to practice this section again.</p>
+                <p class="muted test-label">{% t "Section complete" %}</p>
+                <h3>{% t "You have reached the end of this question set." %}</h3>
+                <p class="muted" data-complete-summary>{% t "Refresh the page to practice this section again." %}</p>
             </div>
 
             <div class="test-stage" data-test-stage="loading" hidden>
-                <p class="muted test-label">Leaving test mode</p>
-                <h3>Saving your progress and returning to practice...</h3>
-                <p class="muted">Please wait a moment.</p>
+                <p class="muted test-label">{% t "Leaving test mode" %}</p>
+                <h3>{% t "Saving your progress and returning to practice..." %}</h3>
+                <p class="muted">{% t "Please wait a moment." %}</p>
             </div>
         </section>
     {% else %}
         <article class="card">
             {% if section.practice_access_exhausted %}
-                <h3>Free practice complete</h3>
-                <p>You have completed all {{ section.practice_question_total }} free questions for this module. Upgrade to continue practising.</p>
-                <a class="button" href="{% url 'pages:pricing' %}">View plans</a>
+                <h3>{% t "Free practice complete" %}</h3>
+                <p>{% t "You have completed all {n} free questions for this module. Upgrade to continue practising." n=section.practice_question_total %}</p>
+                <a class="button" href="{% url 'pages:pricing' %}">{% t "View plans" %}</a>
             {% else %}
                 <h3>No questions yet</h3>
                 <p>Generate and export questions to see the test player here.</p>
