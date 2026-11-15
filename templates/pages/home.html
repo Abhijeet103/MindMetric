@@ -1,135 +1,130 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block nav_cta %}{% endblock %}
+
 {% block content %}
 <div class="landing">
     <section class="landing-hero" aria-labelledby="landing-title">
         <div class="landing-hero-copy">
-            <span class="eyebrow">Aptitude test practice for internships and grad jobs</span>
-            <h1 id="landing-title" data-type-on>Pass the test that decides if your CV gets read.</h1>
-            <p class="landing-lede">Many large employers filter applicants with a timed aptitude test first. Practise the exact formats free, with worked answers.</p>
+            <h1 id="landing-title" data-type-on>From invite to interview.</h1>
+            <p class="landing-lede">Free timed practice for CCAT, SHL, Thomas GIA and more.</p>
 
             <form class="landing-finder" action="{% url 'pages:company-lookup' %}" method="get" role="search" data-landing-finder>
-                <label class="landing-finder-label" for="landing-finder-input">Which test, or which company?</label>
+                <label class="visually-hidden" for="landing-finder-input">Your test or the company that invited you</label>
                 <div class="landing-finder-anchor">
                 <div class="landing-finder-field">
                     <svg class="landing-finder-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                     <input id="landing-finder-input" name="q" type="search" autocomplete="off" spellcheck="false"
-                           placeholder="e.g. CCAT, SHL, Watson–Glaser or a company"
+                           placeholder="Test or company name"
                            role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="landing-finder-list">
                     <button type="submit" class="button landing-finder-go">Find my test</button>
                 </div>
                 <ul class="landing-finder-list" id="landing-finder-list" role="listbox" aria-label="Matching tests and companies" hidden></ul>
                 </div>
-                <p class="landing-quick">
-                    <span class="landing-quick-label">Popular:</span>
-                    {% for test in home_tests|slice:":3" %}<a href="{{ test.url }}" data-show-loader>{{ test.label }}</a>{% endfor %}
-                    <a class="landing-quick-all" href="{% url 'pages:practice' %}" data-show-loader>All {{ home_tests|length }} tests →</a>
-                </p>
                 {{ home_finder|json_script:"landing-finder-data" }}
             </form>
+            <p class="landing-trust-line">Free to start. Never auto-renews.</p>
 
-            <p class="landing-trust-line">Free to start, no card · Membership never auto-renews</p>
+            {% if home_tests %}
+            <nav class="landing-tests" aria-labelledby="landing-tests-label">
+                <span class="landing-tests-label" id="landing-tests-label">Or pick your test</span>
+                <ul class="landing-tests-list">
+                    {% for test in home_tests %}<li><a class="landing-pick" href="{{ test.url }}" data-show-loader>{{ test.label }}</a></li>{% endfor %}
+                    <li><a class="landing-tests-all" href="{% url 'pages:practice' %}" data-show-loader>All {{ home_tests|length }} tests →</a></li>
+                </ul>
+            </nav>
+            {% endif %}
         </div>
 
-        <figure class="landing-demo" data-landing-demo aria-label="Example of a timed reasoning question being answered">
-            <div class="landing-demo-top">
-                <div class="landing-demo-progress">
-                    <span class="landing-demo-module">Reasoning · Q <span class="mono" data-demo-qn>07</span> / 10</span>
-                    <span class="landing-demo-segs" data-demo-segs aria-hidden="true">
-                        <i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-now"></i><i></i><i></i><i></i>
-                    </span>
+        <section class="landing-sample" data-landing-sample aria-labelledby="landing-sample-label">
+            <span class="landing-sample-label" id="landing-sample-label">Reasoning · Try a sample question</span>
+            <div class="landing-sample-stage">
+                <p class="landing-sample-premise">Mia is taller than Ava.</p>
+                <p class="landing-sample-question">Who is shorter?</p>
+            </div>
+            <div class="landing-sample-options" role="group" aria-label="Answers">
+                <button type="button" class="landing-sample-option" data-sample-option="wrong">Mia</button>
+                <button type="button" class="landing-sample-option" data-sample-option="right">Ava</button>
+            </div>
+            <div class="landing-sample-result" aria-live="polite">
+                <div data-sample-result="right" hidden>
+                    <p class="landing-sample-feedback is-right" tabindex="-1">Correct. Now try it against the clock.</p>
+                    <a class="button" href="{{ sample_practice_url }}" data-show-loader>{% if sample_free_count %}Try {{ sample_free_count }} more like this →{% else %}Practice more like this →{% endif %}</a>
                 </div>
-                <span class="landing-demo-ring" data-demo-ring aria-hidden="true">
-                    <svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="18"/><circle class="bar" data-demo-ringbar cx="22" cy="22" r="18"/></svg>
-                    <b class="mono" data-demo-secs>12</b>
-                </span>
+                <div data-sample-result="wrong" hidden>
+                    <p class="landing-sample-feedback is-wrong" tabindex="-1">Not quite. Ava is shorter.</p>
+                    <div class="landing-sample-actions">
+                        <button type="button" class="button-secondary" data-sample-reset>Try again</button>
+                        <a class="landing-sample-link" href="{{ sample_practice_url }}" data-show-loader>{% if sample_free_count %}Practice {{ sample_free_count }} more →{% else %}Practice more →{% endif %}</a>
+                    </div>
+                </div>
             </div>
-            <div class="landing-demo-stage"><p data-demo-stage>Who is heavier?</p></div>
-            <div class="landing-demo-options">
-                <span class="landing-demo-option" data-demo-opt="0">Leo</span>
-                <span class="landing-demo-option is-right" data-demo-opt="1">Henry</span>
-            </div>
-            <figcaption class="landing-demo-foot">
-                <span class="landing-demo-feedback is-on" data-demo-feedback>✓ Correct · 4.2s</span>
-                <button type="button" class="landing-demo-toggle" data-demo-toggle hidden>Pause</button>
-            </figcaption>
-        </figure>
+        </section>
     </section>
 
     <section class="landing-section" aria-labelledby="landing-steps-title" data-reveal>
         <div class="landing-section-head">
-            <span class="eyebrow">How it works</span>
-            <h2 id="landing-steps-title">You got the assessment invite. Here's your week.</h2>
+            <h2 id="landing-steps-title">One week. Three steps.</h2>
         </div>
         <ol class="landing-steps">
-            <li>
-                <span class="landing-step-num mono">1</span>
-                <h3>Find your test</h3>
-                <p>Pick the test named in your invite. Each one has the same sections, timing and question styles you'll see on the day.</p>
-            </li>
-            <li>
-                <span class="landing-step-num mono">2</span>
-                <h3>Drill your weakest section</h3>
-                <p>Untimed practice shows the answer and explanation after every question, so you learn the trick behind each format.</p>
-            </li>
-            <li>
-                <span class="landing-step-num mono">3</span>
-                <h3>Run a timed simulation</h3>
-                <p>Take a full test under real time pressure and get a score for every section, so you know what to fix before the real thing.</p>
-            </li>
+            <li><span class="landing-step-num mono">Day 1</span><h3>Find your test</h3></li>
+            <li><span class="landing-step-num mono">Days 2 to 5</span><h3>Drill your weakest section</h3></li>
+            <li><span class="landing-step-num mono">Days 6 and 7</span><h3>Run a timed simulation</h3></li>
         </ol>
     </section>
 
-    <section class="landing-section" aria-labelledby="landing-why-title" data-reveal>
+    <section class="landing-section" id="pricing" aria-labelledby="landing-pricing-title" data-reveal>
         <div class="landing-section-head">
-            <span class="eyebrow">Why MindMetric</span>
-            <h2 id="landing-why-title">One place for every test in your applications</h2>
-            <p class="landing-section-copy">Students apply to dozens of companies in one season, and each can use a different test. Most prep sites sell one test at a time. MindMetric covers the common ones under one membership.</p>
+            <h2 id="landing-pricing-title">Pay once. No renewal.</h2>
         </div>
-        <div class="landing-pillars">
-            <article>
-                <h3>Every common screening test</h3>
-                <p>CCAT, SHL-style reasoning, Watson–Glaser-style critical thinking, consulting problem solving and Thomas GIA.</p>
+        <div class="landing-plans">
+            <article class="landing-plan">
+                <span class="landing-plan-name">Free</span>
+                <strong class="landing-plan-price mono">{{ free_price_display }}</strong>
+                <p>Practice questions in every module, plus one timed test with a free account.</p>
+                <a href="{% url 'pages:practice' %}" class="button-secondary" data-show-loader>Start free</a>
             </article>
-            <article>
-                <h3>Feels like the real round</h3>
-                <p>Timed full tests in a distraction-free player, with a visible countdown and the same question formats.</p>
+            {% for plan in home_plans %}
+            <article class="landing-plan is-featured">
+                <span class="landing-plan-name">One-month pass</span>
+                <div class="landing-plan-price-row">
+                    {% if plan.has_discount %}<s class="landing-plan-regular mono">{{ plan.regular_price_display }}</s>{% endif %}
+                    <strong class="landing-plan-price mono">{{ plan.price_display }}</strong>
+                </div>
+                <p>Every test, every module and unlimited timed simulations for one month. Ends on its own.</p>
+                <a href="{% url 'pages:pricing' %}" class="button" data-show-loader>{% if plan.is_current %}Your current plan{% else %}Get the pass{% endif %}</a>
             </article>
-            <article>
-                <h3>Learn why, not just what</h3>
-                <p>Every practice question comes with a worked explanation, and your average pace is tracked against the real time limits.</p>
-            </article>
+            {% endfor %}
         </div>
     </section>
 
     <section class="landing-section landing-faq" aria-labelledby="landing-faq-title" data-reveal>
         <div class="landing-section-head">
-            <span class="eyebrow">Questions</span>
             <h2 id="landing-faq-title">Before you start</h2>
         </div>
         <div class="landing-faq-list">
             <details>
                 <summary>Are these the real tests?</summary>
-                <p>No. MindMetric is independent and is not affiliated with any test publisher or employer. Our questions are original and written to match the published format and timing of each test.</p>
+                <p>No. Original questions in the same format and timing. MindMetric is independent of every test publisher and employer.</p>
             </details>
             <details>
                 <summary>How much time do I need?</summary>
-                <p>Most online assessments arrive with a deadline of about a week. A focused hour a day is enough to learn the formats and run a couple of timed simulations. A single module drill takes about five minutes.</p>
+                <p>About an hour a day for a week.</p>
             </details>
             <details>
                 <summary>What's free?</summary>
-                <p>Every module has free practice questions you can try without an account. Create a free account to take a timed full test and save your progress. No card needed.</p>
+                <p>Practice questions, plus one timed test with a free account.</p>
             </details>
             <details>
-                <summary>Does the membership renew?</summary>
-                <p>No. A membership gives you one month of full access to every test and then ends on its own. There's nothing to cancel.</p>
+                <summary>Does the pass renew?</summary>
+                <p>No. It ends on its own.</p>
             </details>
         </div>
     </section>
 
     <section class="landing-cta" aria-labelledby="landing-cta-title" data-reveal>
-        <h2 id="landing-cta-title">Your first round starts with five minutes.</h2>
+        <h2 id="landing-cta-title">Start with five minutes.</h2>
         <a href="{% url 'pages:practice' %}" class="button" data-show-loader>Start practicing free</a>
     </section>
 </div>
@@ -137,6 +132,6 @@
 
 {% block extra_scripts %}
 <script src="{% static 'js/landing-motion.js' %}"></script>
-<script src="{% static 'js/landing-demo.js' %}" defer></script>
+<script src="{% static 'js/landing-sample.js' %}" defer></script>
 <script src="{% static 'js/landing-finder.js' %}" defer></script>
 {% endblock %}

@@ -152,6 +152,24 @@ def _visible_frontend_plans(request, active_subscription):
     return [plan for plan in plans if plan["code"] == "monthly"]
 
 
+def _free_price_display(request) -> str:
+    # A free allowance follows the visitor's regional currency even if an
+    # administrator intentionally lists a paid plan in another currency.
+    country = get_request_country_code(request)
+    region = pricing_region_for_country(country)
+    regional_currency = "CHF" if country == "CH" else {"IN": "INR", "GB": "GBP", "EU": "EUR"}.get(region, BillingCurrency.USD)
+    return format_money(regional_currency, Decimal("0")).removesuffix(".00")
+
+
+def _home_sample_practice(request, home_tests):
+    """Where the homepage sample question sends people, and how many free questions wait there."""
+    if any(test["key"] == ASSESSMENT_PREPGIA for test in home_tests):
+        limit = get_module_free_tier_limits(_current_tenant(request), ASSESSMENT_PREPGIA, SectionType.REASONING.value)
+        url = reverse("pages:assessment-section-detail", args=[ASSESSMENT_PREPGIA, SectionType.REASONING.value])
+        return url, max(limit.practice_question_limit, 0)
+    return reverse("pages:practice"), 0
+
+
 def _contact_sales_open_url(request) -> str:
     return f"{request.path}?contact_sales=open"
 
@@ -330,22 +348,26 @@ class HomePageView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        prepgia_config = get_assessment_config(ASSESSMENT_PREPGIA)
-        all_questions = get_questions()
+        home_tests = _home_test_picker(self.request)
+        active_subscription = None
+        if self.request.user.is_authenticated:
+            active_subscription = self.request.user.subscriptions.filter(status="active").order_by("-updated_at").first()
+        sample_url, sample_free_count = _home_sample_practice(self.request, home_tests)
+        home_plans = _visible_frontend_plans(self.request, active_subscription)
         context.update(
             {
                 "page_title": "Aptitude Test Practice for Internships & Grad Jobs: CCAT, SHL | MindMetric",
                 "meta_description": (
-                    "Pass the test that decides if your CV gets read. Free timed practice for the "
-                    "aptitude tests employers use to screen internship and graduate applicants: "
-                    "CCAT, SHL-style, Watson-Glaser-style, consulting and Thomas GIA."
+                    "From invite to interview. Free timed practice for the online assessments "
+                    "employers use to screen internship and new-grad applicants: CCAT, "
+                    "SHL-style, Watson-Glaser-style, consulting and Thomas GIA."
                 ),
-                "question_count": len(all_questions),
-                "sections": _section_cards(ASSESSMENT_PREPGIA),
-                "home_assessments": get_assessment_cards(),
-                "home_tests": _home_test_picker(self.request),
+                "home_tests": home_tests,
                 "home_finder": _home_finder_data(self.request),
-                "home_eyebrow": prepgia_config["eyebrow"],
+                "home_plans": home_plans,
+                "free_price_display": _free_price_display(self.request),
+                "sample_practice_url": sample_url,
+                "sample_free_count": sample_free_count,
             }
         )
         return context
@@ -428,12 +450,7 @@ class PricingPageView(TemplateView):
             sync_user_subscription_access(self.request.user)
             active_subscription = self.request.user.subscriptions.filter(status="active").order_by("-updated_at").first()
         plans = _visible_frontend_plans(self.request, active_subscription)
-        country = get_request_country_code(self.request)
-        region = pricing_region_for_country(country)
-        # A free allowance follows the visitor's regional currency even if an
-        # administrator intentionally lists a paid plan in another currency.
-        regional_currency = "CHF" if country == "CH" else {"IN": "INR", "GB": "GBP", "EU": "EUR"}.get(region, BillingCurrency.USD)
-        free_price_display = format_money(regional_currency, Decimal("0")).removesuffix(".00")
+        free_price_display = _free_price_display(self.request)
         context.update(
             {
                 "page_title": "Psychometric Test Practice Plans & Pricing | MindMetric",

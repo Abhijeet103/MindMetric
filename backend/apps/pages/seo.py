@@ -201,7 +201,7 @@ def seo_context(request):
                 "url": f"{site_url}/",
                 "applicationCategory": "EducationalApplication",
                 "operatingSystem": "Web",
-                "description": "Cognitive and psychometric test practice with module drills and full mock tests.",
+                "description": "Timed practice for the online assessments employers use to screen internship and new-grad applicants.",
                 "offers": {
                     "@type": "Offer",
                     "price": "0",

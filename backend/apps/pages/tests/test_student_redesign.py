@@ -19,12 +19,32 @@ def make_user(email="student@example.com"):
 class HomePageTests(TestCase):
     def test_home_leads_with_student_positioning_and_live_test_picker(self):
         response = self.client.get(reverse("pages:home"))
-        self.assertContains(response, "Pass the test that decides if your CV gets read.")
+        self.assertContains(response, "From invite to interview.")
         self.assertContains(response, reverse("pages:assessment-practice", args=["ccat"]))
         self.assertContains(response, reverse("pages:company-lookup"))
         picker = response.context["home_tests"]
         self.assertEqual(picker[0]["key"], "ccat")
         self.assertTrue(all(item["url"] for item in picker))
+        self.assertContains(response, f"All {len(picker)} tests")
+        # The homepage drops the nav "Start free" button; other pages keep it.
+        self.assertNotContains(response, 'class="nav-cta"')
+        self.assertContains(self.client.get(reverse("pages:pricing")), 'class="nav-cta"')
+
+    def test_sample_question_links_to_free_practice_with_real_limit(self):
+        response = self.client.get(reverse("pages:home"))
+        url = response.context["sample_practice_url"]
+        count = response.context["sample_free_count"]
+        self.assertContains(response, f'href="{url}"')
+        if count:
+            self.assertContains(response, f"Try {count} more like this")
+        # The free practice page it points to must open without signing in.
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_pricing_section_uses_configured_plans(self):
+        response = self.client.get(reverse("pages:home"))
+        self.assertContains(response, 'id="pricing"')
+        for plan in response.context["home_plans"]:
+            self.assertContains(response, plan["price_display"])
 
 
 class ResultsPageTests(TestCase):
