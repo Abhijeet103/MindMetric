@@ -1,11 +1,11 @@
-"""German and Spanish content for the Thomas GIA-style generators.
+"""German, Spanish and French content for the Thomas GIA-style generators.
 
 English stays in prepgia/generators.py. Everything here is original wording;
 the languages are released as Beta pending native review.
 """
 from __future__ import annotations
 
-GIA_LANGUAGES = ("en", "de", "es")
+GIA_LANGUAGES = ("en", "de", "es", "fr")
 
 # ---------------------------------------------------------------- German
 # German predicate comparatives do not inflect, so one form per trait works for
@@ -90,6 +90,65 @@ ES_QUESTION_TEMPLATES = {
 }
 ES_REASONING_EXPLANATION = "{greater} es {greater_word} que {lesser}; por lo tanto, la respuesta es {answer}."
 
+# ---------------------------------------------------------------- French
+# French adjectives agree with the subject like Spanish ones, so both people in
+# a question share a gender and every form is (masculine, feminine). Every name
+# starts with a consonant so "que {second}" never needs elision (qu').
+FR_NAMES = {
+    "m": ["Louis", "Gabriel", "Jules", "Baptiste", "Lucas", "Raphaël", "Paul", "Nathan", "Victor", "Thomas",
+          "Martin", "Simon", "Bastien", "Damien", "Julien", "Mathis", "Noé", "Romain"],
+    "f": ["Camille", "Louise", "Jade", "Chloé", "Manon", "Léa", "Margaux", "Juliette", "Sarah", "Pauline",
+          "Céline", "Zoé", "Lucie", "Mathilde", "Nina", "Romane", "Victoire", "Coralie"],
+}
+
+
+def _fr(masculine: str, feminine: str | None = None) -> tuple[str, str]:
+    return masculine, feminine or masculine
+
+
+def _fr_trait(greater_m, greater_f, lesser_m=None, lesser_f=None):
+    """(greater comparative, lesser comparative, greater base, lesser base).
+
+    Without a lesser adjective the lesser comparative is "moins ..." and there
+    is no lesser base, so the "n'est pas aussi {lesser_base}" form is skipped.
+    """
+    if lesser_m is None:
+        return (_fr(f"plus {greater_m}", f"plus {greater_f}"), _fr(f"moins {greater_m}", f"moins {greater_f}"),
+                _fr(greater_m, greater_f), None)
+    return (_fr(f"plus {greater_m}", f"plus {greater_f}"), _fr(f"plus {lesser_m}", f"plus {lesser_f}"),
+            _fr(greater_m, greater_f), _fr(lesser_m, lesser_f))
+
+
+FR_TRAITS = [
+    _fr_trait("grand", "grande", "petit", "petite"),
+    _fr_trait("lourd", "lourde", "léger", "légère"),
+    _fr_trait("fort", "forte", "faible", "faible"),
+    _fr_trait("rapide", "rapide", "lent", "lente"),
+    _fr_trait("âgé", "âgée", "jeune", "jeune"),
+    _fr_trait("heureux", "heureuse", "triste", "triste"),
+    _fr_trait("riche", "riche", "pauvre", "pauvre"),
+    _fr_trait("bruyant", "bruyante", "silencieux", "silencieuse"),
+    _fr_trait("courageux", "courageuse", "peureux", "peureuse"),
+    _fr_trait("patient", "patiente", "impatient", "impatiente"),
+    _fr_trait("prudent", "prudente", "imprudent", "imprudente"),
+    _fr_trait("travailleur", "travailleuse", "paresseux", "paresseuse"),
+    _fr_trait("aimable", "aimable"),
+    _fr_trait("fiable", "fiable"),
+    _fr_trait("créatif", "créative"),
+    _fr_trait("généreux", "généreuse"),
+]
+FR_COMPARISON_TEMPLATES = [
+    ("{first} est {greater} que {second}.", "greater"),
+    ("{first} est {lesser} que {second}.", "lesser"),
+    ("{first} n'est pas aussi {greater_base} que {second}.", "lesser"),
+    ("{first} n'est pas aussi {lesser_base} que {second}.", "greater"),
+]
+FR_QUESTION_TEMPLATES = {
+    "m": ["Qui est {comparative} ?", "Lequel des deux est {comparative} ?"],
+    "f": ["Qui est {comparative} ?", "Laquelle des deux est {comparative} ?"],
+}
+FR_REASONING_EXPLANATION = "{greater} est {greater_word} que {lesser} ; la réponse est donc {answer}."
+
 # ------------------------------------------------- other sections, by language
 PERCEPTUAL_INSTRUCTIONS = {
     "de": [
@@ -102,11 +161,17 @@ PERCEPTUAL_INSTRUCTIONS = {
         "Cuente los pares cuyas letras coinciden salvo por las mayúsculas y minúsculas.",
         "¿Cuántos pares contienen la misma letra en mayúscula y en minúscula?",
     ],
+    "fr": [
+        "Combien de paires montrent la même lettre, une fois en majuscule et une fois en minuscule ?",
+        "Comptez les paires dont les lettres sont identiques, majuscules et minuscules mises à part.",
+        "Combien de paires contiennent la même lettre en majuscule et en minuscule ?",
+    ],
 }
 # (matches listed, no matches, one match, several matches)
 PERCEPTUAL_EXPLANATION = {
     "de": ("Übereinstimmende Paare: {pairs}.", "Kein Paar stimmt überein.", " Das ist 1 Übereinstimmung.", " Das sind {count} Übereinstimmungen."),
     "es": ("Pares que coinciden: {pairs}.", "Ningún par coincide.", " Hay 1 coincidencia.", " Hay {count} coincidencias."),
+    "fr": ("Paires identiques : {pairs}.", "Aucune paire n'est identique.", " Cela fait 1 correspondance.", " Cela fait {count} correspondances."),
 }
 
 
@@ -118,10 +183,12 @@ def perceptual_explanation(language: str, matching: str, count: int) -> str:
 NUMBER_INSTRUCTION = {
     "de": "Welche Zahl ist am weitesten vom mittleren Wert entfernt?",
     "es": "¿Qué número está más lejos del valor intermedio?",
+    "fr": "Quel nombre est le plus éloigné de la valeur du milieu ?",
 }
 NUMBER_EXPLANATION = {
     "de": "Der Größe nach: {a}, {b}, {c}. Die Abstände betragen {low} und {high}; {answer} liegt weiter von {b} entfernt.",
     "es": "En orden: {a}, {b}, {c}. Las diferencias son {low} y {high}; {answer} está más lejos de {b}.",
+    "fr": "Dans l'ordre : {a}, {b}, {c}. Les écarts sont de {low} et {high} ; {answer} est le plus éloigné de {b}.",
 }
 WORD_MEANING_INSTRUCTIONS = {
     "de": [
@@ -134,22 +201,31 @@ WORD_MEANING_INSTRUCTIONS = {
         "Elija la palabra que no pertenece al grupo.",
         "¿Qué palabra es la que sobra?",
     ],
+    "fr": [
+        "Quel mot ne va pas avec les deux autres ?",
+        "Choisissez le mot qui n'appartient pas au groupe.",
+        "Quel est l'intrus ?",
+    ],
 }
 WORD_MEANING_ODD_SUFFIX = {
     "de": "; „{odd}“ passt nicht dazu.",
     "es": "; «{odd}» no comparte ese significado.",
+    "fr": " ; « {odd} » n'a pas ce sens.",
 }
 SPATIAL_INSTRUCTION = {
     "de": "Wie viele Paare zeigen dasselbe Bild?",
     "es": "¿Cuántos pares muestran la misma imagen?",
+    "fr": "Combien de paires montrent la même image ?",
 }
 SPATIAL_PAIR_EXPLANATION = {
     "de": ("Paar {n} ist dasselbe Bild, nur gedreht.", "Paar {n} ist ein gedrehtes Spiegelbild."),
     "es": ("El par {n} es la misma imagen, solo girada.", "El par {n} es una imagen especular girada."),
+    "fr": ("La paire {n} montre la même image, simplement tournée.", "La paire {n} montre une image tournée et inversée en miroir."),
 }
 SPATIAL_TOTAL = {
     "de": " Übereinstimmende Paare insgesamt: {count}.",
     "es": " Total de pares que coinciden: {count}.",
+    "fr": " Nombre total de paires identiques : {count}.",
 }
 
 

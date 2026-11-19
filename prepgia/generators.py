@@ -241,6 +241,8 @@ class ReasoningGenerator(BaseQuestionGenerator):
             return self._generate_german(difficulty, seed)
         if language == "es":
             return self._generate_spanish(difficulty, seed)
+        if language == "fr":
+            return self._generate_french(difficulty, seed)
         rng = self.rng(seed)
         names = rng.sample(NAMES, 2)
         greater_word, lesser_word, greater_base, lesser_base = rng.choice(COMPARATIVE_TRAITS)
@@ -320,13 +322,27 @@ class ReasoningGenerator(BaseQuestionGenerator):
         return GeneratedQuestion(self.section_type, difficulty, seed, payload, {"answer": answer})
 
     def _generate_spanish(self, difficulty: str, seed: str) -> GeneratedQuestion:
+        return self._generate_gendered(
+            difficulty, seed, "es", gl.ES_NAMES, gl.ES_TRAITS, gl.ES_COMPARISON_TEMPLATES, "no es tan",
+            gl.ES_QUESTION_TEMPLATES, gl.ES_REASONING_EXPLANATION,
+        )
+
+    def _generate_french(self, difficulty: str, seed: str) -> GeneratedQuestion:
+        return self._generate_gendered(
+            difficulty, seed, "fr", gl.FR_NAMES, gl.FR_TRAITS, gl.FR_COMPARISON_TEMPLATES, "n'est pas aussi",
+            gl.FR_QUESTION_TEMPLATES, gl.FR_REASONING_EXPLANATION,
+        )
+
+    def _generate_gendered(self, difficulty, seed, language, all_names, all_traits, comparison_templates,
+                           negation, question_templates, explanation_template) -> GeneratedQuestion:
+        """Spanish and French: adjectives agree, so both people share a gender."""
         rng = self.rng(seed)
         gender = rng.choice(["m", "f"])
         g = 0 if gender == "m" else 1
-        names = rng.sample(gl.ES_NAMES[gender], 2)
-        traits = [trait for trait in gl.ES_TRAITS if difficulty != "hard" or trait[2] is not None]
+        names = rng.sample(all_names[gender], 2)
+        traits = [trait for trait in all_traits if difficulty != "hard" or trait[2] is not None]
         greater_comp, lesser_comp, greater_base, lesser_base = rng.choice(traits)
-        templates = _difficulty_templates(gl.ES_COMPARISON_TEMPLATES, difficulty, "no es tan")
+        templates = _difficulty_templates(comparison_templates, difficulty, negation)
         templates = [
             (t, r) for t, r in templates
             if (greater_base is not None or "{greater_base}" not in t) and (lesser_base is not None or "{lesser_base}" not in t)
@@ -340,12 +356,12 @@ class ReasoningGenerator(BaseQuestionGenerator):
         )
         ask_for_greater = rng.choice([True, False])
         answer = greater if ask_for_greater else lesser
-        question = rng.choice(gl.ES_QUESTION_TEMPLATES[gender]).format(
+        question = rng.choice(question_templates[gender]).format(
             comparative=greater_comp[g] if ask_for_greater else lesser_comp[g]
         )
-        explanation = gl.ES_REASONING_EXPLANATION.format(greater=greater, greater_word=greater_comp[g], lesser=lesser, answer=answer)
+        explanation = explanation_template.format(greater=greater, greater_word=greater_comp[g], lesser=lesser, answer=answer)
         trait = greater_base[0] if greater_base else greater_comp[0]
-        payload = self._payload(statement, question, explanation, names, difficulty, trait, template, "es")
+        payload = self._payload(statement, question, explanation, names, difficulty, trait, template, language)
         return GeneratedQuestion(self.section_type, difficulty, seed, payload, {"answer": answer})
 
 
@@ -1451,7 +1467,7 @@ GENERATOR_MAP.update(
 )
 
 
-# Sections that can be generated in German and Spanish (Thomas GIA).
+# Sections that can be generated in German, Spanish and French (Thomas GIA).
 LOCALIZED_SECTION_TYPES = frozenset(
     {"reasoning", "perceptual_speed", "number_speed_accuracy", "word_meaning", "spatial_visualization"}
 )

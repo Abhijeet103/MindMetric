@@ -17,8 +17,8 @@ GIA_SECTIONS = sorted(LOCALIZED_SECTION_TYPES)
 
 
 class GiaGeneratorLanguageTests(TestCase):
-    def test_every_section_generates_in_german_and_spanish(self):
-        for language in ("de", "es"):
+    def test_every_section_generates_in_german_spanish_and_french(self):
+        for language in ("de", "es", "fr"):
             for section in GIA_SECTIONS:
                 for difficulty in ("easy", "medium", "hard"):
                     with self.subTest(language=language, section=section, difficulty=difficulty):
@@ -58,8 +58,26 @@ class GiaGeneratorLanguageTests(TestCase):
             if in_female and "Cuál" in question_text:
                 self.assertIn("de las dos", question_text)
 
+    def test_french_reasoning_agrees_and_never_needs_elision(self):
+        for i in range(200):
+            question = generate_question("reasoning", ["easy", "medium", "hard"][i % 3], f"fr-{i}", language="fr")
+            names = question.payload["options"]
+            in_male = all(name in gl.FR_NAMES["m"] for name in names)
+            in_female = all(name in gl.FR_NAMES["f"] for name in names)
+            self.assertTrue(in_male or in_female, names)
+            statement = question.payload["prompt"]["statements"][0]
+            self.assertTrue((" est " in statement or " n'est pas aussi " in statement) and " que " in statement, statement)
+            self.assertNotIn("  ", statement)
+            question_text = question.payload["prompt"]["question"]
+            self.assertTrue(question_text.endswith(" ?"), question_text)
+            if in_female:
+                self.assertNotIn("Lequel", question_text)
+            self.assertTrue(question.payload["prompt"]["explanation"].endswith(f"{question.correct_answer['answer']}."))
+        for name in gl.FR_NAMES["m"] + gl.FR_NAMES["f"]:
+            self.assertNotIn(name[0].lower(), "aeiouyhéèêâîôû", name)
+
     def test_word_meaning_uses_the_language_bank(self):
-        for language in ("de", "es"):
+        for language in ("de", "es", "fr"):
             self.assertGreater(WordMeaningItem.objects.filter(language=language, is_active=True).count(), 300)
             question = generate_question("word_meaning", "medium", f"wm-{language}", language=language)
             item = WordMeaningItem.objects.get(pk=question.payload["metadata"]["source_item_id"])
@@ -71,6 +89,7 @@ class GiaGeneratorLanguageTests(TestCase):
 class GiaTranslationTableTests(TestCase):
     def test_both_languages_cover_the_same_strings(self):
         self.assertEqual(set(TRANSLATIONS["de"]), set(TRANSLATIONS["es"]))
+        self.assertEqual(set(TRANSLATIONS["de"]), set(TRANSLATIONS["fr"]))
 
     def test_placeholders_survive_translation(self):
         import re
@@ -85,7 +104,7 @@ class GiaTranslationTableTests(TestCase):
 
         config = ASSESSMENT_CONFIG["prepgia"]
         for module in config["modules"]:
-            for language in ("de", "es"):
+            for language in ("de", "es", "fr"):
                 localized = localize(module, language)
                 for key in ("title", "description", "instruction"):
                     self.assertNotEqual(localized[key], module[key], (language, module["key"], key))
@@ -151,6 +170,13 @@ class GiaLanguagePageTests(TestCase):
             from backend.apps.assessments.models import Attempt
 
             self.assertEqual(services.attempt_language(Attempt.objects.get(pk=attempt_id)), "es")
+
+    def test_practice_page_switches_to_french(self):
+        response = self.client.get(reverse("pages:assessment-practice", args=["prepgia"]), {"lang": "fr"})
+        self.assertContains(response, "Commencer le test complet")
+        self.assertContains(response, "Sens des mots")
+        self.assertContains(response, "Français")
+        self.assertContains(response, '<html lang="fr">', html=False)
 
     def test_practice_page_full_test_summary_is_translated(self):
         response = self.client.get(reverse("pages:assessment-practice", args=["prepgia"]), {"lang": "de"})

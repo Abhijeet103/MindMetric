@@ -1,4 +1,4 @@
-"""Interface translations for the Thomas GIA practice in German and Spanish.
+"""Interface translations for the Thomas GIA practice in German, Spanish and French.
 
 The English text is the key and the fallback, so English pages render exactly
 as before. Only Thomas GIA is localized; every other test stays English.
@@ -9,8 +9,8 @@ from __future__ import annotations
 import copy
 import re
 
-LANGUAGES = {"en": "English", "de": "Deutsch", "es": "Español"}
-BETA_LANGUAGES = frozenset({"de", "es"})
+LANGUAGES = {"en": "English", "de": "Deutsch", "es": "Español", "fr": "Français"}
+BETA_LANGUAGES = frozenset({"de", "es", "fr"})
 LOCALIZED_ASSESSMENTS = frozenset({"prepgia"})
 SESSION_KEY = "gia_language"
 
@@ -572,7 +572,285 @@ _ES = {
     "Part of this page stopped working.": "Una parte de esta página ha dejado de funcionar.",
 }
 
-TRANSLATIONS = {"de": _DE, "es": _ES}
+_FR = {
+    # Assessment and module configuration
+    "Thomas International GIA cognitive ability practice with timed tests and section-wise drills.":
+        "Entraînement au test d'aptitudes cognitives Thomas International GIA, avec épreuves chronométrées et exercices par section.",
+    "Full test": "Test complet",
+    "All five sections in one flow, designed to feel very close to the real GIA.":
+        "Les cinq sections à la suite, au plus près du vrai GIA.",
+    "Each section is shown one by one. First you get instructions, then eight practice questions with instant feedback, then the timed test for that section.":
+        "Les sections s'enchaînent une par une. Vous lisez d'abord les consignes, puis vous répondez à huit questions d'entraînement corrigées immédiatement, avant l'épreuve chronométrée de la section.",
+    "Modules": "Modules",
+    "Reasoning": "Raisonnement",
+    "Perceptual Speed": "Vitesse de perception",
+    "Number Speed & Accuracy": "Nombres : vitesse et précision",
+    "Word Meaning": "Sens des mots",
+    "Spatial Visualization": "Visualisation spatiale",
+    "Comparative and transitive logic questions under timed conditions.":
+        "Questions de comparaison et de logique en temps limité.",
+    "Fast letter-pair matching built to simulate GIA-style pressure.":
+        "Comparaison rapide de paires de lettres, sous la pression du temps comme au GIA.",
+    "Find the number furthest from the median with speed and accuracy.":
+        "Trouvez vite et sans erreur le nombre le plus éloigné de la valeur médiane.",
+    "Odd-one-out vocabulary sets backed by a curated word bank.":
+        "Trouvez l'intrus parmi trois mots, issus d'une banque de mots sélectionnés.",
+    "Decide whether abstract shapes are rotated matches or mirrored variants.":
+        "Décidez si deux figures sont identiques après rotation ou si l'une est inversée en miroir.",
+    "Read the context statements first. Once you understand the relationship, reveal the question and choose the correct person or thing.":
+        "Lisez d'abord l'énoncé. Une fois la relation comprise, affichez la question et choisissez la bonne personne.",
+    "Look at the letter pairs carefully. Count the matching pairs quickly before selecting the correct number.":
+        "Observez attentivement les paires de lettres. Comptez rapidement les paires identiques et choisissez le bon nombre.",
+    "Review the three numbers, identify the middle value mentally, and choose the number furthest from it.":
+        "Regardez les trois nombres, repérez mentalement la valeur du milieu et choisissez le nombre le plus éloigné.",
+    "Read the words shown in the context, spot the odd one out, and then choose it from the answer options.":
+        "Lisez les trois mots, repérez l'intrus et sélectionnez-le parmi les réponses.",
+    "Study the shapes first, then decide whether they are the same when rotated or if one is mirrored.":
+        "Observez les figures, puis décidez si elles sont identiques après rotation ou si l'une est inversée.",
+    "Remember a comparison, then answer a question about the relationship without seeing the original statement.":
+        "Retenez une comparaison, puis répondez à une question sur cette relation sans revoir l'énoncé.",
+    "Identify the people or things being compared.": "Repérez qui est comparé.",
+    "Restate the comparison in simpler words.": "Reformulez la comparaison avec des mots plus simples.",
+    "Keep the direction of the relationship clear when the question appears.":
+        "Gardez en tête le sens de la comparaison lorsque la question apparaît.",
+    "Reversed or negative wording such as less careful instead of more careful.":
+        "Les formulations inversées ou négatives, comme « n'est pas aussi prudent que » au lieu de « est plus prudent que ».",
+    "Mentally place the stronger or greater item first before revealing the question.":
+        "Placez mentalement en premier celui qui a « plus » avant d'afficher la question.",
+    "Compare the letter pairs and count how many are exact matches.":
+        "Comparez les paires de lettres et comptez celles qui sont identiques.",
+    "Scan the pairs from left to right.": "Parcourez les paires de gauche à droite.",
+    "Compare both characters in each pair.": "Comparez les deux lettres de chaque paire.",
+    "Keep a running count and answer once the row is complete.": "Comptez au fur et à mesure et répondez à la fin de la ligne.",
+    "Do not count a pair when only one of its characters matches.": "Ne comptez pas une paire dont une seule lettre correspond.",
+    "Use a steady scan rhythm instead of repeatedly checking earlier pairs.":
+        "Gardez un rythme régulier au lieu de revérifier les paires précédentes.",
+    "Find the middle value, then choose the number furthest away from it.":
+        "Trouvez la valeur du milieu, puis choisissez le nombre le plus éloigné.",
+    "Order the three values from smallest to largest.": "Classez les trois nombres du plus petit au plus grand.",
+    "Identify the middle value.": "Repérez la valeur du milieu.",
+    "Compare the distance from the middle to both outer values.":
+        "Comparez l'écart entre la valeur du milieu et chacune des deux autres.",
+    "The correct answer is not always the largest number.": "La bonne réponse n'est pas toujours le plus grand nombre.",
+    "Ignore the middle value after identifying it and compare only the two gaps.":
+        "Une fois la valeur du milieu repérée, comparez seulement les deux écarts.",
+    "Identify the word that does not belong with the others.": "Repérez le mot qui ne va pas avec les autres.",
+    "Look for a meaning or category shared by most words.": "Cherchez le sens commun à deux des mots.",
+    "Test each word against that shared relationship.": "Vérifiez chaque mot par rapport à cette relation.",
+    "Choose the word that falls outside the group.": "Choisissez le mot qui sort du groupe.",
+    "Do not choose a word only because it is less familiar.": "Ne choisissez pas un mot simplement parce qu'il vous est moins familier.",
+    "Describe the shared group in one short phrase before selecting the odd word.":
+        "Résumez en quelques mots ce qu'ils ont en commun avant de choisir.",
+    "Decide whether two shapes are the same after rotation or whether one has been mirrored.":
+        "Décidez si deux figures sont identiques après rotation ou si l'une a été inversée en miroir.",
+    "Choose one distinctive corner, mark, or feature.": "Repérez un angle ou un détail caractéristique.",
+    "Mentally rotate the first shape to align that feature.": "Faites tourner mentalement la première figure pour aligner ce détail.",
+    "Check whether the remaining features keep the same arrangement.":
+        "Vérifiez si les autres détails gardent la même disposition.",
+    "A mirrored shape cannot be matched by rotation alone.": "Une figure inversée ne peut pas correspondre par simple rotation.",
+    "Track an asymmetric feature rather than comparing the whole outline at once.":
+        "Suivez un détail asymétrique plutôt que de comparer toute la figure d'un coup.",
+    "Five short timed sections": "Cinq courtes sections chronométrées",
+    "Practice questions before each section": "Questions d'entraînement avant chaque section",
+    "Speed matters as much as accuracy": "La vitesse compte autant que la précision",
+    # Practice page
+    "The real test": "Le vrai test",
+    "About the real test": "À propos du vrai test",
+    "Recommended way to prepare": "Préparation conseillée",
+    "Practice each section untimed and read the explanations": "Entraînez-vous sur chaque section sans chrono et lisez les explications",
+    "Take a timed test in your weakest section": "Passez une épreuve chronométrée dans votre section la plus faible",
+    "Finish with a full timed test": "Terminez par un test complet chronométré",
+    "{n} section": "{n} section",
+    "{n} sections": "{n} sections",
+    "{n} min": "{n} min",
+    "Unlimited attempts": "Tentatives illimitées",
+    "{n} free attempt left": "Il vous reste {n} tentative gratuite",
+    "{n} free attempts left": "Il vous reste {n} tentatives gratuites",
+    "Start full test": "Commencer le test complet",
+    "{n} of {total} modules started": "{n} module(s) commencé(s) sur {total}",
+    "{n} free questions": "{n} questions gratuites",
+    "{n} solved": "{n} résolues",
+    "{n} test taken": "{n} test passé",
+    "{n} tests taken": "{n} tests passés",
+    "Completed": "Terminé",
+    "In progress": "En cours",
+    "Not started": "Pas commencé",
+    "Resume": "Reprendre",
+    "Start": "Commencer",
+    "Language": "Langue",
+    "Beta": "Bêta",
+    "German and Spanish questions are new. Spotted a mistake? Use “Report a question issue” below any question.":
+        "Les questions en français sont nouvelles. Vous avez repéré une erreur ? Utilisez « Signaler un problème » sous chaque question.",
+    # Section player (template and JS)
+    "← Back to practice": "← Retour à l'entraînement",
+    "How this works": "Comment ça marche",
+    "You're practicing as a guest, so progress lasts only for this visit.":
+        "Vous vous entraînez en tant qu'invité : votre progression n'est conservée que pendant cette visite.",
+    "Sign in to save your progress": "Connectez-vous pour enregistrer votre progression",
+    "Loading": "Chargement",
+    "Mode switch": "Changer de mode",
+    "Practice mode": "Mode entraînement",
+    "Test mode": "Mode test",
+    "No timer. You'll see the answer and an explanation after each question.":
+        "Sans chrono. Après chaque question, vous verrez la réponse et une explication.",
+    "Timed, like the real test. Opens fullscreen, and results are shown at the end.":
+        "Chronométré, comme le vrai test. S'ouvre en plein écran ; les résultats s'affichent à la fin.",
+    "Test": "Test",
+    "Practice": "Entraînement",
+    "Question {n} of {total}": "Question {n} sur {total}",
+    "End test": "Terminer le test",
+    "Ready when you are": "Quand vous êtes prêt",
+    "We track your average time per question so you can compare your pace with the timed test.":
+        "Nous mesurons votre temps moyen par question pour que vous puissiez comparer votre rythme avec le test chronométré.",
+    "Start practice": "Commencer l'entraînement",
+    "Enter fullscreen to begin": "Passez en plein écran pour commencer",
+    "The timer starts when the test opens fullscreen. You can't pause once it begins.":
+        "Le chrono démarre quand le test s'ouvre en plein écran. Il n'est pas possible de faire une pause.",
+    "Enter fullscreen and start": "Plein écran et commencer",
+    "Context": "Énoncé",
+    "Show question": "Afficher la question",
+    "Question": "Question",
+    "Section complete": "Section terminée",
+    "You have reached the end of this question set.": "Vous êtes arrivé à la fin de cette série de questions.",
+    "Refresh the page to practice this section again.": "Rechargez la page pour refaire cette section.",
+    "Leaving test mode": "Sortie du mode test",
+    "Saving your progress and returning to practice...": "Enregistrement de votre progression et retour à l'entraînement…",
+    "Please wait a moment.": "Veuillez patienter un instant.",
+    "Free practice complete": "Entraînement gratuit terminé",
+    "You have completed all {n} free questions for this module. Upgrade to continue practising.":
+        "Vous avez terminé les {n} questions gratuites de ce module. Prenez un pass pour continuer à vous entraîner.",
+    "View plans": "Voir les tarifs",
+    "Timed tests are part of membership.": "Les tests chronométrés font partie de l'abonnement.",
+    "See membership": "Voir l'abonnement",
+    "Ready": "Prêt",
+    "Could not start test mode.": "Impossible de lancer le mode test.",
+    "Your session has expired. This answer was not saved.": "Votre session a expiré. Cette réponse n'a pas été enregistrée.",
+    "This answer could not be saved. Check your connection before continuing; the dashboard may be incomplete.":
+        "Cette réponse n'a pas pu être enregistrée. Vérifiez votre connexion ; le tableau de bord peut être incomplet.",
+    "Saving your section test result...": "Enregistrement du résultat de la section…",
+    "Could not save the section test result.": "Impossible d'enregistrer le résultat de la section.",
+    "Fullscreen is required to start test mode.": "Le mode test nécessite le plein écran.",
+    "You answered {correct} out of {total} correctly.": "Vous avez répondu correctement à {correct} questions sur {total}.",
+    "Practice mode shows immediate feedback after each answer.": "Le mode entraînement corrige chaque réponse immédiatement.",
+    "Test mode finished without per-question feedback.": "Le mode test s'est terminé sans correction question par question.",
+    "Final section score: {score}.": "Score de la section : {score}.",
+    "{solved} of {total} practice questions solved": "{solved} questions d'entraînement résolues sur {total}",
+    "Correct.": "Correct.",
+    "Wrong: “{selected}” does not satisfy the rule.": "Faux : « {selected} » ne respecte pas la condition.",
+    "The correct answer is {correct}.": "La bonne réponse est {correct}.",
+    "Option {n}": "Option {n}",
+    "{minutes} minutes {seconds} seconds left": "Il reste {minutes} minutes et {seconds} secondes",
+    "Next question ": "Question suivante ",
+    "Choose one answer.": "Choisissez une réponse.",
+    "How many matching pairs are there?": "Combien de paires sont identiques ?",
+    "How many pairs show the same image?": "Combien de paires montrent la même image ?",
+    "Count only pairs whose letters match apart from upper- and lower-case.":
+        "Ne comptez que les paires dont les lettres sont identiques, majuscules et minuscules mises à part.",
+    "Order the three values, identify the middle one, then compare each outer value's distance from it.":
+        "Classez les trois nombres, repérez celui du milieu, puis comparez l'écart avec chacun des deux autres.",
+    "Find the relationship shared by two words; choose the third word that does not fit that relationship.":
+        "Trouvez la relation entre deux mots et choisissez le troisième, qui ne correspond pas.",
+    "A figure can be rotated and still match, but a mirror image reverses its handedness.":
+        "Une figure tournée peut correspondre, mais une image en miroir est inversée.",
+    "Use the comparison statement to determine the relationship before choosing the named person or thing.":
+        "Servez-vous de l'énoncé pour comprendre la relation avant de choisir une personne.",
+    "Report a question issue": "Signaler un problème",
+    "Issue type": "Type de problème",
+    "Ambiguous wording": "Formulation ambiguë",
+    "Answer key": "Bonne réponse",
+    "Display problem": "Problème d'affichage",
+    "Other": "Autre",
+    "Describe the issue": "Décrivez le problème",
+    "Send issue for review": "Envoyer pour vérification",
+    "Could not send the report. Sign in and retry.": "Impossible d'envoyer le signalement. Connectez-vous et réessayez.",
+    "Saved for editorial review.": "Enregistré pour vérification éditoriale.",
+    # Full test (template and JS)
+    "Section": "Section",
+    "Skip question": "Passer la question",
+    "Section intro": "Introduction",
+    "Enter fullscreen and start full test": "Plein écran et commencer le test complet",
+    "Timed test": "Test chronométré",
+    "The timed part of each section starts only after fullscreen mode is enabled.":
+        "La partie chronométrée de chaque section ne démarre qu'en plein écran.",
+    "Enter fullscreen and start test": "Plein écran et commencer le test",
+    "Leave test": "Quitter le test",
+    "End the full test?": "Terminer le test complet ?",
+    "Your score so far will be saved, and you will leave the current fullscreen session.":
+        "Votre score actuel sera enregistré et vous quitterez le plein écran.",
+    "Keep going": "Continuer",
+    "Full test complete": "Test complet terminé",
+    "You have completed all sections.": "Vous avez terminé toutes les sections.",
+    "Refresh the page if you want to run the guided full test again.": "Rechargez la page si vous voulez refaire le test complet.",
+    "Read the prompt, reveal the question, then move fast and stay accurate.":
+        "Lisez l'énoncé, affichez la question, puis répondez vite et avec précision.",
+    "The full test is not ready yet.": "Le test complet n'est pas encore prêt.",
+    "Full test is temporarily unavailable. Please try again in a moment.":
+        "Le test complet est temporairement indisponible. Réessayez dans un instant.",
+    "Section test is temporarily unavailable. Please try again in a moment.":
+        "Le test de section est temporairement indisponible. Réessayez dans un instant.",
+    "Assessment": "Test",
+    "Intro": "Introduction",
+    "Could not load the current test section.": "Impossible de charger la section en cours.",
+    "Could not load the full test section.": "Impossible de charger la section du test complet.",
+    "Could not load {title}.": "Impossible de charger {title}.",
+    "an assessment section": "une section du test",
+    "There was a problem loading the test question.": "Un problème est survenu lors du chargement de la question.",
+    "Work quickly and accurately. Calculators are not permitted.": "Travaillez vite et avec précision. Les calculatrices ne sont pas autorisées.",
+    "Enter fullscreen and start {title}": "Plein écran et commencer {title}",
+    "Could not save the completed section.": "Impossible d'enregistrer la section terminée.",
+    "Practice complete": "Entraînement terminé",
+    "{title} practice complete": "Entraînement « {title} » terminé",
+    "Next, start the timed test for this section.": "Commencez maintenant le test chronométré de cette section.",
+    "Start timed test": "Commencer le test chronométré",
+    "{title} test complete": "Test « {title} » terminé",
+    "Continue directly into the next section practice flow.": "Passez directement à l'entraînement de la section suivante.",
+    "Next section": "Section suivante",
+    "The test could not be loaded. Please try again.": "Le test n'a pas pu être chargé. Veuillez réessayer.",
+    "Fullscreen is required to start the full test.": "Le test complet nécessite le plein écran.",
+    "Fullscreen is required to start timed test mode.": "Le test chronométré nécessite le plein écran.",
+    "Fullscreen is required to continue into the next section.": "Le plein écran est nécessaire pour passer à la section suivante.",
+    "Submission failed.": "L'envoi a échoué.",
+    "Final score: {score}.": "Score final : {score}.",
+    "There was a problem submitting the test.": "Un problème est survenu lors de l'envoi du test.",
+    "Avg {time}": "Moy. {time}",
+    "{n} questions": "{n} questions",
+    "Adaptive": "Adaptatif",
+    "Every section, back to back, in {minutes} minutes.": "Toutes les sections à la suite, en {minutes} minutes.",
+    "Timed like the real test, with a score for every section at the end.":
+        "Chronométré comme le vrai test, avec un score par section à la fin.",
+    "Timed like the real test, and the difficulty adjusts to your answers.":
+        "Chronométré comme le vrai test ; la difficulté s'adapte à vos réponses.",
+    "Feedback": "Avis",
+    "Something went wrong.": "Un problème est survenu.",
+    "Report this problem": "Signaler ce problème",
+    "Dismiss": "Fermer",
+    "Close": "Fermer",
+    "Your feedback": "Votre avis",
+    "Share feedback": "Donner votre avis",
+    "Report a problem": "Signaler un problème",
+    "Tell us what you think, ask a question, or report a problem. Our team reads every message.":
+        "Dites-nous ce que vous en pensez, posez une question ou signalez un problème. Nous lisons tous les messages.",
+    "What is this about?": "De quoi s'agit-il ?",
+    "Your message": "Votre message",
+    "Tell us what worked well, what went wrong, or what we could improve…":
+        "Dites-nous ce qui a bien fonctionné, ce qui n'a pas marché ou ce que nous pourrions améliorer…",
+    "Your email, so we can reply": "Votre e-mail, pour que nous puissions vous répondre",
+    "We'll include technical details about the error (page, test and browser) to help us fix it.":
+        "Nous joindrons des détails techniques sur l'erreur (page, test et navigateur) pour nous aider à la corriger.",
+    "Send": "Envoyer",
+    "General feedback": "Avis général",
+    "Suggestion": "Suggestion",
+    "An unexpected error occurred.": "Une erreur inattendue s'est produite.",
+    "I ran into this problem: {message}": "J'ai rencontré ce problème : {message}",
+    "Sending…": "Envoi…",
+    "Your message couldn't be sent.": "Votre message n'a pas pu être envoyé.",
+    "Thanks! Your message has been sent.": "Merci ! Votre message a été envoyé.",
+    "Your message couldn't be sent. Check your connection, or email support@mindmetric.store.":
+        "Votre message n'a pas pu être envoyé. Vérifiez votre connexion ou écrivez à support@mindmetric.store.",
+    "Part of this page stopped working.": "Une partie de cette page a cessé de fonctionner.",
+}
+
+TRANSLATIONS = {"de": _DE, "es": _ES, "fr": _FR}
 
 
 def is_localized(assessment_type: str | None) -> bool:
@@ -586,7 +864,7 @@ def normalize(language: str | None) -> str:
 def request_language(request, assessment_type: str | None) -> str:
     """The student's chosen language for a localized test, remembered in the session.
 
-    ``?lang=de`` / ``?lang=es`` / ``?lang=en`` switches it; tests that are not
+    ``?lang=de`` / ``?lang=es`` / ``?lang=fr`` / ``?lang=en`` switches it; tests that are not
     localized are always English.
     """
     if not is_localized(assessment_type):
