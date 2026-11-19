@@ -87,6 +87,32 @@ class RecruiterFlowTests(TestCase):
         self.assertFalse(self.student.is_recruiter)
         self.assertFalse(RecruiterAssessment.objects.exists())
 
+    def test_student_can_add_recruiter_workspace_and_switch_between_modes(self):
+        self.client.force_login(self.student)
+        page = self.client.get(self.dashboard, **self.host)
+        self.assertContains(page, "Add recruiter workspace", status_code=403)
+        self.assertNotContains(page, "workspace-switch", status_code=403)
+        self.assertEqual(self.client.post(reverse("pages:recruiter-enable"), {"organization": ""}, **self.host).status_code, 400)
+        response = self.client.post(reverse("pages:recruiter-enable"), {"organization": "Student Startup"}, **self.host)
+        self.assertRedirects(response, self.dashboard, fetch_redirect_response=False)
+        self.student.refresh_from_db()
+        self.assertTrue(self.student.is_recruiter)
+        self.assertEqual(self.student.organization, "Student Startup")
+        from backend.apps.billing.recruiter_credits import credit_balance
+        self.assertEqual(credit_balance(self.student), 100)
+        # Enabling twice never grants more free credits.
+        self.client.post(reverse("pages:recruiter-enable"), {"organization": "Again"}, **self.host)
+        self.assertEqual(credit_balance(self.student), 100)
+        # The switch appears, and each dashboard remembers the chosen mode.
+        recruiter_page = self.client.get(self.dashboard, **self.host)
+        self.assertContains(recruiter_page, "workspace-switch")
+        self.assertEqual(self.client.session["workspace_mode"], "recruiter")
+        self.assertEqual(self.client.get(reverse("pages:dashboard"), **self.host).status_code, 200)
+        self.assertEqual(self.client.session["workspace_mode"], "student")
+        self.assertRedirects(self.client.get(reverse("pages:login"), **self.host), reverse("pages:dashboard"), fetch_redirect_response=False)
+        self.client.get(self.dashboard, **self.host)
+        self.assertRedirects(self.client.get(reverse("pages:login"), **self.host), self.dashboard, fetch_redirect_response=False)
+
     def test_create_share_and_close_preserves_started_attempt(self):
         assessment = self.make_assessment()
         detail = reverse("pages:recruiter-assessment", args=[assessment.pk])

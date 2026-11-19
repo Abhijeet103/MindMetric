@@ -15,7 +15,9 @@ class TenantAccountAdapter(DefaultAccountAdapter):
         bind_session_to_tenant(request, tenant)
         if tenant and request.user.is_authenticated:
             get_or_create_tenant_user(tenant=tenant, user=request.user)
-        if request.user.is_authenticated and request.user.is_recruiter:
+        from backend.apps.pages.recruiter import prefers_recruiter_workspace
+
+        if request.user.is_authenticated and prefers_recruiter_workspace(request):
             return "/recruiter/"
         return super().get_login_redirect_url(request)
 

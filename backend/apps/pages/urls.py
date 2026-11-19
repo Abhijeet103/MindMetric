@@ -2,7 +2,7 @@ from backend.apps.assessments.learning_views import WorkshopPageView, WorkshopPe
 from django.urls import path
 
 from .recruiter import (
-    RecruiterDashboardView, RecruiterCreditsView, RecruiterCreateView, RecruiterAssessmentView, RecruiterResultView,
+    RecruiterDashboardView, RecruiterEnableView, RecruiterCreditsView, RecruiterCreateView, RecruiterAssessmentView, RecruiterResultView,
     RecruiterInviteView, RecruiterCandidateStartView, RecruiterCandidateSessionView,
 )
 from .recruiter_import import (
@@ -47,6 +47,7 @@ urlpatterns = [
     path("recruiter/upload/<uuid:import_id>/map/", RecruiterColumnMappingView.as_view(), name="recruiter-import-map"),
     path("recruiter/upload/<uuid:import_id>/preview/", RecruiterImportPreviewView.as_view(), name="recruiter-import-preview"),
     path("recruiter/", RecruiterDashboardView.as_view(), name="recruiter-dashboard"),
+    path("recruiter/enable/", RecruiterEnableView.as_view(), name="recruiter-enable"),
     path("recruiter/credits/", RecruiterCreditsView.as_view(), name="recruiter-credits"),
     path("recruiter/create/", RecruiterCreateView.as_view(), name="recruiter-create"),
     path("recruiter/assessments/<uuid:assessment_id>/", RecruiterAssessmentView.as_view(), name="recruiter-assessment"),

@@ -21,6 +21,7 @@ from django.views.decorators.cache import never_cache
 from django.views import View
 from django.views.generic import TemplateView
 
+from backend.apps.accounts.models import AccountType
 from backend.apps.billing import recruiter_credits
 from backend.apps.billing.models import RECRUITER_WELCOME_CREDITS
 from backend.apps.billing.regions import get_request_country_code
@@ -89,9 +90,28 @@ def available_test_groups(tenant):
     ]
 
 
-def employers_only(request):
-    """Students never see recruiter tools; they get a pointer to a recruiter account instead."""
-    return render(request, "pages/recruiter/employers_only.html", {"page_title": "For employers | MindMetric", "welcome_credits": RECRUITER_WELCOME_CREDITS}, status=403)
+WORKSPACE_MODE_KEY = "workspace_mode"
+
+
+def set_workspace_mode(request, mode):
+    """Remember whether a dual-role account is currently working as a student or a recruiter."""
+    if request.user.is_authenticated and request.user.is_recruiter and request.session.get(WORKSPACE_MODE_KEY) != mode:
+        request.session[WORKSPACE_MODE_KEY] = mode
+
+
+def prefers_recruiter_workspace(request):
+    return getattr(request.user, "is_recruiter", False) and request.session.get(WORKSPACE_MODE_KEY) != "student"
+
+
+class RecruiterEnableForm(forms.Form):
+    organization = forms.CharField(max_length=160, label="Company or organisation")
+
+
+def employers_only(request, form=None, status=403):
+    """Student accounts see no recruiter tools until they explicitly add a recruiter workspace."""
+    if form is None and request.user.is_authenticated:
+        form = RecruiterEnableForm(initial={"organization": request.user.organization})
+    return render(request, "pages/recruiter/employers_only.html", {"page_title": "For employers | MindMetric", "welcome_credits": RECRUITER_WELCOME_CREDITS, "form": form}, status=status)
 
 
 class RecruiterOnlyMixin(LoginRequiredMixin):
@@ -100,7 +120,29 @@ class RecruiterOnlyMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not request.user.is_recruiter:
             return employers_only(request)
+        set_workspace_mode(request, "recruiter")
         return super().dispatch(request, *args, **kwargs)
+
+
+class RecruiterEnableView(LoginRequiredMixin, View):
+    """Add a recruiter workspace to an existing (student) account. The account keeps its student side."""
+
+    login_url = "/login/?as=recruiter"
+
+    def post(self, request):
+        if request.user.is_recruiter:
+            return redirect("pages:recruiter-dashboard")
+        form = RecruiterEnableForm(request.POST)
+        if not form.is_valid():
+            return employers_only(request, form=form, status=400)
+        current_tenant(request)
+        request.user.account_type = AccountType.RECRUITER
+        request.user.organization = form.cleaned_data["organization"]
+        request.user.save(update_fields=["account_type", "organization"])
+        recruiter_credits.grant_welcome_credits(request.user)
+        set_workspace_mode(request, "recruiter")
+        messages.success(request, f"Recruiter workspace added with {RECRUITER_WELCOME_CREDITS} free candidate credits. Switch back to Student anytime from the top bar.")
+        return redirect("pages:recruiter-dashboard")
 
 
 class RequiresCreditsMixin:
