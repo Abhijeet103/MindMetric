@@ -276,6 +276,13 @@ CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "support@mindmetric.store")
 SALES_INQUIRY_NOTIFICATION_EMAIL = os.getenv("SALES_INQUIRY_NOTIFICATION_EMAIL", "abhijeet179346@gmail.com")
 EMAIL_NOTIFICATIONS_ENABLED = os.getenv("EMAIL_NOTIFICATIONS_ENABLED", "True").lower() == "true"
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+HIRING_RESEARCH_ENABLED = os.getenv("HIRING_RESEARCH_ENABLED", "False").lower() == "true"
+HIRING_RESEARCH_MODEL = os.getenv("HIRING_RESEARCH_MODEL", "gpt-6-luna")
+HIRING_RESEARCH_CACHE_DAYS = int(os.getenv("HIRING_RESEARCH_CACHE_DAYS", "7"))
+HIRING_RESEARCH_USER_DAILY_LIMIT = int(os.getenv("HIRING_RESEARCH_USER_DAILY_LIMIT", "5"))
+HIRING_RESEARCH_SITE_DAILY_LIMIT = int(os.getenv("HIRING_RESEARCH_SITE_DAILY_LIMIT", "100"))
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",

@@ -172,7 +172,8 @@ class CompanyLookupTests(TestCase):
 
     def test_no_match_shows_honest_empty_state(self):
         response = self.client.get(reverse("pages:company-lookup"), {"q": "Nowhere Ltd"})
-        self.assertContains(response, "No sourced entry for")
+        self.assertContains(response, "Get your prep guide")
+        self.assertNotContains(response, "No sourced entry for")
 
 
 class LegalPageTests(TestCase):

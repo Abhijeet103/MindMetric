@@ -2,3 +2,9 @@
 __pycache__/
 *.pyc
 .coverage
+
+# Local automation credentials
+.local/
+video/node_modules/
+video/out/
+video/.remotion/

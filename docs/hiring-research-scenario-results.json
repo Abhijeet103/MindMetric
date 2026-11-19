@@ -1,0 +1,214 @@
+{
+  "new_ai_searches": 4,
+  "results": [
+    {
+      "case": "canonical_engineer",
+      "company": "Canonical",
+      "role": "Software engineer",
+      "status": "completed",
+      "job_id": "eaa10269-1cc9-48b7-901f-45ed1a12c731",
+      "new_searches": 1,
+      "expected_track": "prepgia",
+      "practice_keys": [
+        "prepgia"
+      ],
+      "plan_keys": [
+        "prepgia"
+      ],
+      "assessments": [
+        {
+          "name": "General Intelligence Assessment (GIA)",
+          "link": "/practice/prepgia/",
+          "suggestion_id": null
+        },
+        {
+          "name": "Personality Profile Analysis (PPA)",
+          "link": null,
+          "suggestion_id": 5
+        },
+        {
+          "name": "Online coding assessment (format/platform unspecified)",
+          "link": null,
+          "suggestion_id": 2
+        }
+      ],
+      "source_urls": [
+        "https://canonical.com/careers/hiring-process",
+        "https://prachub.com/interview-experiences/canonical-software-engineer-interview-written-and-psychometric-testing-f7afa1d84f",
+        "https://prachub.com/interview-experiences/canonical-software-engineer-online-assessments-with-unclear-follow-up-c01b04f79c",
+        "https://prachub.com/interview-experiences/canonical-software-engineer-technical-rounds-on-linux-and-open-source-97492b3c4d"
+      ],
+      "stage_count": 4,
+      "experience_count": 3,
+      "gaps": [
+        "No location was specified, so the research is not tailored to a particular country or office.",
+        "Canonical's official process page describes a general process, not a specific Software Engineer posting or team; technical assessments and interview topics may vary by role.",
+        "Recent candidate experiences below are individual reports and do not establish Canonical policy. One is from Maracaibo and one from Bengaluru; neither should be assumed to apply to every location.",
+        "The candidate account dated April 2026 reports technical interviews on architecture, engineering methods, Linux, open source, and platform fundamentals, but does not specify the exact date of the interview."
+      ],
+      "expected_recommended": true,
+      "expected_linked": true,
+      "repeat_used_cache": true,
+      "repeat_added_suggestions": 0,
+      "expected_in_plan": true
+    },
+    {
+      "case": "crossover_engineer",
+      "company": "Crossover",
+      "role": "Software engineer",
+      "status": "completed",
+      "job_id": "dfcae724-98c1-4cfe-9a0c-52a0f1820c0c",
+      "new_searches": 1,
+      "expected_track": "ccat",
+      "practice_keys": [
+        "ccat"
+      ],
+      "plan_keys": [
+        "ccat"
+      ],
+      "assessments": [
+        {
+          "name": "Criteria Cognitive Aptitude Test (CCAT)",
+          "link": "/practice/ccat/",
+          "suggestion_id": null
+        },
+        {
+          "name": "Basic coding test; AI-based debugging and feature-implementation tests",
+          "link": null,
+          "suggestion_id": 3
+        },
+        {
+          "name": "Job-specific software engineering assignment / technical challenge",
+          "link": null,
+          "suggestion_id": 4
+        }
+      ],
+      "source_urls": [
+        "https://static.glassdoor.com/Interview/Crossover-for-Work-Software-Developer-Interview-Questions-EI_IE1041838.0%2C18_KO19%2C37.htm",
+        "https://www.crossover.com/resources/crossover-s-skill-based-assessments-official-skill-test-guide",
+        "https://www.crossover.com/reviews/pranav-nambiar",
+        "https://www.crossover.com/selection-process"
+      ],
+      "stage_count": 6,
+      "experience_count": 3,
+      "gaps": [
+        "No particular software-engineer job posting or specialization was specified, so exact coding languages, seniority, and assignment format are unknown.",
+        "Location was not specified; the official process is presented generally, and the candidate accounts do not establish a location-specific process.",
+        "Recent first-person evidence is limited. The Crossover-published engineer account has no stated publication date in the consulted result; the Glassdoor software-developer account includes experiences dated September 10 and October 10, 2024, but those are older and not confirmed as the same role or location.",
+        "The official selection-process page describes the employer's stated general process; candidate accounts may differ and are not company policy."
+      ],
+      "expected_recommended": true,
+      "expected_linked": true,
+      "repeat_used_cache": true,
+      "repeat_added_suggestions": 0,
+      "expected_in_plan": true
+    },
+    {
+      "case": "canonical_recruiter",
+      "company": "Canonical",
+      "role": "Talent acquisition specialist",
+      "status": "completed",
+      "job_id": "e3e2f922-1f2c-4898-8a1e-26e788090d11",
+      "new_searches": 1,
+      "expected_track": "prepgia",
+      "practice_keys": [
+        "prepgia"
+      ],
+      "plan_keys": [
+        "prepgia"
+      ],
+      "assessments": [
+        {
+          "name": "General Intelligence Assessment (GIA)",
+          "link": "/practice/prepgia/",
+          "suggestion_id": null
+        },
+        {
+          "name": "Personality Profile Analysis (PPA)",
+          "link": null,
+          "suggestion_id": 5
+        },
+        {
+          "name": "Role-specific technical assessment (format not stated)",
+          "link": null,
+          "suggestion_id": 6
+        }
+      ],
+      "source_urls": [
+        "https://canonical.com/careers/hiring-process",
+        "https://www.glassdoor.com/Interview/1-Help-us-understand-what-you-consider-to-be-the-top-three-priorities-to-leading-a-recruitment-platform-2-Please-describ-QTN_5634450.htm",
+        "https://www.linkedin.com/posts/lena-vinkler_i-decided-not-to-continue-with-a-hiring-process-activity-7402437137708683264-lm91"
+      ],
+      "stage_count": 4,
+      "experience_count": 2,
+      "gaps": [
+        "No location was specified, and no location-specific process evidence was found.",
+        "Canonical\u2019s public careers page lists Talent Acquisition Strategist rather than the exact requested title; the research therefore combines general Canonical hiring information with related talent/recruiting evidence, not a confirmed match for this role.",
+        "A candidate\u2019s LinkedIn account describes starting a Canonical application and stopping during the written stage; the account does not identify the role or location, and gives no calendar date. It is an individual account, not company policy.",
+        "A Glassdoor result surfaced a Canonical Recruiting Analytics & Automation Specialist interview account from about 4.3 years ago, but it is older and a different role; it is not treated as evidence of the requested role\u2019s process."
+      ],
+      "expected_recommended": true,
+      "expected_linked": true,
+      "repeat_used_cache": true,
+      "repeat_added_suggestions": 0,
+      "expected_in_plan": true
+    },
+    {
+      "case": "jpmorgan_coding",
+      "company": "JPMorgan",
+      "role": "Software engineer",
+      "status": "completed",
+      "job_id": "ad1af8e2-9c3d-4bb4-a90b-4f9c32ba7675",
+      "new_searches": 0,
+      "expected_track": null,
+      "practice_keys": [],
+      "plan_keys": [],
+      "assessments": [
+        {
+          "name": "HackerRank coding assessment",
+          "link": null,
+          "suggestion_id": 1
+        }
+      ],
+      "source_urls": [
+        "https://www.jointaro.com/interviews/companies/jpmorgan-chase/experiences/software-engineer-united-states-august-1-2025-declined-offer-negative-5c2f81ca/",
+        "https://www.jointaro.com/interviews/companies/jpmorgan-chase/experiences/software-engineer-united-states-december-1-2024-accepted-offer-positive-7cc41c0c/",
+        "https://www.jpmorganchase.com/careers/how-we-hire/faqs",
+        "https://www.reddit.com/r/JPMorganChase/comments/1s6rw57/interview_experience_experienced_software/"
+      ],
+      "stage_count": 3,
+      "experience_count": 3,
+      "gaps": [
+        "Location and seniority were not specified, and the reported candidate experiences span different cohorts and locations; they should not be treated as a guaranteed process for this opening.",
+        "JPMorganChase's official FAQ describes possible assessment types but does not publish a fixed software-engineer interview sequence.",
+        "Candidate reports vary in question count, timing, and rounds; confirm the format for the specific requisition with the recruiting team.",
+        "Some findings were omitted because their source links could not be traced to this search."
+      ],
+      "repeat_used_cache": true,
+      "repeat_added_suggestions": 0
+    },
+    {
+      "case": "unknown_company",
+      "company": "MindMetric QA Fixture Company 8F3C",
+      "role": "Software engineer",
+      "status": "completed",
+      "job_id": "5af07591-eb7f-4ea7-b93f-bedf0f1f7aad",
+      "new_searches": 1,
+      "expected_track": null,
+      "practice_keys": [],
+      "plan_keys": [],
+      "assessments": [],
+      "source_urls": [],
+      "stage_count": 0,
+      "experience_count": 0,
+      "gaps": [
+        "No official careers or hiring-process page for \u201cMindMetric QA Fixture Company 8F3C\u201d was found.",
+        "No matching first-person software engineer interview experiences were found; location was not specified.",
+        "Search results for similarly named or unrelated companies were excluded.",
+        "No sourced hiring stages or interview experiences were found. The plan below is general preparation advice."
+      ],
+      "repeat_used_cache": true,
+      "repeat_added_suggestions": 0
+    }
+  ]
+}

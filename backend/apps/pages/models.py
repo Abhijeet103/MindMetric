@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -115,7 +117,8 @@ class TestSuggestion(models.Model):
 
     tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, related_name="test_suggestions", blank=True, null=True)
     user = models.ForeignKey("accounts.User", on_delete=models.SET_NULL, related_name="test_suggestions", blank=True, null=True)
-    email = models.EmailField()
+    email = models.EmailField(blank=True)
+    discovery_key = models.CharField(max_length=64, unique=True, null=True, blank=True, editable=False)
     requested_test = models.CharField(max_length=255)
     message = models.TextField(blank=True)
     source_page = models.CharField(max_length=64, blank=True)
@@ -210,6 +213,25 @@ class EmployerAssessment(models.Model):
 
     def __str__(self):
         return self.company
+
+
+class HiringResearch(models.Model):
+    """Cached public-web research, scoped to a tenant; no applicant data is sent."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    cache_key = models.CharField(max_length=64, unique=True)
+    tenant = models.ForeignKey("tenants.Tenant", null=True, blank=True, on_delete=models.CASCADE)
+    company = models.CharField(max_length=120)
+    role = models.CharField(max_length=120)
+    location = models.CharField(max_length=120, blank=True)
+    prep_days = models.PositiveSmallIntegerField(default=7)
+    status = models.CharField(max_length=16, default="pending")
+    response_id = models.CharField(max_length=160, blank=True)
+    report = models.JSONField(default=dict)
+    error = models.CharField(max_length=240, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField()
 
 
 class LegalPage(models.Model):

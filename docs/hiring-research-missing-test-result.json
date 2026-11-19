@@ -1,0 +1,31 @@
+{
+  "company": "Procter & Gamble",
+  "role": "Brand manager",
+  "job_id": "4d729e77-b10b-42dd-b762-a20fa7f6a6bb",
+  "new_ai_searches": 1,
+  "missing_tests": [
+    {
+      "id": 7,
+      "test": "P&G Peak Performance Assessment",
+      "new_record": true,
+      "status": "new",
+      "source_page": "hiring-research",
+      "sources": [
+        "https://www.pgcareers.com/global/en/hiring-process"
+      ]
+    },
+    {
+      "id": 8,
+      "test": "P&G Interactive Assessment",
+      "new_record": true,
+      "status": "new",
+      "source_page": "hiring-research",
+      "sources": [
+        "https://www.pgcareers.com/global/en/hiring-process"
+      ]
+    }
+  ],
+  "guide_shows_saved_message": true,
+  "repeat_used_cache": true,
+  "repeat_created_duplicates": false
+}

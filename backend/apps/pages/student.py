@@ -6,15 +6,17 @@ from __future__ import annotations
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
+from django.template.loader import render_to_string
 
-from .models import ApplicationDeadline, EmployerAssessment, LegalPage
+from . import hiring_research
+
+from .models import ApplicationDeadline, EmployerAssessment, HiringResearch, LegalPage
 
 MAX_DEADLINES_PER_USER = 50
 
@@ -155,10 +157,14 @@ class CompanyLookupView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        query = self.request.GET.get("q", "").strip()[:120]
+        query = self.request.GET.get("company", self.request.GET.get("q", "")).strip()[:120]
         entries = EmployerAssessment.objects.filter(is_published=True)
         if query:
-            entries = entries.filter(Q(company__icontains=query) | Q(industry__icontains=query))
+            normalized = hiring_research.normalize_search(query)
+            entries = [entry for entry in entries if normalized and (
+                normalized in hiring_research.normalize_search(entry.company)
+                or normalized in hiring_research.normalize_search(entry.industry)
+            )]
         titles = _track_titles(self.request)
         results = []
         for entry in entries[:50]:
@@ -171,14 +177,101 @@ class CompanyLookupView(TemplateView):
                 results.append({"entry": entry, "tests": tests})
         context.update(
             {
-                "page_title": "Which aptitude test does each company use? | MindMetric",
-                "meta_description": "Look up which online assessment an employer uses in its screening round, with the source for each entry.",
+                "page_title": "Company hiring process and interview preparation | MindMetric",
+                "meta_description": "Research hiring stages and interview experiences for your company and role, then build a preparation plan with MindMetric practice.",
                 "query": query,
+                "research_role": self.request.GET.get("role", "").strip()[:120],
                 "results": results,
                 "has_any_entries": EmployerAssessment.objects.filter(is_published=True).exists(),
+                "research_available": hiring_research.available(),
             }
         )
+        report_id = self.request.GET.get("report", "")
+        if report_id and self.request.user.is_authenticated:
+            try:
+                from uuid import UUID
+                job = HiringResearch.objects.filter(pk=UUID(report_id), tenant_id=_research_tenant_id(self.request)).first()
+            except ValueError:
+                job = None
+            if job:
+                context.update(_research_context(self.request, job))
+                context.update(query=job.company, research_role=job.role)
         return context
+
+
+def _research_tenant_id(request):
+    return getattr(getattr(request, "tenant", None), "pk", None)
+
+
+def _research_context(request, job):
+    from copy import deepcopy
+
+    report = deepcopy(job.report)
+    titles = _track_titles(request)
+    def practice_link(key):
+        return {"title": titles[key], "url": reverse("pages:assessment-practice", args=[key])}
+    if report:
+        catalogue = hiring_research.assessment_catalogue(job.tenant_id)
+        for assessment in report.get("assessments", []):
+            match = catalogue.get(hiring_research.normalize_search(assessment["name"]))
+            assessment["in_catalogue"] = bool(match)
+            if match and match["key"] in titles:
+                assessment["test"] = practice_link(match["key"])
+        report["practice"] = [
+            {**item, **practice_link(item["key"])} for item in report["practice"] if item["key"] in titles
+        ]
+        for step in report["plan"]:
+            step["tests"] = [practice_link(key) for key in step["practice_keys"] if key in titles]
+    return {"research_job": job, "research_report": report,
+            "research_status_url": reverse("pages:hiring-research-status", args=[job.pk])}
+
+
+def _research_json(request, job):
+    result = {"id": str(job.pk), "status": job.status,
+              "cached": getattr(job, "from_cache", False),
+              "status_url": reverse("pages:hiring-research-status", args=[job.pk])}
+    if job.status in {"completed", "failed"}:
+        result["html"] = render_to_string("pages/_hiring_report.html", _research_context(request, job), request=request)
+    response = JsonResponse(result, status=202 if job.status == "pending" else 200)
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+class HiringResearchStartView(View):
+    http_method_names = ["post"]
+
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({"error": "Sign in to research a company and role."}, status=401)
+        if not hiring_research.available():
+            return JsonResponse({"error": "Live hiring research is not available yet. You can still browse sourced assessment entries below."}, status=503)
+        form_class = hiring_research.HiringSearchForm if "query" in request.POST else hiring_research.HiringResearchForm
+        form = form_class(request.POST)
+        if not form.is_valid():
+            return JsonResponse({"error": "Enter a valid company or role to search.", "fields": form.errors.get_json_data()}, status=400)
+        try:
+            job = hiring_research.start_research(form.cleaned_data, request.user.pk, _research_tenant_id(request))
+        except hiring_research.ResearchLimit as exc:
+            return JsonResponse({"error": str(exc)}, status=429)
+        except hiring_research.ResearchError as exc:
+            return JsonResponse({"error": str(exc)}, status=503)
+        return _research_json(request, job)
+
+
+class HiringResearchStatusView(View):
+    http_method_names = ["get"]
+
+    def get(self, request, report_id):
+        if not request.user.is_authenticated:
+            return JsonResponse({"error": "Sign in again to view your research."}, status=401)
+        job = get_object_or_404(HiringResearch, pk=report_id, tenant_id=_research_tenant_id(request))
+        if job.status == "pending" and not hiring_research.available():
+            return JsonResponse({"error": "Live hiring research is temporarily unavailable."}, status=503)
+        try:
+            hiring_research.refresh_research(job)
+        except hiring_research.ResearchError as exc:
+            return JsonResponse({"error": str(exc)}, status=503)
+        return _research_json(request, job)
 
 
 class LegalPageView(TemplateView):

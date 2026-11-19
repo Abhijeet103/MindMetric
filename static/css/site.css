@@ -5778,6 +5778,29 @@ a.dashboard-assessment-card.is-not-started:hover { border-color: var(--teal); bo
 .lookup-empty h2 { margin: 0; font-size: 1.3rem; }
 .lookup-empty p { margin: 0; max-width: 62ch; line-height: 1.55; }
 .lookup-disclaimer { margin: 0; font-size: 0.82rem; color: var(--ink-muted); }
+.hiring-search { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+.hiring-search label { display: grid; gap: 7px; font-size: 0.9rem; }
+.hiring-search input { box-sizing: border-box; width: 100%; }
+.hiring-search button { white-space: nowrap; min-height: 46px; }
+.hiring-search button:disabled { opacity: 0.55; cursor: not-allowed; }
+.hiring-availability { margin: 0; }
+.hiring-curated { display: grid; gap: 16px; }
+.hiring-curated[hidden] { display: none; }
+#hiring-status:empty, #hiring-report:empty { display: none; }
+.hiring-report { display: grid; gap: 24px; }
+.hiring-report h2, .hiring-section-title { margin: 0; font-size: 1.4rem; }
+.hiring-panel { padding: 24px; display: grid; gap: 16px; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.hiring-panel h3 { font-size: 1.05rem; margin: 0 0 6px; }
+.hiring-panel p { margin: 0; line-height: 1.6; }
+.hiring-stages, .hiring-plan { margin: 0; padding-left: 24px; display: grid; gap: 24px; }
+.hiring-stages > li, .hiring-plan > li { padding-left: 6px; }
+.hiring-stages p, .hiring-plan .lookup-tests { margin-top: 10px; }
+.hiring-plan ul { padding-left: 20px; line-height: 1.65; margin: 8px 0; }
+.hiring-evidence { display: inline-block; padding: 3px 8px; border-radius: 6px; background: var(--bg); color: var(--ink-muted); font-size: 0.75rem; }
+.hiring-experience { display: grid; gap: 10px; overflow-wrap: anywhere; }
+.hiring-experience + .hiring-experience { border-top: 1px solid var(--border); padding-top: 16px; }
+.hiring-report .lookup-source { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .hiring-search { grid-template-columns: 1fr; } .hiring-panel { padding: 18px; } }
 
 .legal { display: grid; gap: 14px; max-width: 720px; padding: 28px 0 8px; }
 .legal header { display: grid; gap: 6px; margin-bottom: 8px; }

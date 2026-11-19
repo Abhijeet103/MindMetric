@@ -6,6 +6,8 @@ from .student import (
     ApplicationDeadlineCreateView,
     ApplicationDeadlineDeleteView,
     CompanyLookupView,
+    HiringResearchStartView,
+    HiringResearchStatusView,
     LegalPageView,
 )
 
@@ -62,6 +64,8 @@ urlpatterns = [
     path("applications/add/", ApplicationDeadlineCreateView.as_view(), name="application-add"),
     path("applications/<int:deadline_id>/delete/", ApplicationDeadlineDeleteView.as_view(), name="application-delete"),
     path("companies/", CompanyLookupView.as_view(), name="company-lookup"),
+    path("companies/research/", HiringResearchStartView.as_view(), name="hiring-research-start"),
+    path("companies/research/<uuid:report_id>/", HiringResearchStatusView.as_view(), name="hiring-research-status"),
     path("legal/<slug:slug>/", LegalPageView.as_view(), name="legal-page"),
     path("feedback/", PortalFeedbackCreateView.as_view(), name="feedback"),
 ]

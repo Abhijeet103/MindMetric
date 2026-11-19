@@ -1,0 +1,75 @@
+{% if research_job.status == 'failed' %}
+    <div class="lookup-empty" role="alert"><h2>Research couldn't finish</h2><p>{{ research_job.error }}</p></div>
+{% elif research_job.status == 'completed' %}
+<article class="hiring-report">
+    <header class="lookup-head">
+        <span class="eyebrow">Your preparation brief</span>
+        <h2>{{ research_job.company }}{% if research_job.role %} · {{ research_job.role }}{% endif %}</h2>
+        <p class="muted">{% if research_job.location %}{{ research_job.location }} · {% endif %}{{ research_job.prep_days }}-day plan · researched {{ research_job.checked_at|date:"j M Y, H:i T" }}</p>
+        <p class="muted">AI research can miss details. Processes vary by team, location and year; confirm against your invitation. Candidate reports describe individual experiences.</p>
+    </header>
+
+    <section class="hiring-panel" aria-label="Hiring process">
+        <h2>Hiring process</h2>
+        {% if research_report.stages %}<ol class="hiring-stages">
+        {% for stage in research_report.stages %}
+            <li><h3>{{ stage.title }}</h3>
+                <span class="hiring-evidence">{% if stage.evidence == 'employer' %}Employer source{% elif stage.evidence == 'candidate' %}Candidate reported{% else %}Third-party account{% endif %}</span>
+                <p>{{ stage.detail }}</p>
+                <p class="lookup-source">Sources: {% for source in stage.sources %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.title }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+            </li>
+        {% endfor %}</ol>{% else %}<p class="muted">No hiring stages with traceable sources were found for this search.</p>{% endif %}
+    </section>
+
+    <section class="hiring-panel" aria-label="Interview experiences">
+        <h2>Past interview experiences</h2>
+        {% for experience in research_report.experiences %}
+            <div class="hiring-experience"><h3>{{ experience.title }}</h3>
+                <p class="muted">Candidate reported · report date: {{ experience.reported_date }}</p>
+                <p>{{ experience.detail }}</p>
+                <p class="lookup-source">Read the account: {% for source in experience.sources %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.title }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+            </div>
+        {% empty %}<p class="muted">No interview accounts with traceable sources were found. We haven't filled this section with assumptions.</p>{% endfor %}
+    </section>
+
+    {% if research_report.gaps %}<section class="lookup-empty"><h2>What remains uncertain</h2><ul>{% for gap in research_report.gaps %}<li>{{ gap }}</li>{% endfor %}</ul></section>{% endif %}
+
+    {% if research_report.assessments %}
+    <section class="hiring-panel" aria-label="Tests for your role">
+        <h2>Tests for your role</h2>
+        {% for assessment in research_report.assessments %}
+        <div class="hiring-experience">
+            <h3>{{ assessment.name }}</h3><p>{{ assessment.reason }}</p>
+            {% if assessment.test %}
+                <a class="landing-pick" href="{{ assessment.test.url }}" data-show-loader>Use this test · {{ assessment.test.title }}</a>
+            {% elif assessment.in_catalogue %}
+                <p class="muted">Already in our catalogue. Practice is not available in your current catalogue yet.</p>
+            {% elif assessment.suggestion_id %}
+                <p class="muted">Not available on MindMetric yet. Saved to our test suggestions for future development.</p>
+            {% endif %}
+            <p class="lookup-source">Sources: {% for source in assessment.sources %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.title }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="hiring-panel" aria-label="Preparation plan">
+        <h2>Your {{ research_job.prep_days }}-day preparation plan</h2>
+        <p class="muted">Suggested preparation based on your role and the findings above. This is advice from MindMetric.</p>
+        <ol class="hiring-plan">{% for step in research_report.plan %}
+            <li><span class="eyebrow">Day {{ step.day }}</span><h3>{{ step.title }}</h3>
+                <ul>{% for task in step.tasks %}<li>{{ task }}</li>{% endfor %}</ul>
+                {% if step.tests %}<div class="lookup-tests">{% for test in step.tests %}<a class="landing-pick" href="{{ test.url }}" data-show-loader>Practice {{ test.title }}</a>{% endfor %}</div>{% endif %}
+            </li>
+        {% endfor %}</ol>
+    </section>
+
+    <section class="hiring-panel" aria-label="Practice on MindMetric">
+        <h2>Practice on MindMetric</h2>
+        <p class="muted">These exercises develop relevant skills. A recommendation does not confirm that your employer uses that test.</p>
+        {% for test in research_report.practice %}<div class="hiring-experience"><a class="landing-pick" href="{{ test.url }}" data-show-loader>{{ test.title }}</a><p>{{ test.reason }}</p></div>{% empty %}<p>No suitable practice tracks are available for this role in your current catalogue.</p>{% endfor %}
+        <p class="muted">{{ research_report.coverage_note }}</p>
+        <a href="{% url 'pages:practice' %}" data-show-loader>Browse all available practice</a>
+    </section>
+</article>
+{% endif %}

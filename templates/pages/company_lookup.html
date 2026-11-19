@@ -1,20 +1,37 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
 <section class="lookup">
     <header class="lookup-head">
         <span class="eyebrow">Company lookup</span>
-        <h1>Which test will your employer send?</h1>
-        <p class="muted">Search a company or industry to see which online assessment it uses in its screening round. Every entry links to the source we checked and the date we checked it.</p>
+        <h1>How do I prepare?</h1>
+        <p class="muted">Enter your company and role to get the hiring process, interview experiences and a plan with the right practice tests.</p>
     </header>
 
-    <form class="lookup-search" method="get" role="search">
-        <label class="visually-hidden" for="lookup-q">Company or industry</label>
-        <input id="lookup-q" type="search" name="q" value="{{ query }}" placeholder="Company or industry" autocomplete="organization">
-        <button type="submit" class="button">Search</button>
+    <form class="lookup-search hiring-search" method="get" role="search" id="hiring-search"
+          data-research-url="{% url 'pages:hiring-research-start' %}"
+          data-can-research="{% if research_available and request.user.is_authenticated %}true{% else %}false{% endif %}">
+        <label for="lookup-company"><span>Company</span>
+            <input id="lookup-company" name="company" value="{{ query }}" placeholder="e.g. JPMorgan" autocomplete="organization" minlength="2" maxlength="120" required>
+        </label>
+        <label for="lookup-role"><span>Role</span>
+            <input id="lookup-role" name="role" value="{{ research_role }}" placeholder="e.g. Software engineer" minlength="2" maxlength="120" required>
+        </label>
+        <button type="submit" class="button" {% if not research_available or not request.user.is_authenticated %}disabled{% endif %}>Get your prep guide</button>
     </form>
+    <div id="hiring-csrf" hidden>{% csrf_token %}</div>
+    {% if not research_available %}<p class="muted hiring-availability">Prep guides are temporarily unavailable.</p>{% elif not request.user.is_authenticated %}<p class="hiring-availability"><a href="{% url 'pages:login' %}?next={{ request.get_full_path|urlencode }}">Sign in to get your prep guide</a></p>{% endif %}
+    <noscript><p class="muted">Enable JavaScript to get your prep guide.</p></noscript>
 
-    {% if results %}
+    <p id="hiring-status" class="muted" role="status" aria-live="polite"></p>
+    <div id="hiring-report" {% if research_job.status == 'pending' %}data-status-url="{{ research_status_url }}"{% endif %}>
+        {% if research_job %}{% include "pages/_hiring_report.html" %}{% endif %}
+    </div>
+
+    <div id="hiring-curated" class="hiring-curated">
+    {% if results and not research_job %}
+        <h2 class="hiring-section-title">Sourced assessment entries</h2>
         <ul class="lookup-results">
             {% for row in results %}
                 <li>
@@ -29,20 +46,13 @@
                 </li>
             {% endfor %}
         </ul>
-    {% elif query or not has_any_entries %}
-        <div class="lookup-empty">
-            <h2>{% if query %}No sourced entry for “{{ query }}” yet{% else %}We're still building this list{% endif %}</h2>
-            <p class="muted">We only list a company once we can point to a source. In the meantime, your invite email usually names the test provider. If it doesn't, these are the formats students meet most often.</p>
-            <div class="lookup-tests">
-                <a class="landing-pick" href="{% url 'pages:assessment-practice' 'ccat' %}" data-show-loader><span>CCAT</span></a>
-                <a class="landing-pick" href="{% url 'pages:assessment-practice' 'shl_verify' %}" data-show-loader><span>SHL-style</span></a>
-                <a class="landing-pick" href="{% url 'pages:assessment-practice' 'watson_glaser' %}" data-show-loader><span>Watson–Glaser-style</span></a>
-                <a class="landing-pick landing-pick-ghost" href="{% url 'pages:practice' %}" data-show-loader><span>All tests</span></a>
-            </div>
-            <p class="muted lookup-suggest">Know which test a company uses? <a href="{% url 'pages:practice' %}?suggest_test=open#suggest-test-modal">Tell us</a> and we'll check it.</p>
-        </div>
     {% endif %}
+    </div>
 
     <p class="lookup-disclaimer">MindMetric is independent and not affiliated with any employer or test publisher. Employers change their assessments, so always check your invite.</p>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/hiring-research.js' %}?v=company-role" defer></script>
 {% endblock %}

@@ -33,6 +33,8 @@ def collect_sales_inquiry_email(sender, instance: SaleInquiry, **kwargs):
 
 @receiver(post_save, sender=TestSuggestion)
 def collect_test_suggestion_email(sender, instance: TestSuggestion, **kwargs):
+    if not instance.email:
+        return
     upsert_audience_contact(
         email=instance.email,
         source="test_suggestion",

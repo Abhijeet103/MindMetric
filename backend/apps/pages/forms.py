@@ -32,6 +32,7 @@ class TrackWaitlistForm(forms.Form):
 
 
 class TestSuggestionForm(forms.ModelForm):
+    email = forms.EmailField()
     next = forms.CharField(widget=forms.HiddenInput(), required=False)
 
     class Meta:
