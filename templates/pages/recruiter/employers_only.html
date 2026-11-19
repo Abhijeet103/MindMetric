@@ -2,23 +2,19 @@
 {% block content %}
 <section class="content-section recruiter-shell">
     <span class="eyebrow">MindMetric for employers</span>
-    <h1>Add a recruiter workspace to your account</h1>
-    <p>Your account is set up for practising tests. Hiring? Add a recruiter workspace to create assessments for candidates. You keep your student side and can switch between Student and Recruiter at any time.</p>
-    {% if form %}
-    <article class="card recruiter-panel">
-        <h2>Add recruiter workspace</h2>
-        <form method="post" action="{% url 'pages:recruiter-enable' %}" class="recruiter-form">{% csrf_token %}
-            <div class="form-field"><label for="{{ form.organization.id_for_label }}">{{ form.organization.label }}</label>{{ form.organization }}{{ form.organization.errors }}</div>
-            <button class="button" type="submit">Add recruiter workspace</button>
-        </form>
-    </article>
-    {% endif %}
+    <h1>Recruiter accounts are separate from student accounts</h1>
+    <p>You're signed in with a student account. Your student account stays exactly as it is. To hire, create a separate recruiter account with a different email address, such as your work email.</p>
     <article class="card recruiter-panel recruiter-offer">
-        <h2>Start with {{ welcome_credits }} free candidate credits</h2>
-        <p>Every recruiter workspace includes {{ welcome_credits }} free credits. One credit covers one candidate who starts your assessment. After that you pay per candidate, and the price per candidate drops as you buy more.</p>
+        <h2>New recruiter accounts get {{ welcome_credits }} free candidate credits</h2>
+        <p>One credit covers one candidate who starts your assessment.</p>
         <div class="practice-levels">
+            <form method="post" action="{% url 'account_logout' %}">{% csrf_token %}
+                <input type="hidden" name="next" value="/accounts/signup/?as=recruiter">
+                <button class="button" type="submit">Sign out and create a recruiter account</button>
+            </form>
             <a class="button-secondary" href="{% url 'pages:practice' %}">Back to practice</a>
         </div>
+        <p class="muted">Already have a recruiter account? Sign out, then sign in with its email on the Recruiter tab.</p>
     </article>
 </section>
 {% endblock %}

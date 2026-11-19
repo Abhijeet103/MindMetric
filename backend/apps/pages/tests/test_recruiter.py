@@ -87,31 +87,30 @@ class RecruiterFlowTests(TestCase):
         self.assertFalse(self.student.is_recruiter)
         self.assertFalse(RecruiterAssessment.objects.exists())
 
-    def test_student_can_add_recruiter_workspace_and_switch_between_modes(self):
+    def test_recruiter_and_student_accounts_are_separate(self):
         self.client.force_login(self.student)
         page = self.client.get(self.dashboard, **self.host)
-        self.assertContains(page, "Add recruiter workspace", status_code=403)
+        self.assertContains(page, "separate recruiter account", status_code=403)
+        self.assertContains(page, 'value="/accounts/signup/?as=recruiter"', status_code=403, html=False)
         self.assertNotContains(page, "workspace-switch", status_code=403)
-        self.assertEqual(self.client.post(reverse("pages:recruiter-enable"), {"organization": ""}, **self.host).status_code, 400)
-        response = self.client.post(reverse("pages:recruiter-enable"), {"organization": "Student Startup"}, **self.host)
-        self.assertRedirects(response, self.dashboard, fetch_redirect_response=False)
         self.student.refresh_from_db()
-        self.assertTrue(self.student.is_recruiter)
-        self.assertEqual(self.student.organization, "Student Startup")
+        self.assertFalse(self.student.is_recruiter)
+        # The same email cannot be reused for a recruiter signup; the message points to a different email.
+        self.client.logout()
+        response = self.client.post("/accounts/signup/", {"account_type": "recruiter", "first_name": "Dup", "email": self.student.email,
+                                                          "password1": "a-Strong-pass-123", "password2": "a-Strong-pass-123"}, **self.host)
+        self.assertContains(response, "use a different email")
+        self.assertEqual(User.objects.filter(email=self.student.email).count(), 1)
+        # A different email creates an independent recruiter account with the free credits.
+        response = self.client.post("/accounts/signup/", {"account_type": "recruiter", "first_name": "Work", "email": "work@example.com",
+                                                          "password1": "a-Strong-pass-123", "password2": "a-Strong-pass-123"}, **self.host)
+        self.assertEqual(response.status_code, 302)
+        recruiter = User.objects.get(email="work@example.com")
+        self.assertTrue(recruiter.is_recruiter)
         from backend.apps.billing.recruiter_credits import credit_balance
-        self.assertEqual(credit_balance(self.student), 100)
-        # Enabling twice never grants more free credits.
-        self.client.post(reverse("pages:recruiter-enable"), {"organization": "Again"}, **self.host)
-        self.assertEqual(credit_balance(self.student), 100)
-        # The switch appears, and each dashboard remembers the chosen mode.
-        recruiter_page = self.client.get(self.dashboard, **self.host)
-        self.assertContains(recruiter_page, "workspace-switch")
-        self.assertEqual(self.client.session["workspace_mode"], "recruiter")
-        self.assertEqual(self.client.get(reverse("pages:dashboard"), **self.host).status_code, 200)
-        self.assertEqual(self.client.session["workspace_mode"], "student")
-        self.assertRedirects(self.client.get(reverse("pages:login"), **self.host), reverse("pages:dashboard"), fetch_redirect_response=False)
-        self.client.get(self.dashboard, **self.host)
-        self.assertRedirects(self.client.get(reverse("pages:login"), **self.host), self.dashboard, fetch_redirect_response=False)
+        self.assertEqual(credit_balance(recruiter), 100)
+        self.student.refresh_from_db()
+        self.assertFalse(self.student.is_recruiter)
 
     def test_create_share_and_close_preserves_started_attempt(self):
         assessment = self.make_assessment()

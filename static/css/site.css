@@ -6452,8 +6452,3 @@ button.modal-close { border: 0; background: transparent; cursor: pointer; }
 .recruiter-summary { position: sticky; bottom: 12px; z-index: 2; }
 .recruiter-summary p { margin: 0; }
 @media (max-width: 600px) { .recruiter-credit-bar { grid-template-columns: 1fr; } }
-
-/* Student / Recruiter switch for dual-role accounts */
-.workspace-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px; }
-.workspace-switch a { padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; text-decoration: none; color: var(--ink-muted); }
-.workspace-switch a[aria-current="true"] { background: var(--teal); color: #fff; }

@@ -75,7 +75,6 @@ from prepgia.preview_data import get_questions
 from .emails import send_problem_report_notification, send_sale_inquiry_notification
 from .forms import PortalFeedbackForm, SaleInquiryForm, TestSuggestionForm, TrackWaitlistForm
 from .models import PortalFeedback
-from .recruiter import prefers_recruiter_workspace, set_workspace_mode
 from .guides import (
     MODULE_GUIDES,
     get_assessment_guide_url,
@@ -1169,7 +1168,7 @@ class LoginPageView(View):
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            return redirect("pages:recruiter-dashboard" if request.GET.get("as") == "recruiter" or prefers_recruiter_workspace(request) else "pages:dashboard")
+            return redirect("pages:recruiter-dashboard" if request.GET.get("as") == "recruiter" or request.user.is_recruiter else "pages:dashboard")
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
@@ -1189,7 +1188,7 @@ class LoginPageView(View):
 
     def _redirect_url(self, request):
         redirect_url = request.GET.get("next") or request.POST.get("next")
-        if not redirect_url and (request.GET.get("as") == "recruiter" or prefers_recruiter_workspace(request)):
+        if not redirect_url and (request.GET.get("as") == "recruiter" or getattr(request.user, "is_recruiter", False)):
             return reverse("pages:recruiter-dashboard")
         if redirect_url and url_has_allowed_host_and_scheme(
             redirect_url,
@@ -1213,11 +1212,7 @@ class LoginPageView(View):
 
 
 class DashboardPageView(LoginRequiredMixin, TemplateView):
-    # Recruiters can use the student practice space too; opening it switches them to student mode.
-    def get(self, request, *args, **kwargs):
-        set_workspace_mode(request, "student")
-        return super().get(request, *args, **kwargs)
-
+    # Recruiter accounts can still open the practice dashboard from their account menu.
     template_name = "pages/dashboard.html"
     login_url = "/login/"
 

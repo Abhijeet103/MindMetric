@@ -10,14 +10,19 @@ from backend.apps.tenants.utils import get_default_tenant
 
 
 class TenantAccountAdapter(DefaultAccountAdapter):
+    # Student and recruiter accounts are separate, so one email can hold only one of them.
+    error_messages = {
+        **DefaultAccountAdapter.error_messages,
+        "email_taken": "This email already has a MindMetric account. Sign in with it, or use a different email "
+                       "(for example your work email) to create a separate recruiter account.",
+    }
+
     def get_login_redirect_url(self, request):
         tenant = getattr(request, "tenant", None)
         bind_session_to_tenant(request, tenant)
         if tenant and request.user.is_authenticated:
             get_or_create_tenant_user(tenant=tenant, user=request.user)
-        from backend.apps.pages.recruiter import prefers_recruiter_workspace
-
-        if request.user.is_authenticated and prefers_recruiter_workspace(request):
+        if request.user.is_authenticated and request.user.is_recruiter:
             return "/recruiter/"
         return super().get_login_redirect_url(request)
 
