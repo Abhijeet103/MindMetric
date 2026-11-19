@@ -1212,11 +1212,7 @@ class LoginPageView(View):
 
 
 class DashboardPageView(LoginRequiredMixin, TemplateView):
-    def get(self, request, *args, **kwargs):
-        if request.user.is_recruiter:
-            return redirect("pages:recruiter-dashboard")
-        return super().get(request, *args, **kwargs)
-
+    # Recruiters can use the student practice space too; their nav links both dashboards.
     template_name = "pages/dashboard.html"
     login_url = "/login/"
 

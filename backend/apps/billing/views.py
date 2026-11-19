@@ -6,6 +6,7 @@ import logging
 from django.contrib import messages
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
@@ -33,6 +34,8 @@ from .services import (create_paypal_order, capture_paypal_order, get_paypal_ord
     activate_subscription_from_paypal_order, paypal_webhook_is_configured, verify_paypal_webhook,
     PAYPAL_REVOKING_EVENTS, PayPalPaymentPendingError, paypal_capture_is_fully_reversed,
     paypal_order_id_from_event, revoke_paypal_subscription, complete_paypal_order)
+
+from . import recruiter_credits
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +105,48 @@ class PayPalReturnView(View):
         return redirect("pages:subscription")
 
 
+def _handle_recruiter_credit_event(event_type: str, event_payload: dict) -> bool:
+    """Route PayPal events for recruiter credit packs; False means not a credit order."""
+    if event_type == "CHECKOUT.ORDER.APPROVED":
+        order_id = (event_payload.get("resource") or {}).get("id", "")
+    elif event_type == "PAYMENT.CAPTURE.COMPLETED" or event_type in PAYPAL_REVOKING_EVENTS:
+        order_id = paypal_order_id_from_event(event_payload)
+    else:
+        return False
+    if not recruiter_credits.is_credit_order(order_id):
+        return False
+    if event_type in PAYPAL_REVOKING_EVENTS:
+        if paypal_capture_is_fully_reversed(event_payload):
+            recruiter_credits.refund_credit_order(order_id)
+    else:
+        recruiter_credits.complete_credit_order(order_id)
+    return True
+
+
+class RecruiterCreditReturnView(View):
+    """PayPal sends recruiters back here after approving a credit pack."""
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return redirect("pages:login")
+        credits_url = reverse("pages:recruiter-credits")
+        order_id = request.GET.get("token", "").strip()
+        if not order_id or not request.user.recruiter_credit_purchases.filter(provider_order_id=order_id).exists():
+            messages.error(request, "This checkout does not belong to your account.")
+            return redirect(f"{credits_url}?checkout=failed")
+        try:
+            purchase = recruiter_credits.complete_credit_order(order_id)
+        except PayPalPaymentPendingError as exc:
+            messages.info(request, str(exc))
+            return redirect(f"{credits_url}?checkout=processing")
+        except (BillingConfigurationError, BillingWebhookError):
+            logger.exception("Recruiter credit return failed for order %s user=%s", order_id, request.user.pk)
+            messages.error(request, PAYPAL_RETURN_FAILED_MESSAGE.replace("your access will switch on", "your credits will be added"))
+            return redirect(f"{credits_url}?checkout=failed")
+        messages.success(request, f"Payment confirmed. {purchase.candidates} candidate credits were added to your workspace.")
+        return redirect(credits_url)
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class PayPalWebhookView(View):
     def post(self, request):
@@ -125,6 +170,9 @@ class PayPalWebhookView(View):
 
         event_type = event_payload.get("event_type", "")
         try:
+            handled = _handle_recruiter_credit_event(event_type, event_payload)
+            if handled:
+                return JsonResponse({"received": True, "type": event_type})
             if event_type == "PAYMENT.CAPTURE.COMPLETED":
                 order_id = paypal_order_id_from_event(event_payload)
                 if order_id:

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section recruiter-shell">
+    <a href="{% url 'pages:recruiter-dashboard' %}">← Recruiter dashboard</a>
+    <header class="recruiter-toolbar"><div><span class="eyebrow">Candidate credits</span><h1>Pay per candidate</h1>
+        <p class="muted">One credit covers one candidate who starts an assessment. Invites and links that are never opened are free. Credits last 12 months.</p></div>
+        <div class="recruiter-balance" aria-label="Credit balance"><strong>{{ credit_balance }}</strong><span>credit{{ credit_balance|pluralize }} available</span></div>
+    </header>
+
+    <article class="card recruiter-panel">
+        <h2>Volume pricing</h2>
+        <p class="muted">Your whole pack is charged at the price for its size. Bigger packs cost less per candidate.</p>
+        <div class="recruiter-tiers">
+            {% for tier in tiers %}<div class="recruiter-tier" data-tier="{{ forloop.counter0 }}"><span class="eyebrow">{{ tier.name }}</span><strong>{{ tier.unit_display }}</strong><span class="muted">per candidate</span><small>{{ tier.range_display }}</small></div>{% endfor %}
+        </div>
+        <form method="post" class="recruiter-form recruiter-buy">{% csrf_token %}
+            <label class="form-field" for="credit-candidates">Number of candidates
+                <input type="number" id="credit-candidates" name="candidates" min="{{ min_purchase }}" max="{{ max_purchase }}" step="1" value="{{ candidates_value }}" required inputmode="numeric">
+            </label>
+            <p class="recruiter-quote" id="credit-quote" role="status" aria-live="polite"></p>
+            <button class="button" type="submit">Pay with PayPal</button>
+            <p class="muted">Minimum {{ min_purchase }} candidates. Charged once in US dollars, never renewed automatically. Need more than {{ max_purchase }}? Email support@mindmetric.store.</p>
+        </form>
+    </article>
+
+    <article class="card recruiter-panel">
+        <h2>Your credits</h2>
+        <div class="recruiter-table-wrap"><table class="recruiter-table"><thead><tr><th>Source</th><th>Remaining</th><th>Expires</th></tr></thead><tbody>
+        {% for lot in lots %}<tr><td>{{ lot.get_source_display }}</td><td>{{ lot.remaining }} / {{ lot.quantity }}</td><td>{{ lot.expires_at|date:"j M Y" }}</td></tr>
+        {% empty %}<tr><td colspan="3">No credits yet. New recruiter accounts get {{ welcome_credits }} free credits.</td></tr>{% endfor %}
+        </tbody></table></div>
+        {% if purchases %}<h3>Purchases</h3>
+        <div class="recruiter-table-wrap"><table class="recruiter-table"><thead><tr><th>Date</th><th>Candidates</th><th>Price</th><th>Status</th></tr></thead><tbody>
+        {% for purchase in purchases %}<tr><td>{{ purchase.created_at|date:"j M Y" }}</td><td>{{ purchase.candidates }} ({{ purchase.tier_name }})</td><td>${{ purchase.amount }}</td><td>{{ purchase.get_status_display }}</td></tr>{% endfor %}
+        </tbody></table></div>{% endif %}
+    </article>
+</section>
+{% endblock %}
+{% block extra_scripts %}{{ tiers_json|json_script:"credit-tiers" }}<script>
+(() => {
+  const input = document.getElementById('credit-candidates');
+  const out = document.getElementById('credit-quote');
+  let tiers = [];
+  try { tiers = JSON.parse(document.getElementById('credit-tiers').textContent || '[]'); } catch { tiers = []; }
+  const money = (value) => '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const update = () => {
+    const n = Number(input.value);
+    document.querySelectorAll('.recruiter-tier').forEach((el) => el.classList.remove('is-current'));
+    if (!Number.isInteger(n) || n < Number(input.min) || n > Number(input.max)) { out.textContent = `Enter ${input.min} to ${input.max} candidates.`; return; }
+    const index = tiers.findIndex((t) => n >= t.min && (t.max === null || n <= t.max));
+    if (index < 0) { out.textContent = ''; return; }
+    const tier = tiers[index];
+    const unit = Number(tier.unit);
+    document.querySelector(`.recruiter-tier[data-tier="${index}"]`)?.classList.add('is-current');
+    out.textContent = `${n} candidates × ${money(unit)} (${tier.name}) = ${money(Math.round(unit * n * 100) / 100)}`;
+  };
+  input.addEventListener('input', update);
+  update();
+})();
+</script>{% endblock %}

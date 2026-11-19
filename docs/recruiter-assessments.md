@@ -1,14 +1,31 @@
 # Recruiter assessments
 
-Entry: `/login/?as=recruiter` or `/recruiter/`. Email signup offers Student and Recruiter account types. Existing users can explicitly enable a recruiter workspace with their organisation name. Account type is separate from subscription tier; enabling recruiter access grants neither staff permissions nor paid practice access. Google sign-in can return to recruiter onboarding, and existing recruiter accounts use a role-aware login redirect.
+Entry: `/login/?as=recruiter` or `/recruiter/`. Email signup offers Student and Recruiter account types; a new Google account created from the recruiter sign-in also becomes a recruiter. Students cannot switch themselves into the recruiter workspace: every recruiter page returns a 403 "for employers" page pointing them to a separate recruiter account. Recruiters keep full access to the student practice space (practice dashboard, tests). Account type is separate from subscription tier and grants no staff permissions.
 
-Recruiters create an assessment from tenant-allocated practice subjects, with Foundation, Intermediate, Advanced or Mixed difficulty; 4, 8 or 12 questions per subject (maximum 60 total); 5–120 minutes; 1–30-day start window; and a maximum of 500 candidates. Optional account-email restrictions can narrow who starts. Email restrictions match account addresses; they do not independently verify identity. Candidate email verification follows the platform's existing authentication settings.
+Recruiters create an assessment in three steps: pick one or more tests, choose sections of those tests only, then set details (a live counter enforces the 60-question cap). Subjects come from the tenant's allocated tests, with Foundation, Intermediate, Advanced or Mixed difficulty; 4, 8 or 12 questions per subject (maximum 60 total); 5–120 minutes; 1–30-day start window; and a maximum of 500 candidates. Optional account-email restrictions can narrow who starts. Email restrictions match account addresses; they do not independently verify identity. Candidate email verification follows the platform's existing authentication settings.
 
 The unguessable share link is created on submission of the recruiter form. This feature does not email candidates automatically. Recruiters copy and share the link themselves. Owners can close or reopen new starts before the fixed closing time. Active candidates can finish after new starts close. Each signed-in account can start once. The tenant and recruiter owner scope every management/results query.
 
 Questions are generated locally for each candidate. Private question payloads, answer keys, submitted answers, a fixed deadline and consent time are stored durably in the database, separately from practice attempts and subscription quotas. The candidate API strips keys, explanations, generator seeds and internal seeded case identifiers. CSRF applies to all mutations, and assessment/result responses are marked private/no-store.
 
 Monotonic answer revisions prevent an older autosave from overwriting newer answers. Candidate answers save on selection, every ten seconds and on page exit when the browser permits it. A server-side deadline is authoritative. Refresh/resume cannot reset it. Requests after the deadline finalize only previously saved answers; they cannot submit late changes. Partial attempts are scored from saved answers upon expiry when the session, invitation, recruiter dashboard or results are next requested. There is no background job required for this lazy finalization. Completed submissions are immutable through the candidate API.
+
+## Candidate credits (per-candidate pricing)
+
+Each candidate who **starts** an assessment uses one credit; resuming an attempt is free, and invites that are never opened cost nothing. Creating an assessment (builder or spreadsheet import) needs at least one credit. With no credits left, new candidates get "temporarily unavailable" while active candidates can still finish.
+
+Every recruiter account gets **100 free welcome credits** once (at signup, on first dashboard visit, and backfilled for existing recruiters by migration `billing.0011`). Credits come in lots (welcome, purchase, manual grant), each valid 12 months; usage always draws from the lot expiring soonest under a row lock.
+
+Packs are one-time PayPal orders in USD, charged entirely at the tier their size falls in (Admin → Billing → Recruiter price tiers):
+
+| Tier | Candidates | Per candidate |
+|---|---|---|
+| Starter | 10–50 | $4.00 |
+| Growth | 51–300 | $3.00 |
+| Scale | 301–1,000 | $2.00 |
+| Enterprise | 1,001–5,000 | $1.50 |
+
+India and Latin America pay 50% of that, the rest of Europe 70% (same regions as student passes). Above 5,000 candidates: custom quote by email. Credits are added by the PayPal return URL, the `CHECKOUT.ORDER.APPROVED` / `PAYMENT.CAPTURE.COMPLETED` webhooks or `reconcile_paypal_orders`, idempotently and only when the captured amount matches. A full refund or reversal removes that pack's unused credits. To give credits by hand, add a Recruiter credit lot in admin with source "Granted by MindMetric".
 
 ## Browser monitoring scope
 

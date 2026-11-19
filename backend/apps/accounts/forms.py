@@ -8,7 +8,7 @@ from .models import AccountType
 
 
 class CustomSignupForm(forms.Form):
-    account_type = forms.ChoiceField(choices=AccountType.choices, initial=AccountType.STUDENT, required=False, label="I am joining as")
+    account_type = forms.ChoiceField(choices=AccountType.choices, initial=AccountType.STUDENT, required=False, label="I am joining as", help_text="Recruiters start with 100 free candidate credits.")
     first_name = forms.CharField(max_length=150, label="Name", required=True)
 
     def signup(self, request, user):
@@ -19,3 +19,7 @@ class CustomSignupForm(forms.Form):
             request_tenant = None
         user.tenant = request_tenant or user.tenant or get_default_tenant()
         user.save(update_fields=["first_name", "tenant", "account_type"])
+        if user.is_recruiter:
+            from backend.apps.billing.recruiter_credits import grant_welcome_credits
+
+            grant_welcome_credits(user)

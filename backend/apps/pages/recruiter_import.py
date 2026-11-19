@@ -16,7 +16,7 @@ from django.views.decorators.cache import never_cache
 
 from .models import RecruiterAssessment, RecruiterQuestionImport
 from .question_import import (FIELD_LABELS, MAPPING_FIELDS, ImportProblem, default_mapping, read_upload, validate_questions)
-from .recruiter import RecruiterAssessmentForm, RecruiterOnlyMixin, current_tenant
+from .recruiter import RecruiterAssessmentForm, RecruiterOnlyMixin, RequiresCreditsMixin, current_tenant
 
 
 class QuestionUploadForm(forms.Form):
@@ -76,7 +76,7 @@ def mapping_context(draft, form, sheet_index, header_row):
 
 
 @method_decorator(never_cache, name="dispatch")
-class RecruiterQuestionUploadView(RecruiterOnlyMixin, View):
+class RecruiterQuestionUploadView(RecruiterOnlyMixin, RequiresCreditsMixin, View):
     def get(self, request):
         return render(request, "pages/recruiter/upload.html", {"page_title": "Upload custom assessment | MindMetric", "form": QuestionUploadForm()})
 
@@ -123,7 +123,7 @@ class RecruiterColumnMappingView(RecruiterOnlyMixin, View):
 
 
 @method_decorator(never_cache, name="dispatch")
-class RecruiterImportPreviewView(RecruiterOnlyMixin, View):
+class RecruiterImportPreviewView(RecruiterOnlyMixin, RequiresCreditsMixin, View):
     def context(self, request, draft, form):
         return {"page_title": "Review custom assessment | MindMetric", "draft": draft, "form": form, "error_count": len(draft.errors), "row_errors": draft.errors[:60],
             "preview_questions": [{"row": item["payload"]["metadata"]["source_row"], "subject": item["payload"]["metadata"]["subject"], "text": item["payload"]["prompt"]["question"], "options": item["payload"]["options"], "answer": item["correct_answer"]["answer"], "explanation": item["payload"]["prompt"]["explanation"]} for item in draft.questions]}

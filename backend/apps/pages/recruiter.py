@@ -21,7 +21,10 @@ from django.views.decorators.cache import never_cache
 from django.views import View
 from django.views.generic import TemplateView
 
-from backend.apps.accounts.models import AccountType
+from backend.apps.billing import recruiter_credits
+from backend.apps.billing.models import RECRUITER_WELCOME_CREDITS
+from backend.apps.billing.regions import get_request_country_code
+from backend.apps.billing.services import BillingConfigurationError, BillingWebhookError
 from backend.apps.assessments.config import ASSESSMENT_CONFIG, get_module_meta
 from backend.apps.assessments.services import _build_question_batch, _serialize_generated_question_for_player
 from backend.apps.tenants.services import tenant_allows_assessment
@@ -36,11 +39,6 @@ def current_tenant(request):
     if tenant is None:
         raise PermissionDenied("Open the workspace on your MindMetric site.")
     return tenant
-
-
-class RecruiterSetupForm(forms.Form):
-    organization = forms.CharField(max_length=160, label="Company or organisation")
-    confirm = forms.BooleanField(label="Enable my recruiter workspace to create and review candidate assessments.")
 
 
 class RecruiterAssessmentForm(forms.Form):
@@ -58,9 +56,9 @@ class RecruiterAssessmentForm(forms.Form):
 
     def __init__(self, *args, tenant, **kwargs):
         super().__init__(*args, **kwargs)
+        self.test_groups = available_test_groups(tenant)
         self.fields["modules"].choices = [
-            (config["title"], [(module["key"], module["title"]) for module in config["modules"]])
-            for key, config in ASSESSMENT_CONFIG.items() if tenant_allows_assessment(tenant, key)
+            (group["title"], [(module["key"], module["title"]) for module in group["modules"]]) for group in self.test_groups
         ]
 
     def clean_allowed_emails(self):
@@ -82,12 +80,36 @@ class RecruiterAssessmentForm(forms.Form):
         return data
 
 
+def available_test_groups(tenant):
+    """Tests the tenant offers, each with its sections, for the step-by-step picker."""
+    return [
+        {"key": key, "title": config["title"], "description": config.get("description", ""),
+         "modules": [{"key": module["key"], "title": module["title"], "description": module.get("description", "")} for module in config["modules"]]}
+        for key, config in ASSESSMENT_CONFIG.items() if tenant_allows_assessment(tenant, key) and config.get("modules")
+    ]
+
+
+def employers_only(request):
+    """Students never see recruiter tools; they get a pointer to a recruiter account instead."""
+    return render(request, "pages/recruiter/employers_only.html", {"page_title": "For employers | MindMetric", "welcome_credits": RECRUITER_WELCOME_CREDITS}, status=403)
+
+
 class RecruiterOnlyMixin(LoginRequiredMixin):
     login_url = "/login/?as=recruiter"
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not request.user.is_recruiter:
-            return redirect("pages:recruiter-dashboard")
+            return employers_only(request)
+        return super().dispatch(request, *args, **kwargs)
+
+
+class RequiresCreditsMixin:
+    """Creating an assessment needs at least one candidate credit."""
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.is_recruiter and recruiter_credits.credit_balance(request.user) < 1:
+            messages.info(request, "You have no candidate credits left. Buy a credit pack to create a new assessment.")
+            return redirect("pages:recruiter-credits")
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -139,34 +161,69 @@ def expire_submissions(assessment):
 
 
 @method_decorator(never_cache, name="dispatch")
-class RecruiterDashboardView(LoginRequiredMixin, View):
-    login_url = "/login/?as=recruiter"
-
+class RecruiterDashboardView(RecruiterOnlyMixin, View):
     def get(self, request):
-        if not request.user.is_recruiter:
-            return render(request, "pages/recruiter/setup.html", {"page_title": "Recruiter workspace | MindMetric", "form": RecruiterSetupForm(initial={"organization": request.user.organization})})
+        recruiter_credits.grant_welcome_credits(request.user)
         assessments = RecruiterAssessment.objects.filter(recruiter=request.user, tenant=current_tenant(request))
         for assessment in assessments:
             expire_submissions(assessment)
         assessments = assessments.annotate(candidate_count=Count("submissions"))
-        return render(request, "pages/recruiter/dashboard.html", {"page_title": "Recruiter dashboard | MindMetric", "assessments": assessments})
-
-    def post(self, request):
-        form = RecruiterSetupForm(request.POST)
-        if form.is_valid():
-            current_tenant(request)
-            request.user.account_type = AccountType.RECRUITER
-            request.user.organization = form.cleaned_data["organization"]
-            request.user.save(update_fields=["account_type", "organization"])
-            return redirect("pages:recruiter-dashboard")
-        return render(request, "pages/recruiter/setup.html", {"page_title": "Recruiter workspace | MindMetric", "form": form}, status=400)
+        return render(request, "pages/recruiter/dashboard.html", {"page_title": "Recruiter dashboard | MindMetric", "assessments": assessments,
+            "credit_balance": recruiter_credits.credit_balance(request.user)})
 
 
 @method_decorator(never_cache, name="dispatch")
-class RecruiterCreateView(RecruiterOnlyMixin, View):
+class RecruiterCreditsView(RecruiterOnlyMixin, View):
+    def context(self, request, **extra):
+        country = get_request_country_code(request)
+        tiers = recruiter_credits.tier_prices(country)
+        return {
+            "page_title": "Candidate credits | MindMetric",
+            "credit_balance": recruiter_credits.credit_balance(request.user),
+            "tiers": tiers,
+            "tiers_json": [{"name": t.name, "min": t.min_candidates, "max": t.max_candidates, "unit": str(t.unit_price)} for t in tiers],
+            "lots": request.user.recruiter_credit_lots.order_by("-created_at")[:20],
+            "purchases": request.user.recruiter_credit_purchases.exclude(status="expired")[:20],
+            "min_purchase": recruiter_credits.MIN_PURCHASE,
+            "max_purchase": recruiter_credits.MAX_PURCHASE,
+            "welcome_credits": RECRUITER_WELCOME_CREDITS,
+            "candidates_value": 50,
+            **extra,
+        }
+
+    def get(self, request):
+        recruiter_credits.grant_welcome_credits(request.user)
+        return render(request, "pages/recruiter/credits.html", self.context(request))
+
+    def post(self, request):
+        try:
+            candidates = int(request.POST.get("candidates", ""))
+        except ValueError:
+            candidates = None
+        try:
+            if candidates is None:
+                raise recruiter_credits.RecruiterCreditError("Enter a whole number of candidates.")
+            approval_url = recruiter_credits.create_credit_order(
+                request.user, candidates, base_url=f"{request.scheme}://{request.get_host()}",
+                country_code=get_request_country_code(request), tenant=getattr(request, "tenant", None),
+            )
+        except (recruiter_credits.RecruiterCreditError, BillingConfigurationError, BillingWebhookError) as exc:
+            messages.error(request, str(exc))
+            return render(request, "pages/recruiter/credits.html", self.context(request, candidates_value=candidates or 50), status=400)
+        return redirect(approval_url)
+
+
+@method_decorator(never_cache, name="dispatch")
+class RecruiterCreateView(RecruiterOnlyMixin, RequiresCreditsMixin, View):
+    def render_form(self, request, form, status=200):
+        selected = set(form.data.getlist("modules")) if form.is_bound else set()
+        groups = [{**group, "selected": any(m["key"] in selected for m in group["modules"])} for group in form.test_groups]
+        return render(request, "pages/recruiter/create.html", {"page_title": "Create assessment | MindMetric", "form": form, "test_groups": groups,
+            "selected_modules": selected, "credit_balance": recruiter_credits.credit_balance(request.user)}, status=status)
+
     def get(self, request):
         form = RecruiterAssessmentForm(tenant=current_tenant(request), initial={"organization": request.user.organization})
-        return render(request, "pages/recruiter/create.html", {"page_title": "Create assessment | MindMetric", "form": form})
+        return self.render_form(request, form)
 
     def post(self, request):
         tenant = current_tenant(request)
@@ -177,7 +234,7 @@ class RecruiterCreateView(RecruiterOnlyMixin, View):
             assessment = RecruiterAssessment.objects.create(tenant=tenant, recruiter=request.user, closes_at=timezone.now() + timedelta(days=days), **values)
             messages.success(request, "Assessment created. Copy the link below to share it with candidates.")
             return redirect("pages:recruiter-assessment", assessment_id=assessment.pk)
-        return render(request, "pages/recruiter/create.html", {"page_title": "Create assessment | MindMetric", "form": form}, status=400)
+        return self.render_form(request, form, status=400)
 
 
 @method_decorator(never_cache, name="dispatch")
@@ -188,7 +245,7 @@ class RecruiterAssessmentView(RecruiterOnlyMixin, View):
         submissions = assessment.submissions.select_related("candidate").all()
         share_url = request.build_absolute_uri(reverse("pages:recruiter-invite", args=[assessment.share_token]))
         return render(request, "pages/recruiter/detail.html", {"page_title": f"{assessment.title} | Recruiter", "assessment": assessment, "submissions": submissions, "share_url": share_url,
-            "skills": assessment_skills(assessment), "question_total": assessment_question_total(assessment)})
+            "skills": assessment_skills(assessment), "question_total": assessment_question_total(assessment), "credit_balance": recruiter_credits.credit_balance(request.user)})
 
     def post(self, request, assessment_id):
         assessment = owned_assessment(request, assessment_id)
@@ -300,6 +357,8 @@ class RecruiterCandidateStartView(CandidateJSONMixin, View):
                     raise ValueError("This assessment is closed to new starts.")
                 if assessment.submissions.count() >= assessment.max_candidates:
                     raise ValueError("This assessment has reached its candidate limit.")
+                # Each new candidate start uses one of the recruiter's credits (resumes are free).
+                credit_lot = recruiter_credits.consume_credit(assessment.recruiter)
                 questions = deepcopy(assessment.custom_questions)
                 seed = secrets.token_hex(24)
                 for key in assessment.modules:
@@ -308,9 +367,9 @@ class RecruiterCandidateStartView(CandidateJSONMixin, View):
                     questions.extend(_build_question_batch(seed, key, "recruitment", assessment.questions_per_module, assessment.difficulty))
                 now = timezone.now()
                 submission = RecruiterSubmission.objects.create(assessment=assessment, candidate=request.user, questions=questions, total_questions=len(questions), started_at=now,
-                    deadline_at=now + timedelta(minutes=assessment.duration_minutes), last_seen_at=now, consented_at=now)
+                    deadline_at=now + timedelta(minutes=assessment.duration_minutes), last_seen_at=now, consented_at=now, credit_lot=credit_lot)
                 return JsonResponse(submission_payload(submission), status=201)
-        except (ValueError, TypeError, KeyError) as exc:
+        except (ValueError, TypeError, KeyError, recruiter_credits.RecruiterCreditError) as exc:
             return JsonResponse({"detail": str(exc)}, status=400)
 
 

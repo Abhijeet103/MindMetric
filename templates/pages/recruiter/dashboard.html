@@ -2,6 +2,11 @@
 {% block content %}
 <section class="content-section recruiter-shell">
     <header class="recruiter-toolbar"><div><span class="eyebrow">Recruiter workspace</span><h1>Your assessments</h1><p class="muted">{{ request.user.organization|default:request.user.first_name }} · Create, share and review candidate assessments.</p></div><div class="practice-levels"><a class="button-secondary" href="{% url 'pages:recruiter-upload' %}">Upload Excel questions</a><a class="button" href="{% url 'pages:recruiter-create' %}">Create assessment</a></div></header>
+    <article class="card recruiter-panel recruiter-credit-bar">
+        <div class="recruiter-balance"><strong>{{ credit_balance }}</strong><span>candidate credit{{ credit_balance|pluralize }} available</span></div>
+        <p class="muted">{% if credit_balance %}Each candidate who starts one of your assessments uses one credit.{% else %}You're out of credits. Candidates can't start new attempts until you top up.{% endif %} Your account started with 100 free credits.</p>
+        <a class="button-secondary" href="{% url 'pages:recruiter-credits' %}">{% if credit_balance %}Buy more credits{% else %}Buy credits{% endif %}</a>
+    </article>
     <div class="recruiter-grid">
     {% for assessment in assessments %}
         <article class="card recruiter-panel">

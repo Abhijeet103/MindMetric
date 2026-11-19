@@ -266,3 +266,91 @@ class Subscription(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.email} - {self.plan_code} - {self.status}"
+
+
+# ------------------------------------------------------------ recruiter credits
+# Recruiters pay per candidate. Each purchase or grant is a "lot" of credits
+# with its own expiry; a candidate starting an assessment consumes one credit
+# from the lot that expires soonest.
+
+RECRUITER_WELCOME_CREDITS = 100
+RECRUITER_CREDIT_VALIDITY_DAYS = 365
+
+
+class RecruiterPriceTier(models.Model):
+    """Volume pricing: the whole purchase is charged at the tier its size falls in."""
+
+    name = models.CharField(max_length=60)
+    min_candidates = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    max_candidates = models.PositiveIntegerField(blank=True, null=True, help_text="Leave blank for no upper limit.")
+    price_per_candidate = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))], help_text="USD, before regional discounts.")
+    display_order = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("min_candidates",)
+
+    def __str__(self) -> str:
+        upper = f"–{self.max_candidates}" if self.max_candidates else "+"
+        return f"{self.name} ({self.min_candidates}{upper}): ${self.price_per_candidate}/candidate"
+
+    def clean(self):
+        if self.max_candidates is not None and self.max_candidates < self.min_candidates:
+            raise ValidationError("The maximum must be at least the minimum.")
+
+
+class RecruiterCreditPurchaseStatus(models.TextChoices):
+    PENDING = "pending", "Pending payment"
+    PAID = "paid", "Paid"
+    REFUNDED = "refunded", "Refunded"
+    EXPIRED = "expired", "Abandoned"
+
+
+class RecruiterCreditPurchase(models.Model):
+    recruiter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="recruiter_credit_purchases")
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, related_name="recruiter_credit_purchases", blank=True, null=True)
+    candidates = models.PositiveIntegerField()
+    tier_name = models.CharField(max_length=60)
+    unit_price = models.DecimalField(max_digits=8, decimal_places=2)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="USD")
+    pricing_region = models.CharField(max_length=8, default="US")
+    provider = models.CharField(max_length=32, default="paypal")
+    provider_order_id = models.CharField(max_length=255, unique=True)
+    status = models.CharField(max_length=16, choices=RecruiterCreditPurchaseStatus.choices, default=RecruiterCreditPurchaseStatus.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self) -> str:
+        return f"{self.recruiter.email} – {self.candidates} credits – {self.status}"
+
+
+class RecruiterCreditSource(models.TextChoices):
+    WELCOME = "welcome", "Free welcome credits"
+    PURCHASE = "purchase", "Purchase"
+    GRANT = "grant", "Granted by MindMetric"
+
+
+class RecruiterCreditLot(models.Model):
+    recruiter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="recruiter_credit_lots")
+    source = models.CharField(max_length=16, choices=RecruiterCreditSource.choices)
+    quantity = models.PositiveIntegerField()
+    remaining = models.PositiveIntegerField(default=0, help_text="Credits left. Leave at 0 on a new grant to give the full quantity.")
+    expires_at = models.DateTimeField()
+    purchase = models.OneToOneField(RecruiterCreditPurchase, on_delete=models.PROTECT, related_name="lot", blank=True, null=True)
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("expires_at",)
+        indexes = [models.Index(fields=["recruiter", "expires_at"])]
+        constraints = [
+            models.CheckConstraint(condition=Q(remaining__lte=F("quantity")), name="recruiter_lot_remaining_lte_quantity"),
+            models.UniqueConstraint(fields=["recruiter"], condition=Q(source="welcome"), name="one_welcome_lot_per_recruiter"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.recruiter.email} – {self.remaining}/{self.quantity} ({self.get_source_display()})"

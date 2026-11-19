@@ -9,6 +9,7 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from backend.apps.billing.recruiter_credits import reconcile_pending_credit_orders
 from backend.apps.billing.services import paypal_is_configured, reconcile_pending_paypal_orders
 
 
@@ -23,7 +24,10 @@ class Command(BaseCommand):
         if not paypal_is_configured():
             self.stdout.write("PayPal is not configured; nothing to do.")
             return
-        outcomes = reconcile_pending_paypal_orders(since=timezone.now() - timedelta(hours=hours), dry_run=dry_run)
+        since = timezone.now() - timedelta(hours=hours)
+        outcomes = reconcile_pending_paypal_orders(since=since, dry_run=dry_run)
+        if not dry_run:
+            outcomes += reconcile_pending_credit_orders(since=since)
         for item in outcomes:
             if item["action"] != "skipped" or options.get("verbosity", 1) > 1:
                 self.stdout.write(f"{item['order_id']}: PayPal {item['paypal_status']} -> {item['action']} {item.get('detail', '')}".rstrip())

@@ -99,7 +99,7 @@
                                 {% endif %}
                             </div>
                             <div class="user-menu-links">
-                                <a href="{% url 'pages:recruiter-dashboard' %}">{% if request.user.is_recruiter %}Recruiter dashboard{% else %}Recruiter workspace{% endif %}</a>
+                                {% if request.user.is_recruiter %}<a href="{% url 'pages:recruiter-dashboard' %}">Recruiter dashboard</a><a href="{% url 'pages:dashboard' %}">Practice dashboard</a>{% endif %}
                                 {% if request.effective_access_active %}
                                     <a href="{% url 'pages:subscription' %}" data-show-loader>Subscription</a>
                                 {% else %}
@@ -157,6 +157,7 @@
                             <ul>
                                 <li><a href="{% url 'pages:practice' %}" data-show-loader>All tests</a></li>
                                 <li><a href="{% url 'pages:company-lookup' %}" data-show-loader>Company lookup</a></li>
+                                <li><a href="{% url 'pages:login' %}?as=recruiter" data-show-loader>For employers: 100 free candidate credits</a></li>
                                 {% if thomas_gia_blog_url %}
                                     <li><a href="{{ thomas_gia_blog_url }}" target="_blank" rel="noopener noreferrer">Thomas GIA guide</a></li>
                                 {% endif %}

@@ -303,6 +303,8 @@ class RecruiterSubmission(models.Model):
     total_questions = models.PositiveIntegerField(default=0)
     section_scores = models.JSONField(default=list)
     monitoring_events = models.JSONField(default=list)
+    # The recruiter credit this candidate start used (null for starts before credits existed).
+    credit_lot = models.ForeignKey("billing.RecruiterCreditLot", on_delete=models.PROTECT, null=True, blank=True, related_name="submissions")
 
     class Meta:
         ordering = ("-started_at",)

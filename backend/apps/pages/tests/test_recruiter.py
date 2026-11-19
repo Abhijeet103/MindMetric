@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from backend.apps.accounts.forms import CustomSignupForm
 from backend.apps.assessments.config import ASSESSMENT_CONFIG
+from backend.apps.billing.recruiter_credits import grant_welcome_credits
 from backend.apps.pages.models import RecruiterAssessment, RecruiterSubmission
 from backend.apps.tenants.models import Tenant
 
@@ -21,6 +22,8 @@ class RecruiterFlowTests(TestCase):
         self.owner = User.objects.create_user(email="owner@example.com", password="password123", account_type="recruiter", organization="Example hiring", tenant=self.tenant)
         self.other = User.objects.create_user(email="other@example.com", password="password123", account_type="recruiter", tenant=self.tenant)
         self.student = User.objects.create_user(email="student@example.com", password="password123", tenant=self.tenant)
+        grant_welcome_credits(self.owner)
+        grant_welcome_credits(self.other)
         self.client.force_login(self.owner)
         self.dashboard = reverse("pages:recruiter-dashboard")
         self.create = reverse("pages:recruiter-create")
@@ -68,19 +71,21 @@ class RecruiterFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, self.dashboard)
 
-    def test_recruiter_dashboard_and_student_opt_in(self):
+    def test_recruiter_dashboard_and_students_are_kept_out(self):
         self.assertContains(self.client.get(self.dashboard, **self.host), "Your assessments")
-        self.assertRedirects(self.client.get(reverse("pages:dashboard"), **self.host), self.dashboard, fetch_redirect_response=False)
+        # Recruiters can also use the student practice space.
+        self.assertEqual(self.client.get(reverse("pages:dashboard"), **self.host).status_code, 200)
         self.client.force_login(self.student)
-        self.assertContains(self.client.get(self.dashboard, **self.host), "Enable your recruiter workspace")
-        self.assertEqual(self.client.get(self.create, **self.host).status_code, 302)
-        self.client.get(self.dashboard, **self.host)
+        for url in (self.dashboard, self.create, reverse("pages:recruiter-credits"), reverse("pages:recruiter-upload")):
+            response = self.client.get(url, **self.host)
+            self.assertEqual(response.status_code, 403, url)
+            self.assertContains(response, "100 free candidate credits", status_code=403)
+        # Students can no longer switch themselves into a recruiter workspace.
+        self.assertEqual(self.client.post(self.dashboard, {"organization": "New company", "confirm": "on"}, **self.host).status_code, 403)
+        self.assertEqual(self.client.post(self.create, self.data, **self.host).status_code, 403)
         self.student.refresh_from_db()
         self.assertFalse(self.student.is_recruiter)
-        self.assertEqual(self.client.post(self.dashboard, {"organization": "New company", "confirm": "on"}, **self.host).status_code, 302)
-        self.student.refresh_from_db()
-        self.assertTrue(self.student.is_recruiter)
-        self.assertEqual(self.student.organization, "New company")
+        self.assertFalse(RecruiterAssessment.objects.exists())
 
     def test_create_share_and_close_preserves_started_attempt(self):
         assessment = self.make_assessment()
@@ -209,7 +214,7 @@ class RecruiterFlowTests(TestCase):
             self.assertEqual(self.client.get(url, **self.host).status_code, 404)
         self.assertEqual(self.post_session(submission, {"submit": True}).status_code, 404)
         self.client.force_login(self.student)
-        self.assertEqual(self.client.get(result, **self.host).status_code, 302)
+        self.assertEqual(self.client.get(result, **self.host).status_code, 403)
         self.client.force_login(self.owner)
         self.assertContains(self.client.get(result, **self.host), "Session review")
         self.assertNotIn("correct_answer", self.client.get(result, **self.host).content.decode())

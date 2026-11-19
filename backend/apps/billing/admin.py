@@ -358,3 +358,44 @@ class SubscriptionAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
                 ]
             )
         return response
+
+
+# ------------------------------------------------------------ recruiter credits
+from .models import RecruiterCreditLot, RecruiterCreditPurchase, RecruiterCreditSource, RecruiterPriceTier  # noqa: E402
+
+
+@admin.register(RecruiterPriceTier)
+class RecruiterPriceTierAdmin(admin.ModelAdmin):
+    list_display = ("name", "min_candidates", "max_candidates", "price_per_candidate", "is_active")
+    list_editable = ("price_per_candidate", "is_active")
+    ordering = ("min_candidates",)
+
+
+@admin.register(RecruiterCreditPurchase)
+class RecruiterCreditPurchaseAdmin(admin.ModelAdmin):
+    list_display = ("recruiter", "candidates", "tier_name", "unit_price", "amount", "currency", "pricing_region", "status", "created_at", "paid_at")
+    list_filter = ("status", "pricing_region", "tier_name")
+    search_fields = ("recruiter__email", "provider_order_id")
+    readonly_fields = [field.name for field in RecruiterCreditPurchase._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(RecruiterCreditLot)
+class RecruiterCreditLotAdmin(admin.ModelAdmin):
+    """Add a lot with source "Granted by MindMetric" to give a recruiter credits by hand."""
+
+    list_display = ("recruiter", "source", "remaining", "quantity", "expires_at", "created_at", "note")
+    list_filter = ("source",)
+    search_fields = ("recruiter__email", "note")
+    autocomplete_fields = ("recruiter",)
+    readonly_fields = ("purchase", "created_at")
+
+    def get_changeform_initial_data(self, request):
+        return {"source": RecruiterCreditSource.GRANT, "expires_at": timezone.now() + timedelta(days=365)}
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.remaining:
+            obj.remaining = obj.quantity
+        super().save_model(request, obj, form, change)

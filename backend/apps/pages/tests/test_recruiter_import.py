@@ -10,6 +10,8 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, SimpleTestCase
 from django.urls import reverse
+
+from backend.apps.billing.recruiter_credits import grant_welcome_credits
 from django.utils import timezone
 
 from backend.apps.assessments.config import ASSESSMENT_CONFIG
@@ -154,6 +156,8 @@ class RecruiterExcelFlowTests(TestCase):
         self.owner = User.objects.create_user(email='excel-owner@example.com', password='password123', account_type='recruiter', organization='Example company', tenant=self.tenant)
         self.other = User.objects.create_user(email='excel-other@example.com', password='password123', account_type='recruiter', tenant=self.tenant)
         self.student = User.objects.create_user(email='excel-student@example.com', password='password123', tenant=self.tenant)
+        grant_welcome_credits(self.owner)
+        grant_welcome_credits(self.other)
         self.client.force_login(self.owner)
         self.upload_url = reverse('pages:recruiter-upload')
         self.settings = {'title':'Custom analyst test', 'organization':'Example company', 'role_title':'Analyst', 'duration_minutes':10, 'open_days':7, 'max_candidates':20, 'allowed_emails':'', 'instructions':'Use only the question information.'}
@@ -260,8 +264,8 @@ class RecruiterExcelFlowTests(TestCase):
         draft = self.upload()
         self.map(draft)
         self.client.force_login(self.student)
-        self.assertEqual(self.client.post(self.upload_url, {'workbook': csv_upload()}, **self.host).status_code, 302)
-        self.assertEqual(self.client.get(reverse('pages:recruiter-import-preview', args=[draft.pk]), **self.host).status_code, 302)
+        self.assertEqual(self.client.post(self.upload_url, {'workbook': csv_upload()}, **self.host).status_code, 403)
+        self.assertEqual(self.client.get(reverse('pages:recruiter-import-preview', args=[draft.pk]), **self.host).status_code, 403)
         self.assertEqual(RecruiterQuestionImport.objects.count(), 1)
 
     def test_template_round_trips_and_upload_is_csrf_protected(self):

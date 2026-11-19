@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import StartPayPalCheckoutView, PayPalReturnView, PayPalWebhookView
+from .views import StartPayPalCheckoutView, PayPalReturnView, PayPalWebhookView, RecruiterCreditReturnView
 
 from .views import (
     BillingStatusView,
@@ -14,6 +14,7 @@ from .views import (
 urlpatterns = [
     path("checkout/paypal/<slug:plan_code>/", StartPayPalCheckoutView.as_view(), name="billing-paypal-checkout"),
     path("paypal/return/", PayPalReturnView.as_view(), name="billing-paypal-return"),
+    path("paypal/recruiter-return/", RecruiterCreditReturnView.as_view(), name="billing-recruiter-paypal-return"),
     path("paypal/webhook/", PayPalWebhookView.as_view(), name="billing-paypal-webhook"),
     path("status/", BillingStatusView.as_view(), name="billing-status"),
     path("checkout/<slug:plan_code>/", StartCheckoutView.as_view(), name="billing-checkout"),
