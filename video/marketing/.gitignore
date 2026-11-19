@@ -1,3 +1,0 @@
-# Rendered videos, run folders, TTS cache (output/) and local rotation state + lock (state/) are never committed.
-output/
-state/

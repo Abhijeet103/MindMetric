@@ -8,3 +8,6 @@ __pycache__/
 video/node_modules/
 video/out/
 video/.remotion/
+
+# Marketing video project (local only)
+video/
