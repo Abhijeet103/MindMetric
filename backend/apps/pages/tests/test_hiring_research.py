@@ -409,3 +409,85 @@ class HiringResearchTests(TestCase):
         self.assertTrue(repeated.json()["cached"])
         self.assertEqual(TestSuggestion.objects.count(), 3)
         api.assert_called_once()
+
+
+@override_settings(HIRING_RESEARCH_ENABLED=True, OPENAI_API_KEY="test-key", HIRING_RESEARCH_MODEL="gpt-6-luna")
+class HiringLocationAndNewTracksTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = get_user_model().objects.create_user(email="location@example.com", password="pass12345")
+        self.client.force_login(self.user)
+        self.url = reverse("pages:hiring-research-start")
+        self.data = {"company": "Deloitte", "role": "Graduate analyst", "prep_days": 3}
+
+    @patch.object(service, "_api", return_value=provider_report())
+    def test_location_is_sent_to_provider_and_separates_cached_guides(self, api):
+        uk = self.client.post(self.url, {**self.data, "location": "United Kingdom"})
+        india = self.client.post(self.url, {**self.data, "location": "India"})
+        self.assertEqual(uk.status_code, 200)
+        self.assertEqual(india.status_code, 200)
+        self.assertNotEqual(uk.json()["id"], india.json()["id"])
+        self.assertEqual(json.loads(api.call_args.kwargs["payload"]["input"])["request"]["location"], "India")
+        self.assertIn("strict research scope", api.call_args.kwargs["payload"]["instructions"])
+        again = self.client.post(self.url, {**self.data, "location": "United Kingdom"})
+        self.assertEqual(again.json()["id"], uk.json()["id"])
+        self.assertEqual(api.call_count, 2)
+        page = self.client.get(reverse("pages:company-lookup"), {"report": india.json()["id"]})
+        self.assertContains(page, 'value="India" selected')
+
+    @patch.object(service, "_api")
+    def test_location_dropdown_has_no_fixed_default_and_rejects_unknown_values(self, api):
+        page = self.client.get(reverse("pages:company-lookup"))
+        self.assertContains(page, 'id="lookup-location"')
+        self.assertContains(page, 'value="" selected')
+        self.assertEqual(self.client.post(self.url, {**self.data, "location": "invalid-country"}).status_code, 400)
+        api.assert_not_called()
+
+    @patch.object(service, "_api")
+    def test_generic_new_formats_match_playable_practice_without_suggestions(self, api):
+        response = provider_report()
+        names = ["Situational judgement test", "Job simulation", "Verbal reasoning test"]
+        response = alter_report(response, lambda report: report.update(assessments=[
+            {"name": name, "reason": "Named in the source.", "source_urls": ["https://example.com/careers"]}
+            for name in names
+        ]))
+        api.return_value = response
+        result = self.client.post(self.url, {**self.data, "location": "United Kingdom"})
+        self.assertEqual(result.status_code, 200)
+        for key in ("situational_judgement", "work_simulation", "verbal_reasoning"):
+            self.assertIn(reverse("pages:assessment-practice", args=[key]), result.json()["html"])
+        self.assertFalse(TestSuggestion.objects.exists())
+
+
+    @override_settings(BILLING_TRUST_PROXY_COUNTRY_HEADERS=True)
+    def test_network_country_initializes_dropdown_but_explicit_choice_wins(self):
+        page = self.client.get(reverse("pages:company-lookup"), HTTP_CF_IPCOUNTRY="IN")
+        self.assertContains(page, 'value="India" selected')
+        page = self.client.get(reverse("pages:company-lookup"), {"location": "United Kingdom"}, HTTP_CF_IPCOUNTRY="IN")
+        self.assertContains(page, 'value="United Kingdom" selected')
+        page = self.client.get(reverse("pages:company-lookup"), {"location": ""}, HTTP_CF_IPCOUNTRY="IN")
+        self.assertContains(page, 'value="" selected')
+        self.assertContains(page, 'data-auto-location="false"')
+
+    @patch("backend.apps.billing.regions._lookup_ip_country", return_value="CA")
+    def test_public_ip_detection_selects_country_and_caches_lookup(self, lookup):
+        for _ in range(2):
+            page = self.client.get(reverse("pages:company-lookup"), REMOTE_ADDR="8.8.8.8")
+            self.assertContains(page, 'value="Canada" selected')
+        lookup.assert_called_once_with("8.8.8.8")
+
+    def test_legacy_billing_fallback_does_not_become_a_location(self):
+        session = self.client.session
+        session["billing_country_code"] = "US"
+        session.save()
+        page = self.client.get(reverse("pages:company-lookup"))
+        self.assertContains(page, 'value="" selected')
+        self.assertContains(page, 'data-auto-location="true"')
+
+    def test_last_search_location_is_retained_without_detection(self):
+        session = self.client.session
+        session["hiring_location"] = "Germany"
+        session.save()
+        page = self.client.get(reverse("pages:company-lookup"))
+        self.assertContains(page, 'value="Germany" selected')
+        self.assertContains(page, 'data-auto-location="false"')

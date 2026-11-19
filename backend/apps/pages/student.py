@@ -152,11 +152,24 @@ class ApplicationDeadlineDeleteView(LoginRequiredMixin, View):
         return redirect(reverse("pages:dashboard") + "#applications")
 
 
+def _initial_research_location(request):
+    choices = dict(hiring_research.LOCATION_CHOICES)
+    if "location" in request.GET and request.GET["location"] in choices:
+        return request.GET["location"], False
+    saved = request.session.get("hiring_location")
+    if saved is not None and saved in choices:
+        return saved, False
+    from backend.apps.billing.regions import detect_request_country_code
+    country = detect_request_country_code(request)
+    return hiring_research.COUNTRY_LOCATIONS.get(country, ""), True
+
+
 class CompanyLookupView(TemplateView):
     template_name = "pages/company_lookup.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        location, auto_location = _initial_research_location(self.request)
         query = self.request.GET.get("company", self.request.GET.get("q", "")).strip()[:120]
         entries = EmployerAssessment.objects.filter(is_published=True)
         if query:
@@ -181,6 +194,9 @@ class CompanyLookupView(TemplateView):
                 "meta_description": "Research hiring stages and interview experiences for your company and role, then build a preparation plan with MindMetric practice.",
                 "query": query,
                 "research_role": self.request.GET.get("role", "").strip()[:120],
+                "research_location": location,
+                "research_auto_location": auto_location,
+                "location_choices": hiring_research.LOCATION_CHOICES,
                 "results": results,
                 "has_any_entries": EmployerAssessment.objects.filter(is_published=True).exists(),
                 "research_available": hiring_research.available(),
@@ -195,7 +211,7 @@ class CompanyLookupView(TemplateView):
                 job = None
             if job:
                 context.update(_research_context(self.request, job))
-                context.update(query=job.company, research_role=job.role)
+                context.update(query=job.company, research_role=job.role, research_location=job.location, research_auto_location=False)
         return context
 
 
@@ -250,6 +266,7 @@ class HiringResearchStartView(View):
         if not form.is_valid():
             return JsonResponse({"error": "Enter a valid company or role to search.", "fields": form.errors.get_json_data()}, status=400)
         try:
+            request.session["hiring_location"] = form.cleaned_data["location"]
             job = hiring_research.start_research(form.cleaned_data, request.user.pk, _research_tenant_id(request))
         except hiring_research.ResearchLimit as exc:
             return JsonResponse({"error": str(exc)}, status=429)

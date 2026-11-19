@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section recruiter-shell">
+    <a href="{% url 'pages:recruiter-import-map' draft.id %}">← Change column mapping</a>
+    <span class="eyebrow">{{ draft.filename }}</span><h1>3. Review your custom test</h1>
+    {% if draft.errors %}
+    <article class="lookup-empty"><h2>Resolve {{ error_count }} import issue{{ error_count|pluralize }}</h2><p>No assessment has been created. Correct the workbook and upload it again, or change the column mapping.</p>
+        <ul>{% for error in row_errors %}<li><strong>{% if error.row %}Row {{ error.row }}{% else %}Workbook{% endif %}</strong>: {{ error.messages|join:" " }}</li>{% endfor %}</ul>
+        {% if error_count > 60 %}<p>Showing the first 60 rows with errors.</p>{% endif %}
+        <a href="{% url 'pages:recruiter-upload' %}">Upload corrected file</a>
+    </article>
+    {% elif not draft.questions %}<article class="lookup-empty"><h2>No questions have been validated</h2><a href="{% url 'pages:recruiter-import-map' draft.id %}">Map columns to continue</a></article>
+    {% else %}
+    <p>{{ draft.questions|length }} question{{ draft.questions|length|pluralize }} validated. Check every answer key before sharing. Each candidate receives these questions in spreadsheet order.</p>
+    <div class="recruiter-import-preview">
+        {% for question in preview_questions %}<details class="card recruiter-panel"{% if forloop.first %} open{% endif %}><summary>Row {{ question.row }} · {{ question.subject }} · {{ question.text|truncatechars:100 }}</summary>
+        <p class="recruiter-instructions">{{ question.text }}</p><ol type="A">{% for option in question.options %}<li>{{ option }}</li>{% endfor %}</ol>
+        <p><strong>Correct answer:</strong> {{ question.answer }}</p>{% if question.explanation %}<p><strong>Explanation:</strong> {{ question.explanation }}</p>{% endif %}
+        </details>{% endfor %}
+    </div>
+    <form method="post" class="card recruiter-panel recruiter-form">{% csrf_token %}<h2>Assessment settings</h2>{{ form.non_field_errors }}
+        {% for field in form %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{{ field.errors }}</div>{% endfor %}
+        <p class="muted">Includes the same server timer, answer saving and browser monitoring as your other assessments. Correct answers remain private to your workspace.</p>
+        <button class="button" type="submit">Create custom assessment and share link</button>
+    </form>
+    {% endif %}
+</section>
+{% endblock %}

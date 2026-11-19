@@ -149,6 +149,18 @@ def _country_from_accept_language(request) -> str | None:
     return None
 
 
+def detect_request_country_code(request) -> str | None:
+    """Network-derived country without pricing's US fallback or language inference."""
+    if "detected_country_code" in request.session:
+        return normalize_country_code(request.session["detected_country_code"])
+    country = _country_from_proxy_header(request)
+    if not country:
+        address = _request_ip(request)
+        country = _lookup_ip_country(address) if address else None
+    request.session["detected_country_code"] = country or ""
+    return country
+
+
 def get_request_country_code(request) -> str:
     saved_country = normalize_country_code(request.session.get(COUNTRY_SESSION_KEY))
     if saved_country:

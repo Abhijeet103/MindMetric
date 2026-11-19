@@ -14,10 +14,14 @@ class TenantAccountAdapter(DefaultAccountAdapter):
         bind_session_to_tenant(request, tenant)
         if tenant and request.user.is_authenticated:
             get_or_create_tenant_user(tenant=tenant, user=request.user)
+        if request.user.is_authenticated and request.user.is_recruiter:
+            return "/recruiter/"
         return super().get_login_redirect_url(request)
 
     def get_signup_redirect_url(self, request):
         bind_session_to_tenant(request)
+        if request.user.is_authenticated and request.user.is_recruiter:
+            return "/recruiter/"
         return super().get_signup_redirect_url(request)
 
 

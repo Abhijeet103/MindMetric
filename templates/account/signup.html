@@ -5,8 +5,8 @@
     <div class="login-layout">
         <article class="card login-panel">
             <span class="eyebrow">Create account</span>
-            <h1 class="section-title">Start practicing free</h1>
-            <p class="section-copy">Save your scores, take a free timed full test and track your pace across every test.</p>
+            <h1 class="section-title">Create your MindMetric account</h1>
+            <p class="section-copy">Join as a student to practise, or as a recruiter to create and share candidate assessments.</p>
 
             <a href="/accounts/google/login/" data-btn-loader class="button-secondary login-google">
                 <img src="/static/google-g.svg" alt="" class="login-google-icon" width="20" height="20">
@@ -19,6 +19,10 @@
                 {% if redirect_field_value %}
                     <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
                 {% endif %}
+                <label class="form-field">
+                    <span>I am joining as</span>
+                    {{ form.account_type }}
+                </label>
                 <label class="form-field">
                     <span>Name</span>
                     {{ form.first_name }}

@@ -26,7 +26,14 @@ from prepgia.consulting_generators import (
     LinkedCaseGenerator,
 )
 
+from prepgia.mindmetric_generators import (
+    SituationalJudgementGenerator, WorkSimulationGenerator, VerbalPassageGenerator,
+    ArithmeticGenerator, VerbalLogicGenerator,
+)
+
 SECTION_TYPES = [
+    "sjt_workplace", "work_simulation", "verbal_passages",
+    "aptitude_arithmetic", "aptitude_verbal", "aptitude_visual",
     "reasoning",
     "perceptual_speed",
     "number_speed_accuracy",
@@ -1400,7 +1407,17 @@ class SHLInductiveGenerator(CCATSpatialGenerator):
         )
 
 
+class MindMetricVisualGenerator(SHLInductiveGenerator):
+    section_type = "aptitude_visual"
+
+
 GENERATOR_MAP = {
+    "sjt_workplace": SituationalJudgementGenerator(),
+    "work_simulation": WorkSimulationGenerator(),
+    "verbal_passages": VerbalPassageGenerator(),
+    "aptitude_arithmetic": ArithmeticGenerator(),
+    "aptitude_verbal": VerbalLogicGenerator(),
+    "aptitude_visual": MindMetricVisualGenerator(),
     "reasoning": ReasoningGenerator(),
     "perceptual_speed": PerceptualSpeedGenerator(),
     "number_speed_accuracy": NumberSpeedAccuracyGenerator(),

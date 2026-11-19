@@ -251,3 +251,77 @@ class LegalPage(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class RecruiterAssessment(models.Model):
+    """An owner's shareable hiring assessment, isolated from paid practice quotas."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    share_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, related_name="recruiter_assessments")
+    recruiter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="recruiter_assessments")
+    title = models.CharField(max_length=160)
+    organization = models.CharField(max_length=160)
+    role_title = models.CharField(max_length=160, blank=True)
+    instructions = models.TextField(max_length=3000, blank=True)
+    modules = models.JSONField(default=list)
+    custom_questions = models.JSONField(default=list, blank=True)
+    difficulty = models.CharField(max_length=16, default="medium")
+    questions_per_module = models.PositiveIntegerField(default=8)
+    duration_minutes = models.PositiveIntegerField(default=20)
+    max_candidates = models.PositiveIntegerField(default=100)
+    allowed_emails = models.JSONField(default=list, blank=True)
+    is_open = models.BooleanField(default=True)
+    closes_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    @property
+    def accepts_candidates(self):
+        return self.is_open and self.closes_at > timezone.now()
+
+    def __str__(self):
+        return self.title
+
+
+class RecruiterSubmission(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    assessment = models.ForeignKey(RecruiterAssessment, on_delete=models.PROTECT, related_name="submissions")
+    candidate = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="recruiter_submissions")
+    # This private payload contains answer keys; only sanitised previews leave the server.
+    questions = models.JSONField(default=list)
+    answers = models.JSONField(default=dict)
+    answer_revision = models.PositiveBigIntegerField(default=0)
+    status = models.CharField(max_length=16, choices=[("active", "In progress"), ("submitted", "Submitted"), ("expired", "Time expired")], default="active")
+    started_at = models.DateTimeField(default=timezone.now)
+    deadline_at = models.DateTimeField()
+    last_seen_at = models.DateTimeField(default=timezone.now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    consented_at = models.DateTimeField(default=timezone.now)
+    score = models.PositiveIntegerField(default=0)
+    total_questions = models.PositiveIntegerField(default=0)
+    section_scores = models.JSONField(default=list)
+    monitoring_events = models.JSONField(default=list)
+
+    class Meta:
+        ordering = ("-started_at",)
+        constraints = [models.UniqueConstraint(fields=["assessment", "candidate"], name="one_recruiter_attempt_per_candidate")]
+
+    @property
+    def percentage(self):
+        return round(100 * self.score / self.total_questions) if self.total_questions else 0
+
+
+class RecruiterQuestionImport(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey("tenants.Tenant", on_delete=models.CASCADE, related_name="recruiter_question_imports")
+    recruiter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="question_imports")
+    filename = models.CharField(max_length=255)
+    sheets = models.JSONField(default=list)
+    mapping = models.JSONField(default=dict)
+    questions = models.JSONField(default=list)
+    errors = models.JSONField(default=list)
+    assessment = models.OneToOneField(RecruiterAssessment, on_delete=models.SET_NULL, null=True, blank=True, related_name="source_import")
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)

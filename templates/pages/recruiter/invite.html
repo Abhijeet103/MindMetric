@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<section class="content-section recruiter-shell" id="candidate-assessment" data-start-url="{% url 'pages:recruiter-candidate-start' assessment.share_token %}">
+    <div id="candidate-intro"><span class="eyebrow">Candidate assessment</span><h1>{{ assessment.title }}</h1><p>{{ assessment.organization }}{% if assessment.role_title %} · {{ assessment.role_title }}{% endif %}</p>
+    <article class="card recruiter-panel"><p>{{ question_total }} questions · {{ assessment.duration_minutes }} minutes · One attempt per account</p><p>Skills: {{ skills|join:", " }}</p>{% if assessment.instructions %}<p class="recruiter-instructions">{{ assessment.instructions }}</p>{% endif %}
+    {% if submission and submission.status != 'active' %}<h2>Assessment received</h2><p>Your assessment is {{ submission.get_status_display|lower }}. Your recruiter can review the results. You cannot restart this attempt.</p>
+    {% elif not request.user.is_authenticated %}<p>Sign in with your own account to start. Use the email address your recruiter invited.</p><a class="button" href="{% url 'pages:login' %}?next={{ request.path|urlencode }}">Sign in to continue</a>
+    {% elif not eligible %}<p>This assessment is restricted to invited email addresses. Ask your recruiter to check the email on your invitation.</p>
+    {% elif not assessment.accepts_candidates and not submission %}<h2>This assessment is closed</h2><p>Contact the recruiter if you need a new invitation.</p>
+    {% elif request.user.pk == assessment.recruiter_id %}<p>You own this assessment. Share the link with a separate student account to take it.</p>
+    {% else %}
+        <h2>Before you {% if submission %}resume{% else %}start{% endif %}</h2>
+        <p>Complete the assessment independently. The timer continues if you refresh or disconnect. Answers save as you work; answers received after the server deadline are not accepted.</p>
+        <p><strong>Browser monitoring:</strong> tab changes, window focus changes, fullscreen exits and copy/paste attempts are logged, with connection gaps. Your recruiter receives your name, email, answers, scores and monitoring log. No webcam, microphone or screen recording is collected.</p>
+        <p class="muted">If you need adjustments, contact the recruiter before starting. Flags require review and do not automatically disqualify you.</p>
+        <label class="form-check"><input type="checkbox" id="candidate-consent"> I understand the monitoring and agree to share my assessment with {{ assessment.organization }}.</label>
+        <button class="button" type="button" id="candidate-start">{% if submission %}Resume assessment{% else %}Enter fullscreen and start{% endif %}</button>
+    {% endif %}
+    </article></div>
+    <div id="candidate-runner" class="card recruiter-panel" hidden tabindex="-1">
+        <div class="recruiter-toolbar"><strong id="candidate-progress"></strong><strong id="candidate-timer" role="timer"></strong></div>
+        <p class="muted">Browser monitoring active · Your timer continues during interruptions.</p>
+        <button type="button" class="button-secondary button-small" id="candidate-fullscreen">Return to fullscreen</button>
+        <nav id="candidate-question-nav" class="practice-levels" aria-label="Assessment questions"></nav>
+        <div id="candidate-context" class="recruiter-instructions"></div>
+        <div id="candidate-question-shell"><h2 id="candidate-question"></h2></div>
+        <div id="candidate-options" class="recruiter-options"></div>
+        <div class="recruiter-toolbar"><button class="button-secondary" id="candidate-previous" type="button">Previous</button><button class="button-secondary" id="candidate-next" type="button">Next</button></div>
+        <button class="button" id="candidate-submit" type="button">Submit assessment</button>
+        <p id="candidate-save-status" class="muted" role="status" aria-live="polite"></p>
+    </div>
+    <p id="candidate-status" role="status" aria-live="polite"></p>
+    <div id="candidate-csrf" hidden>{% csrf_token %}</div>
+    <noscript><p>JavaScript is required for the monitored assessment.</p></noscript>
+</section>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'js/recruiter-candidate.js' %}?v=1" defer></script>{% endblock %}

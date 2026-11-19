@@ -9,6 +9,25 @@
         <p class="muted">AI research can miss details. Processes vary by team, location and year; confirm against your invitation. Candidate reports describe individual experiences.</p>
     </header>
 
+    {% if research_report.assessments %}
+    <section class="hiring-panel" aria-label="Tests for your role">
+        <h2>Tests for your role</h2>
+        {% for assessment in research_report.assessments %}
+        <div class="hiring-experience">
+            <h3>{{ assessment.name }}</h3><p>{{ assessment.reason }}</p>
+            {% if assessment.test %}
+                <a class="landing-pick" href="{{ assessment.test.url }}" data-show-loader>Use this test · {{ assessment.test.title }}</a>
+            {% elif assessment.in_catalogue %}
+                <p class="muted">Already in our catalogue. Practice is not available in your current catalogue yet.</p>
+            {% elif assessment.suggestion_id %}
+                <p class="muted">Not available on MindMetric yet. Saved to our test suggestions for future development.</p>
+            {% endif %}
+            <p class="lookup-source">Sources: {% for source in assessment.sources %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.title }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
     <section class="hiring-panel" aria-label="Hiring process">
         <h2>Hiring process</h2>
         {% if research_report.stages %}<ol class="hiring-stages">
@@ -34,24 +53,7 @@
 
     {% if research_report.gaps %}<section class="lookup-empty"><h2>What remains uncertain</h2><ul>{% for gap in research_report.gaps %}<li>{{ gap }}</li>{% endfor %}</ul></section>{% endif %}
 
-    {% if research_report.assessments %}
-    <section class="hiring-panel" aria-label="Tests for your role">
-        <h2>Tests for your role</h2>
-        {% for assessment in research_report.assessments %}
-        <div class="hiring-experience">
-            <h3>{{ assessment.name }}</h3><p>{{ assessment.reason }}</p>
-            {% if assessment.test %}
-                <a class="landing-pick" href="{{ assessment.test.url }}" data-show-loader>Use this test · {{ assessment.test.title }}</a>
-            {% elif assessment.in_catalogue %}
-                <p class="muted">Already in our catalogue. Practice is not available in your current catalogue yet.</p>
-            {% elif assessment.suggestion_id %}
-                <p class="muted">Not available on MindMetric yet. Saved to our test suggestions for future development.</p>
-            {% endif %}
-            <p class="lookup-source">Sources: {% for source in assessment.sources %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.title }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>
-        </div>
-        {% endfor %}
-    </section>
-    {% endif %}
+
 
     <section class="hiring-panel" aria-label="Preparation plan">
         <h2>Your {{ research_job.prep_days }}-day preparation plan</h2>

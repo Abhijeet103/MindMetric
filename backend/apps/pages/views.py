@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from allauth.account.forms import LoginForm
 from django.conf import settings
@@ -407,7 +408,7 @@ REAL_TEST_FACTS = {
 
 # Order and short labels for the home-page test picker: the tests students
 # meet most often in big-company screening rounds come first.
-HOME_TEST_PICKER_ORDER = ["ccat", "shl_verify", "consulting", "consulting_cases", "watson_glaser", "prepgia"]
+HOME_TEST_PICKER_ORDER = ["ccat", "shl_verify", "situational_judgement", "work_simulation", "verbal_reasoning", "aptitude", "consulting", "consulting_cases", "watson_glaser", "prepgia"]
 HOME_TEST_PICKER_LABELS = {
     "ccat": ("CCAT", "50 Q · 15 min"),
     "shl_verify": ("SHL-style", "Numerical · logic"),
@@ -1033,6 +1034,9 @@ class SectionDetailPageView(TemplateView):
         if section_type not in get_assessment_module_keys(assessment_type):
             raise Http404("Section not found.")
 
+        level = self.request.GET.get("level", "easy")
+        if level not in {"easy", "medium", "hard"}:
+            level = "easy"
         mode = self.request.GET.get("mode", "practice")
         if mode not in {"practice", "test"}:
             mode = "practice"
@@ -1078,6 +1082,7 @@ class SectionDetailPageView(TemplateView):
             user=self.request.user,
             question_count=practice_remaining,
             language=language,
+            difficulty=level if assessment_config.get("level_practice") else None,
         )
         # SEO metadata above stays English; the page itself follows the language.
         assessment_config = localize_assessment(assessment_config, language)
@@ -1088,6 +1093,8 @@ class SectionDetailPageView(TemplateView):
                 "meta_description": seo_metadata["meta_description"],
                 "assessment": assessment_config,
                 "assessment_slug": assessment_type,
+                "practice_level": level,
+                "practice_levels": [("easy", "Foundation"), ("medium", "Intermediate"), ("hard", "Advanced")],
                 "section": {
                     "key": section_type,
                     "title": meta["title"],
@@ -1161,7 +1168,7 @@ class LoginPageView(View):
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            return redirect("pages:dashboard")
+            return redirect("pages:recruiter-dashboard" if request.GET.get("as") == "recruiter" or request.user.is_recruiter else "pages:dashboard")
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
@@ -1171,7 +1178,9 @@ class LoginPageView(View):
     def post(self, request, *args, **kwargs):
         form = LoginForm(request.POST, request=request)
         if form.is_valid():
-            response = form.login(request, redirect_url=self._redirect_url(request))
+            explicit_destination = request.GET.get("next") or request.POST.get("next") or request.GET.get("as") == "recruiter"
+            # Let the account adapter select a role-aware destination after authentication.
+            response = form.login(request, redirect_url=self._redirect_url(request) if explicit_destination else None)
             if response:
                 return response
             return redirect(self._redirect_url(request))
@@ -1179,6 +1188,8 @@ class LoginPageView(View):
 
     def _redirect_url(self, request):
         redirect_url = request.GET.get("next") or request.POST.get("next")
+        if not redirect_url and (request.GET.get("as") == "recruiter" or getattr(request.user, "is_recruiter", False)):
+            return reverse("pages:recruiter-dashboard")
         if redirect_url and url_has_allowed_host_and_scheme(
             redirect_url,
             allowed_hosts={request.get_host()},
@@ -1188,16 +1199,24 @@ class LoginPageView(View):
         return settings.LOGIN_REDIRECT_URL
 
     def _context(self, request, form):
+        next_value = request.GET.get("next") or request.POST.get("next") or ("/recruiter/" if request.GET.get("as") == "recruiter" else "")
+        google_path = "/accounts/google/login/" + ("?" + urlencode({"next": next_value}) if next_value else "")
         return {
             "page_title": "Login | MindMetric",
             "meta_description": "Sign in to MindMetric with email and password or continue with Google.",
-            "google_login_path": "/accounts/google/login/",
+            "google_login_path": google_path,
+            "recruiter_login": self.request.GET.get("as") == "recruiter",
             "form": form,
-            "next_value": request.GET.get("next", ""),
+            "next_value": next_value,
         }
 
 
 class DashboardPageView(LoginRequiredMixin, TemplateView):
+    def get(self, request, *args, **kwargs):
+        if request.user.is_recruiter:
+            return redirect("pages:recruiter-dashboard")
+        return super().get(request, *args, **kwargs)
+
     template_name = "pages/dashboard.html"
     login_url = "/login/"
 
@@ -1587,8 +1606,8 @@ def _practice_section_cards(request, assessment_type: str):
     return cards
 
 
-def _build_section_questions(section_type: str, mode: str, user=None, question_count: int | None = None, language: str = "en") -> list[dict]:
-    difficulty = "easy" if mode == "practice" else "medium"
+def _build_section_questions(section_type: str, mode: str, user=None, question_count: int | None = None, language: str = "en", difficulty: str | None = None) -> list[dict]:
+    difficulty = difficulty or ("easy" if mode == "practice" else "medium")
     if question_count is not None:
         question_count = max(0, question_count)
     elif mode == "practice":

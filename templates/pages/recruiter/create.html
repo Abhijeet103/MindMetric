@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section recruiter-shell">
+    <a href="{% url 'pages:recruiter-dashboard' %}">← Recruiter dashboard</a>
+    <span class="eyebrow">New candidate assessment</span><h1>Choose the skills you want to assess</h1>
+    <p class="muted">Original practice questions, generated separately for each candidate. Scores describe this assessment; they are not calibrated hiring cut-offs.</p>
+    <p>Have your own questions? <a href="{% url 'pages:recruiter-upload' %}">Upload an Excel question bank</a>.</p>
+    <form method="post" class="card recruiter-panel recruiter-form">{% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form %}<div class="form-field{% if field.name == 'modules' %} recruiter-modules{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{{ field.errors }}</div>{% endfor %}
+        <aside class="lookup-empty"><strong>Browser-monitored session</strong><p>Includes a server-enforced timer, automatic answer saving and logs of tab/focus changes, fullscreen exits and copy/paste attempts. Candidates acknowledge this before starting. No webcam or screen recording is collected. Flags require human review.</p></aside>
+        <button class="button" type="submit">Create assessment and share link</button>
+    </form>
+</section>
+{% endblock %}

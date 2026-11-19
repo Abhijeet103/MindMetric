@@ -26,6 +26,8 @@ class SessionView(View):
                 "authenticated": True,
                 "user": {
                     "email": request.user.email,
+                    "account_type": request.user.account_type,
+                    "is_recruiter": request.user.is_recruiter,
                     "role": request.effective_role,
                     "role_label": request.effective_role_label,
                     "is_paid_user": request.effective_access_active,

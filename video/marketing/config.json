@@ -1,0 +1,35 @@
+{
+  "schedule": {
+    "timezone": "Asia/Kolkata",
+    "time": "19:00",
+    "every_days": 2,
+    "anchor_date": "2026-11-15"
+  },
+  "duration": { "min_seconds": 30, "max_seconds": 60 },
+  "timing": { "lead_frames": 9, "tail_frames": 15, "cta_tail_frames": 45, "words_per_minute_estimate": 140, "max_hold_padding_frames_per_scene": 60 },
+  "tts": {
+    "provider": "openai",
+    "model": "gpt-4o-mini-tts",
+    "voice": "coral",
+    "instructions": "Warm, confident product narrator. Natural and encouraging, clear diction, short pauses between sentences. Not salesy.",
+    "api_key_env": "OPENAI_API_KEY",
+    "dotenv_files": [".env", "video/.env"],
+    "max_requests_per_run": 6,
+    "language": "en"
+  },
+  "disclosure": {
+    "on_screen_generated": "AI-generated voiceover",
+    "on_screen_reused": "AI-generated voiceover",
+    "on_screen_blocked": "DRAFT: no voiceover yet",
+    "post_generated": "Voiceover is AI-generated (OpenAI text-to-speech).",
+    "post_reused": "Voiceover is AI-generated (OpenAI text-to-speech, reused from an earlier MindMetric video).",
+    "post_blocked": "DRAFT: this video has no voiceover yet. If narration is added it will be AI-generated (OpenAI text-to-speech) and must be disclosed.",
+    "screens": "Screens are real MindMetric product screenshots.",
+    "independence": "MindMetric is independent and not affiliated with any test publisher or employer."
+  },
+  "channels": {
+    "youtube_shorts": { "status": "awaiting_connection" },
+    "instagram_reels": { "status": "awaiting_connection" }
+  },
+  "lock_stale_seconds": 7200
+}

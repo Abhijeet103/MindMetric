@@ -1109,7 +1109,7 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
         )
         return preview
 
-    if section_type in {SectionType.CCAT_SPATIAL, SectionType.SHL_INDUCTIVE}:
+    if section_type in {SectionType.CCAT_SPATIAL, SectionType.SHL_INDUCTIVE, SectionType.APTITUDE_VISUAL}:
         preview.update(
             {
                 "context_kind": "ccat_spatial",
@@ -1136,7 +1136,7 @@ def _serialize_generated_question_for_player(question: dict[str, Any], include_c
         )
         return preview
 
-    if section_type in {"consulting_math", "consulting_evidence", "consulting_case", "linked_case", "wg_inference", "wg_assumptions", "wg_deduction", "wg_interpretation", "wg_arguments"}:
+    if section_type in {"sjt_workplace", "work_simulation", "verbal_passages", "aptitude_arithmetic", "aptitude_verbal", "consulting_math", "consulting_evidence", "consulting_case", "linked_case", "wg_inference", "wg_assumptions", "wg_deduction", "wg_interpretation", "wg_arguments"}:
         preview.update(context_kind="generic", instruction=prompt.get("instruction", ""), data_table=prompt.get("data_table"), question_text=prompt.get("question", ""), reveal_mode="question_only")
     return preview
 

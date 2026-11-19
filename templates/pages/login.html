@@ -5,8 +5,14 @@
     <div class="login-layout">
         <article class="card login-panel">
             <span class="eyebrow">Sign in</span>
-            <h1 class="section-title">Welcome back</h1>
-            {% if next_value and "full-test" in next_value %}
+            <h1 class="section-title">{% if recruiter_login %}Recruiter sign in{% else %}Welcome back{% endif %}</h1>
+            <nav class="login-role-switch" aria-label="Sign in account type">
+                <a href="{% url 'pages:login' %}"{% if not recruiter_login %} aria-current="true"{% endif %}>Student</a>
+                <a href="{% url 'pages:login' %}?as=recruiter"{% if recruiter_login %} aria-current="true"{% endif %}>Recruiter</a>
+            </nav>
+            {% if recruiter_login %}
+                <p class="section-copy">Create, share and review candidate assessments for your organisation.</p>
+            {% elif next_value and "full-test" in next_value %}
                 <p class="login-context">Sign in to take your free timed full test. It takes under a minute to create an account.</p>
             {% elif next_value %}
                 <p class="login-context">Sign in to continue. Your scores and progress will be saved.</p>
@@ -48,7 +54,7 @@
                 <a class="login-forgot" href="{% url 'account_reset_password' %}">Forgot your password?</a>
             </form>
 
-            <p class="login-switch">New here? <a href="/accounts/signup/">Create a free account</a></p>
+            <p class="login-switch">New here? <a href="/accounts/signup/{% if next_value %}?next={{ next_value|urlencode }}{% endif %}">Create a free account</a></p>
         </article>
     </div>
 </section>

@@ -11,3 +11,7 @@ psycopg[binary]==3.2.9
 PyJWT==2.9.0
 cryptography==43.0.1
 redis==5.2.1
+# Recruiter spreadsheet imports (read-only, with hardened XML parsing).
+openpyxl==3.1.5
+xlrd==2.0.2
+defusedxml==0.7.1

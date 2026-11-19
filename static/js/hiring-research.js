@@ -1,6 +1,35 @@
 (() => {
     const form = document.getElementById("hiring-search");
     if (!form) return;
+    const location = document.getElementById("lookup-location");
+    // A country-level timezone hint helps local/private-IP users without requesting GPS.
+    // Explicit choices and network-detected countries always take precedence.
+    if (location?.dataset.autoLocation === "true" && !location.value) {
+        try {
+            const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const countries = {
+                "Asia/Kolkata": "India", "Asia/Calcutta": "India",
+                "Europe/London": "United Kingdom", "Europe/Dublin": "Ireland",
+                "Europe/Berlin": "Germany", "Europe/Paris": "France",
+                "Europe/Amsterdam": "Netherlands", "Europe/Madrid": "Spain",
+                "Europe/Rome": "Italy", "Asia/Singapore": "Singapore",
+                "Asia/Dubai": "United Arab Emirates", "Asia/Tokyo": "Japan",
+                "Asia/Seoul": "South Korea", "Asia/Manila": "Philippines",
+                "Asia/Kuala_Lumpur": "Malaysia", "Asia/Karachi": "Pakistan",
+                "Asia/Dhaka": "Bangladesh", "Pacific/Auckland": "New Zealand",
+                "Africa/Johannesburg": "South Africa", "Africa/Lagos": "Nigeria",
+                "Africa/Nairobi": "Kenya", "America/New_York": "United States",
+                "America/Chicago": "United States", "America/Denver": "United States",
+                "America/Los_Angeles": "United States", "America/Toronto": "Canada",
+                "America/Vancouver": "Canada", "Australia/Sydney": "Australia",
+                "Australia/Melbourne": "Australia", "Australia/Perth": "Australia",
+            };
+            const inferred = countries[zone];
+            if (inferred && Array.from(location.options).some(option => option.value === inferred)) {
+                location.value = inferred;
+            }
+        } catch { /* Leave Any location selected when detection is unavailable. */ }
+    }
     const status = document.getElementById("hiring-status");
     const report = document.getElementById("hiring-report");
     const button = form.querySelector("button[type=submit]");
@@ -56,7 +85,7 @@
         try {
             const result = await request(form.dataset.researchUrl, {method: "POST", body: data});
             const url = new URL(window.location.href);
-            url.search = new URLSearchParams({company: data.get("company"), role: data.get("role"), report: result.id});
+            url.search = new URLSearchParams({company: data.get("company"), role: data.get("role"), location: data.get("location"), report: result.id});
             history.replaceState(null, "", url);
             await follow(result, token);
         } catch (error) {

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section recruiter-shell">
+    <a href="{% url 'pages:recruiter-assessment' submission.assessment_id %}">← Assessment results</a>
+    <h1>{{ submission.candidate.get_full_name|default:submission.candidate.email }}</h1><p>{{ submission.candidate.email }} · {{ submission.assessment.title }}</p>
+    <article class="card recruiter-panel"><h2>{{ submission.get_status_display }}</h2>
+    {% if submission.status != 'active' %}<p class="recruiter-score">{{ submission.percentage }}% <small>{{ submission.score }} / {{ submission.total_questions }}</small></p>{% else %}<p>Candidate is in progress. Results become available on submission or expiry.</p>{% endif %}
+    <p class="muted">Started {{ submission.started_at|date:"j M Y H:i:s T" }} · Deadline {{ submission.deadline_at|date:"j M Y H:i:s T" }}{% if submission.completed_at %} · Completed {{ submission.completed_at|date:"j M Y H:i:s T" }}{% endif %}</p>
+    <p class="muted">Last connection {{ submission.last_seen_at|date:"j M Y H:i:s T" }} · Monitoring acknowledged {{ submission.consented_at|date:"j M Y H:i:s T" }}</p>
+    {% for section in submission.section_scores %}<p><strong>{{ section.title }}</strong> · {{ section.correct }}/{{ section.total }}</p>{% endfor %}
+    </article>
+    <article class="card recruiter-panel"><h2>Session review</h2><p>These events may reflect interruptions, accessibility tools, device limitations or connection issues. Review them with the candidate before drawing conclusions. Browser signals are self-reported; this is not identity verification or webcam supervision.</p>
+    <p>Flags recorded: {{ submission.monitoring_events|length }}{% if submission.monitoring_events|length >= 200 %} (log limit reached){% endif %}</p>
+    {% for kind, count in event_counts.items %}<span class="recruiter-event">{{ kind }} · {{ count }}</span>{% endfor %}
+    <div class="recruiter-table-wrap"><table class="recruiter-table"><thead><tr><th>Time (server)</th><th>Event</th><th>Source</th></tr></thead><tbody>
+    {% for event in submission.monitoring_events %}<tr><td>{{ event.at }}</td><td>{{ event.kind }}{% if event.seconds %} · {{ event.seconds }} seconds{% endif %}</td><td>{{ event.source }}</td></tr>{% empty %}<tr><td colspan="3">No events recorded.</td></tr>{% endfor %}
+    </tbody></table></div>
+    </article>
+</section>
+{% endblock %}

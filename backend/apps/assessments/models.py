@@ -38,6 +38,12 @@ class SectionType(models.TextChoices):
     WG_INTERPRETATION = "wg_interpretation", "Watson–Glaser-style Interpretation"
     WG_ARGUMENTS = "wg_arguments", "Watson–Glaser-style Arguments"
     LINKED_CASE = "linked_case", "Linked Consulting Cases"
+    SJT_WORKPLACE = "sjt_workplace", "Workplace Judgement"
+    WORK_SIMULATION = "work_simulation", "Inbox and Business Simulation"
+    VERBAL_PASSAGES = "verbal_passages", "Passage-based Verbal Reasoning"
+    APTITUDE_ARITHMETIC = "aptitude_arithmetic", "Arithmetic Reasoning"
+    APTITUDE_VERBAL = "aptitude_verbal", "Verbal and Logical Reasoning"
+    APTITUDE_VISUAL = "aptitude_visual", "Visual Reasoning"
 
 
 class PracticeTrackVisibility(models.TextChoices):

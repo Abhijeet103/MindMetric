@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section recruiter-shell">
+    <a href="{% url 'pages:recruiter-upload' %}">← Upload another file</a>
+    <span class="eyebrow">{{ draft.filename }}</span><h1>2. Match your spreadsheet columns</h1>
+    <article class="card recruiter-panel">
+        <form method="get" class="recruiter-toolbar recruiter-form">
+            <label>Worksheet<select name="sheet">{% for sheet in draft.sheets %}<option value="{{ forloop.counter0 }}"{% if forloop.counter0 == sheet_index %} selected{% endif %}>{{ sheet.name }}</option>{% endfor %}</select></label>
+            <label>Header row<input type="number" name="header_row" min="1" max="20" value="{{ header_row }}" required></label>
+            <button class="button-secondary" type="submit">Load these columns</button>
+        </form>
+        <p class="muted">Select the row containing column names. Import starts on the following row. Blank rows are ignored.</p>
+        <div class="recruiter-table-wrap"><table class="recruiter-table"><caption>First rows from this selection</caption><tbody>{% for row in sample_rows %}<tr>{% for value in row %}{% if forloop.parentloop.first %}<th>{{ value|truncatechars:120 }}</th>{% else %}<td>{{ value|truncatechars:120 }}</td>{% endif %}{% endfor %}</tr>{% endfor %}</tbody></table></div>
+    </article>
+    <form method="post" class="card recruiter-panel recruiter-form">{% csrf_token %}{{ form.sheet.as_hidden }}{{ form.header_row.as_hidden }}{{ form.non_field_errors }}
+        {% for field in form %}{% if field.name != 'sheet' and field.name != 'header_row' %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endif %}{% endfor %}
+        {{ form.sheet.errors }}{{ form.header_row.errors }}
+        <p class="muted">Correct answers may use option letters, option numbers or exact option text. If a number or letter could mean two different options, select the intended format explicitly.</p>
+        <button class="button" type="submit">Validate and preview questions</button>
+    </form>
+</section>
+{% endblock %}

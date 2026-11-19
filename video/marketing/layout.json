@@ -1,0 +1,24 @@
+{
+  "_comment": "Single source of truth for the 1080x1920 short. Read by src/MarketingShort.tsx (rendering) and scripts/marketing-workflow.py (pre-render QC: margins, text fit, screenshot readability).",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "minMargin": 60,
+  "platformUiReserveBottom": 340,
+  "boxes": {
+    "disclosure": { "x": 60, "y": 60, "w": 960, "h": 60, "fontSize": 30, "maxLines": 1 },
+    "header": { "x": 60, "y": 150, "w": 960, "h": 300, "labelFontSize": 30, "tagFontSize": 28, "fontSize": 64, "maxLines": 2 },
+    "card": { "x": 60, "y": 470, "w": 960, "h": 760, "urlBarHeight": 64, "urlFontSize": 28, "urlTextWidth": 830 },
+    "callout": { "x": 90, "y": 1130, "w": 900, "h": 190, "fontSize": 44, "maxLines": 2, "paddingX": 34 },
+    "subtitles": { "x": 60, "y": 1350, "w": 960, "h": 200, "fontSize": 52, "maxLines": 2, "paddingX": 30 },
+    "cta": { "x": 60, "y": 420, "w": 960, "h": 1100, "urlFontSize": 92, "fontSize": 44, "smallFontSize": 32, "maxLines": 3 }
+  },
+  "screenshot": {
+    "sourceWidth": 2560,
+    "sourceHeight": 1440,
+    "minScale": 0.5,
+    "_minScaleNote": "UI text in the 2560x1440 captures is ~30-36px; below 0.5x it drops under ~15px on a 1080-wide frame. Key UI text is also restated in callouts/subtitles at >=44px."
+  },
+  "textWidthFactor": 0.58,
+  "minFontSize": 28
+}

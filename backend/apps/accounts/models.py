@@ -6,6 +6,11 @@ from django.db import models
 from django.utils import timezone
 
 
+class AccountType(models.TextChoices):
+    STUDENT = "student", "Student"
+    RECRUITER = "recruiter", "Recruiter"
+
+
 class UserRole(models.TextChoices):
     FREE = "free", "Free"
     PAID = "paid", "Paid"
@@ -37,6 +42,8 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     tenant = models.ForeignKey("tenants.Tenant", on_delete=models.PROTECT, related_name="users", blank=True, null=True)
     role = models.CharField(max_length=16, choices=UserRole.choices, default=UserRole.FREE)
+    account_type = models.CharField(max_length=16, choices=AccountType.choices, default=AccountType.STUDENT)
+    organization = models.CharField(max_length=160, blank=True)
     is_tenant_admin = models.BooleanField(default=False)
     google_sub = models.CharField(max_length=255, blank=True, null=True, unique=True)
     subscription_expires_at = models.DateTimeField(blank=True, null=True)
@@ -46,6 +53,10 @@ class User(AbstractUser):
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = []
+
+    @property
+    def is_recruiter(self) -> bool:
+        return self.account_type == AccountType.RECRUITER
 
     @property
     def is_paid_user(self) -> bool:

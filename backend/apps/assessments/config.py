@@ -297,6 +297,37 @@ ASSESSMENT_CONFIG["consulting_cases"] = _practice_track("consulting_cases", "Con
 ], 30)
 ASSESSMENT_CONFIG["consulting_cases"]["full_test_question_counts"][SectionType.LINKED_CASE] = 12
 
+# Original MindMetric subject practice and workplace exercises.
+ASSESSMENT_CONFIG["situational_judgement"] = _practice_track(
+    "situational_judgement", "MindMetric Situational Judgement",
+    "Practise teamwork, customer service, integrity and prioritisation using explicit workplace principles and explained answers.",
+    [_module(SectionType.SJT_WORKPLACE, "Workplace Judgement", "Choose the most effective action against the priorities and constraints in each scenario.")], 20)
+ASSESSMENT_CONFIG["work_simulation"] = _practice_track(
+    "work_simulation", "MindMetric Work Simulations",
+    "Work through a linked inbox: prioritise requests, interpret operational data, apply a policy and choose an effective email reply.",
+    [_module(SectionType.WORK_SIMULATION, "Inbox and Business Simulation", "Use a shared inbox, policy and data exhibit to make four connected workplace decisions.", 4)], 24)
+ASSESSMENT_CONFIG["work_simulation"]["full_test_question_counts"][SectionType.WORK_SIMULATION] = 12
+ASSESSMENT_CONFIG["verbal_reasoning"] = _practice_track(
+    "verbal_reasoning", "MindMetric Verbal Reasoning",
+    "Read original workplace passages and decide whether statements are true, false or cannot be determined from the information.",
+    [_module(SectionType.VERBAL_PASSAGES, "Reading and Evidence", "Judge statements using only the passage; distinguish contradictions from missing information.")], 15)
+ASSESSMENT_CONFIG["aptitude"] = _practice_track(
+    "aptitude", "MindMetric Aptitude",
+    "Build arithmetic, verbal and visual reasoning skills by subject, from foundation to intermediate and advanced practice.", [
+        _module(SectionType.APTITUDE_ARITHMETIC, "Arithmetic Reasoning", "Percentages, ratios, averages, work rates and multi-step arithmetic."),
+        _module(SectionType.APTITUDE_VERBAL, "Verbal and Logical Reasoning", "Ordering, relationships, conditional rules and conclusions."),
+        _module(SectionType.APTITUDE_VISUAL, "Visual Reasoning", "Visual sequences, movement, rotation and changing patterns."),
+    ], 30)
+for _key in ("situational_judgement", "work_simulation", "verbal_reasoning", "aptitude"):
+    _new = ASSESSMENT_CONFIG[_key]
+    _new["original_practice"] = True
+    _new["level_practice"] = True
+    _new["eyebrow"] = "Original MindMetric practice"
+    _new["full_test_intro_copy"] = "Practise original MindMetric exercises. Use the stated information and rules. Scores describe this practice session; they are not employer pass marks."
+    for _new_module in _new["modules"]:
+        _new_module["instruction"] = _new_module["description"] + " Read the explanation after answering."
+        _new_module["help"]["tip"] = "Start at Foundation, then progress to Intermediate and Advanced."
+
 # Keep the learning guidance aligned with each section's actual decision rule.
 
 _CRITICAL_TRAPS = {
@@ -359,7 +390,7 @@ PRACTICE_TRACK_LIBRARY = {
 }
 
 
-for _key in ("consulting", "watson_glaser", "consulting_cases"):
+for _key in ("consulting", "watson_glaser", "consulting_cases", "situational_judgement", "work_simulation", "verbal_reasoning", "aptitude"):
     _config = ASSESSMENT_CONFIG[_key]
     PRACTICE_TRACK_LIBRARY[_key] = {"key": _key, "title": _config["title"], "description": _config["description"], "module_count": len(_config["modules"]), "trust_line": "Original questions · Independent practice", "available_languages": ["English"], "route_enabled": True, "default_visibility_state": "accessible"}
 

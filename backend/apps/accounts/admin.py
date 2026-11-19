@@ -50,7 +50,7 @@ class UserAdmin(DjangoUserAdmin):
     model = User
     # Newest sign-ups first; every date column header can be clicked to re-sort.
     ordering = ("-date_joined",)
-    list_display = ("email", "tenant", "first_name", "last_name", "role", "date_joined", "last_login", "subscription_expires_at", "is_tenant_admin", "is_staff")
+    list_display = ("email", "tenant", "first_name", "last_name", "account_type", "role", "date_joined", "last_login", "subscription_expires_at", "is_tenant_admin", "is_staff")
     date_hierarchy = "date_joined"
     search_fields = ("email", "first_name", "last_name")
     actions = (
@@ -66,7 +66,7 @@ class UserAdmin(DjangoUserAdmin):
     )
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        ("Personal info", {"fields": ("tenant", "first_name", "last_name", "role", "google_sub", "subscription_expires_at")}),
+        ("Personal info", {"fields": ("tenant", "first_name", "last_name", "account_type", "organization", "role", "google_sub", "subscription_expires_at")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_tenant_admin", "is_superuser", "groups", "user_permissions")}),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
     )
@@ -99,7 +99,7 @@ class UserAdmin(DjangoUserAdmin):
             return self.fieldsets
         return (
             (None, {"fields": ("email", "password")}),
-            ("Personal info", {"fields": ("tenant", "first_name", "last_name", "role", "google_sub", "subscription_expires_at")}),
+            ("Personal info", {"fields": ("tenant", "first_name", "last_name", "account_type", "organization", "role", "google_sub", "subscription_expires_at")}),
             ("Permissions", {"fields": ("is_active", "is_staff", "is_tenant_admin")}),
             ("Important dates", {"fields": ("last_login", "date_joined")}),
         )

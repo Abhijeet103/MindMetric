@@ -39,6 +39,10 @@ class TenantAssessmentStateFormMixin(forms.ModelForm):
     assessment_state_shl_verify = _assessment_state_field("shl_verify")
     assessment_state_consulting = _assessment_state_field("consulting")
     assessment_state_consulting_cases = _assessment_state_field("consulting_cases")
+    assessment_state_situational_judgement = _assessment_state_field("situational_judgement")
+    assessment_state_work_simulation = _assessment_state_field("work_simulation")
+    assessment_state_verbal_reasoning = _assessment_state_field("verbal_reasoning")
+    assessment_state_aptitude = _assessment_state_field("aptitude")
 
     def _configure_assessment_state_fields(self):
         allowed_assessments = set(getattr(self.instance, "allowed_assessments", None) or [])

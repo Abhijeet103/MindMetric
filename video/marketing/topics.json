@@ -1,0 +1,179 @@
+{
+  "_comment": "Rotation order = array order. Every on-screen/spoken claim must appear in `claims` with codebase evidence. Crops are in source pixels of the 2560x1440 captures (h is derived from the card aspect). `existing_audio` (optional) maps segments to pre-existing narration files; it is only used with --audio existing and is labelled as reused, never as newly generated.",
+  "cta": {
+    "url": "mindmetric.store",
+    "lines": ["Free to start. Never auto-renews."],
+    "disclaimer": "Independent practice. Not affiliated with any test publisher."
+  },
+  "topics": [
+    {
+      "id": "gia-instant-feedback",
+      "title": "Thomas GIA practice with instant answer feedback",
+      "claims": [
+        { "claim": "Practice mode has no timer and shows the answer and an explanation after each question", "evidence": "templates/partials/section_detail_content.html (\"No timer. You'll see the answer and an explanation after each question.\"); shots/reasoning-answered.png" },
+        { "claim": "You can practise as a guest without signing in", "evidence": "templates/partials/section_detail_content.html (\"You're practicing as a guest, so progress lasts only for this visit.\"); shots/reasoning-context.png" },
+        { "claim": "Search by test or company name", "evidence": "shots/home-hero.png (search field \"Test or company name\")" },
+        { "claim": "Free to start. Never auto-renews.", "evidence": "templates/pages/home.html:27; templates/pages/pricing.html (\"no auto-renewal\")" },
+        { "claim": "Independent, not affiliated with any test publisher", "evidence": "templates/base.html:151; templates/pages/pricing.html:111" }
+      ],
+      "scenes": [
+        {
+          "id": "hook", "kind": "hook",
+          "label": "Thomas GIA practice", "headline": "Invited to a Thomas GIA test?",
+          "url": "mindmetric.store",
+          "shots": [
+            { "src": "home-hero.png", "from": 0, "crops": [ { "at": 0, "x": 128, "y": 230, "w": 1280 }, { "at": 1, "x": 128, "y": 230, "w": 1180 } ] }
+          ],
+          "callouts": []
+        },
+        {
+          "id": "demo_start", "kind": "demo",
+          "label": "Start in seconds", "headline": "Find your test. Start as a guest.",
+          "url": "mindmetric.store/practice/prepgia",
+          "shots": [
+            { "src": "home-hero.png", "url": "mindmetric.store", "from": 0, "crops": [ { "at": 0, "x": 128, "y": 512, "w": 1180 }, { "at": 1, "x": 128, "y": 512, "w": 1120 } ] },
+            { "src": "reasoning-context.png", "url": "mindmetric.store/practice/prepgia/modules/reasoning", "from": 0.5, "crops": [ { "at": 0, "x": 192, "y": 179, "w": 1536 }, { "at": 1, "x": 230, "y": 200, "w": 1480 } ] }
+          ],
+          "callouts": [
+            { "text": "Search by test or company", "from": 0.1, "to": 0.5 },
+            { "text": "No sign-up needed to practise", "from": 0.58, "to": 1 }
+          ]
+        },
+        {
+          "id": "demo_feedback", "kind": "demo",
+          "label": "Practice mode", "headline": "Answer. See why. Instantly.",
+          "url": "mindmetric.store/practice/prepgia/modules/reasoning",
+          "shots": [
+            { "src": "reasoning-question.png", "from": 0, "crops": [ { "at": 0, "x": 250, "y": 166, "w": 1745 } ] },
+            { "src": "reasoning-answered.png", "from": 0.3, "crops": [ { "at": 0, "x": 250, "y": 166, "w": 1745 }, { "at": 0.35, "x": 250, "y": 166, "w": 1745 }, { "at": 0.75, "x": 262, "y": 294, "w": 1580 }, { "at": 1, "x": 262, "y": 294, "w": 1580 } ] }
+          ],
+          "callouts": [
+            { "text": "No timer in practice mode", "from": 0.05, "to": 0.32 },
+            { "text": "Correct or not, plus the why", "from": 0.45, "to": 1 }
+          ]
+        },
+        { "id": "cta", "kind": "cta", "label": "Try it free", "headline": "Practise with instant feedback" }
+      ],
+      "script": {
+        "hook": { "text": "Got a Thomas GIA invite? Practising is easier when every answer tells you, straight away, whether you got it right." },
+        "demo_start": { "text": "Find your test on MindMetric and start practising as a guest. No sign-up needed to try the questions." },
+        "demo_feedback": { "text": "Practice mode has no timer. Read the statement, pick an answer, and you instantly see whether you were right, and why." },
+        "cta": { "text": "Free to start. Never auto-renews. Try it at mindmetric dot store.", "caption": "Free to start. Never auto-renews. Try it at mindmetric.store." }
+      },
+      "existing_audio": {
+        "_origin": "Pre-existing narration produced earlier by video/scripts/generate-voiceover.py (OpenAI gpt-4o-mini-tts, voice coral) for MainVideo. Reused unchanged; text copied verbatim from that script's SEGMENTS so subtitles match.",
+        "hook": { "file": "voiceover/hook.mp3", "text": "The email arrives. You've been invited to an online aptitude test. It's timed. And it decides whether you get the interview." },
+        "demo_start": { "file": "voiceover/home.mp3", "text": "Type the test, or the company that sent your invite, and you're practising in seconds. No sign-up needed." },
+        "demo_feedback": { "file": "voiceover/question.mp3", "text": "Practice mode has no timer. Answer, and you instantly see whether you were right, and why." },
+        "cta": { "file": "voiceover/close.mp3", "text": "Free to start. Never auto-renews. MindMetric. From invite to interview." }
+      },
+      "captions": {
+        "youtube_shorts": {
+          "title": "Thomas GIA practice with instant answer feedback",
+          "description": "Practice mode has no timer: answer a question and see straight away whether you were right, with a short explanation. Start as a guest at mindmetric.store.",
+          "hashtags": ["#ThomasGIA", "#AptitudeTest", "#JobSearch", "#Shorts"]
+        },
+        "instagram_reels": {
+          "caption": "Got a Thomas GIA invite? Practise with instant feedback on every answer: right or wrong, plus the why. No timer in practice mode, and you can start as a guest. Link: mindmetric.store",
+          "hashtags": ["#ThomasGIA", "#aptitudetest", "#graduatejobs", "#careertips"]
+        }
+      }
+    },
+    {
+      "id": "gia-full-timed-test",
+      "title": "Thomas GIA full timed test with section scores",
+      "claims": [
+        { "claim": "Five short timed sections", "evidence": "shots/gia.png (\"Five short timed sections\")" },
+        { "claim": "Full test: every section back to back in 45 minutes, with a score for every section", "evidence": "shots/gia.png (Full test card)" },
+        { "claim": "Practise each section untimed and read the explanations first", "evidence": "shots/gia.png (step 1)" },
+        { "claim": "Free to start. Never auto-renews.", "evidence": "templates/pages/home.html:27" }
+      ],
+      "scenes": [
+        {
+          "id": "hook", "kind": "hook", "label": "Thomas GIA practice", "headline": "Practising without a clock?",
+          "url": "mindmetric.store/practice/prepgia",
+          "shots": [ { "src": "gia.png", "from": 0, "crops": [ { "at": 0, "x": 205, "y": 262, "w": 1625 }, { "at": 1, "x": 205, "y": 262, "w": 1560 } ] } ],
+          "callouts": []
+        },
+        {
+          "id": "demo_sections", "kind": "demo", "label": "Step by step", "headline": "Untimed first. Then timed.",
+          "url": "mindmetric.store/practice/prepgia",
+          "shots": [ { "src": "gia.png", "from": 0, "crops": [ { "at": 0, "x": 205, "y": 262, "w": 1560 }, { "at": 1, "x": 205, "y": 400, "w": 1300 } ] } ],
+          "callouts": [ { "text": "Five short timed sections", "from": 0.1, "to": 1 } ]
+        },
+        {
+          "id": "demo_full", "kind": "demo", "label": "Full test", "headline": "Every section, back to back",
+          "url": "mindmetric.store/practice/prepgia",
+          "shots": [ { "src": "gia.png", "from": 0, "crops": [ { "at": 0, "x": 205, "y": 534, "w": 1250 }, { "at": 1, "x": 205, "y": 640, "w": 1100 } ] } ],
+          "callouts": [ { "text": "45 minutes, a score per section", "from": 0.15, "to": 1 } ]
+        },
+        { "id": "cta", "kind": "cta", "label": "Try it free", "headline": "Practise the timing too" }
+      ],
+      "script": {
+        "hook": { "text": "Practising for Thomas GIA without a clock? The test has five short timed sections, and speed matters." },
+        "demo_sections": { "text": "On MindMetric, practise each section untimed and read the explanations. Then take a timed test in your weakest section." },
+        "demo_full": { "text": "Finish with the full test: every section back to back in forty five minutes, with a score for each section." },
+        "cta": { "text": "Free to start. Never auto-renews. Try it at mindmetric dot store.", "caption": "Free to start. Never auto-renews. Try it at mindmetric.store." }
+      },
+      "captions": {
+        "youtube_shorts": {
+          "title": "Thomas GIA practice: untimed first, then a full timed test",
+          "description": "Practise each Thomas GIA section untimed with explanations, then a timed section, then the full test: five sections back to back in 45 minutes with a score for each. mindmetric.store",
+          "hashtags": ["#ThomasGIA", "#AptitudeTest", "#Shorts"]
+        },
+        "instagram_reels": {
+          "caption": "Thomas GIA has five short timed sections. Practise each one untimed first, then finish with a full timed test that scores every section. Link: mindmetric.store",
+          "hashtags": ["#ThomasGIA", "#aptitudetest", "#graduatejobs"]
+        }
+      }
+    },
+    {
+      "id": "gia-german-spanish-beta",
+      "title": "Thomas GIA practice in German and Spanish (Beta)",
+      "claims": [
+        { "claim": "Thomas GIA practice is available in German and Spanish, in beta", "evidence": "git commit 1803e18; shots/gia-de.png (Deutsch BETA, Español BETA)" },
+        { "claim": "German version has the same five sections and 45-minute full timed test", "evidence": "shots/gia-de.png (Gesamttest: 5 Abschnitte, 45 Min.)" },
+        { "claim": "You can report a problem under every question", "evidence": "shots/gia-de.png (\"Problem mit der Frage melden\" note); commit b6285ed" },
+        { "claim": "Free to start. Never auto-renews.", "evidence": "templates/pages/home.html:27" }
+      ],
+      "scenes": [
+        {
+          "id": "hook", "kind": "hook", "label": "Thomas GIA practice", "headline": "Your test is in German or Spanish?",
+          "url": "mindmetric.store/practice/prepgia?lang=de",
+          "shots": [ { "src": "gia-de.png", "from": 0, "crops": [ { "at": 0, "x": 128, "y": 256, "w": 1472 }, { "at": 1, "x": 128, "y": 256, "w": 1400 } ] } ],
+          "callouts": []
+        },
+        {
+          "id": "demo_lang", "kind": "demo", "label": "New, in beta", "headline": "Deutsch and Español",
+          "url": "mindmetric.store/practice/prepgia?lang=de",
+          "shots": [ { "src": "gia-de.png", "from": 0, "crops": [ { "at": 0, "x": 128, "y": 256, "w": 1400 }, { "at": 1, "x": 128, "y": 290, "w": 1000 } ] } ],
+          "callouts": [ { "text": "Switch language in one tap", "from": 0.15, "to": 1 } ]
+        },
+        {
+          "id": "demo_test", "kind": "demo", "label": "Same format", "headline": "Five sections. 45 minutes.",
+          "url": "mindmetric.store/practice/prepgia?lang=de",
+          "shots": [ { "src": "gia-de.png", "from": 0, "crops": [ { "at": 0, "x": 205, "y": 534, "w": 1250 }, { "at": 1, "x": 205, "y": 700, "w": 1000 } ] } ],
+          "callouts": [ { "text": "Full timed test in German", "from": 0.15, "to": 1 } ]
+        },
+        { "id": "cta", "kind": "cta", "label": "Try it free", "headline": "Practise in your test's language" }
+      ],
+      "script": {
+        "hook": { "text": "Is your Thomas GIA test in German or Spanish? You can now practise in those languages too." },
+        "demo_lang": { "text": "German and Spanish practice on MindMetric is in beta. Spot an error? Report it right under the question." },
+        "demo_test": { "text": "The German and Spanish versions have the same five sections, and the same forty five minute full timed test." },
+        "cta": { "text": "Free to start. Never auto-renews. Try it at mindmetric dot store.", "caption": "Free to start. Never auto-renews. Try it at mindmetric.store." }
+      },
+      "captions": {
+        "youtube_shorts": {
+          "title": "Thomas GIA practice in German and Spanish (Beta)",
+          "description": "Thomas GIA practice on MindMetric is now available in German and Spanish, in beta. Found an error? Report it under the question. mindmetric.store",
+          "hashtags": ["#ThomasGIA", "#AptitudeTest", "#Shorts"]
+        },
+        "instagram_reels": {
+          "caption": "Thomas GIA practice now in Deutsch and Español (beta). Report any question issue right under the question. Link: mindmetric.store",
+          "hashtags": ["#ThomasGIA", "#aptitudetest", "#graduatejobs"]
+        }
+      }
+    }
+  ]
+}

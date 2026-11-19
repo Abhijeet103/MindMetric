@@ -5,6 +5,13 @@
 <section class="content-section section-detail-shell">
     <a href="{% url 'pages:assessment-practice' assessment_slug %}" class="back-link section-detail-back">{% t "← Back to practice" %}</a>
     {% include "partials/language_switch.html" %}
+    {% if assessment.level_practice %}
+    <nav class="practice-levels" aria-label="Practice difficulty">
+        <strong>Practice level</strong>
+        {% for value, label in practice_levels %}<a class="button-secondary button-small" href="?level={{ value }}&amp;mode=practice"{% if practice_level == value %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+    </nav>
+    <p class="muted">Levels apply to untimed practice. Timed tests use their configured difficulty.</p>
+    {% endif %}
     <div class="section-detail-header">
         <div class="section-detail-heading-group">
             <h1 class="section-title section-detail-title">{% if ui_lang and ui_lang != "en" %}{{ section.title }}{% else %}{{ section.title|lower|capfirst }}{% endif %}</h1>

@@ -1,6 +1,13 @@
 from backend.apps.assessments.learning_views import WorkshopPageView, WorkshopPeerReviewView
 from django.urls import path
 
+from .recruiter import (
+    RecruiterDashboardView, RecruiterCreateView, RecruiterAssessmentView, RecruiterResultView,
+    RecruiterInviteView, RecruiterCandidateStartView, RecruiterCandidateSessionView,
+)
+from .recruiter_import import (
+    RecruiterQuestionUploadView, RecruiterColumnMappingView, RecruiterImportPreviewView, RecruiterImportTemplateView,
+)
 from .results import AttemptResultsView
 from .student import (
     ApplicationDeadlineCreateView,
@@ -35,6 +42,17 @@ from .views import (
 app_name = "pages"
 
 urlpatterns = [
+    path("recruiter/upload/", RecruiterQuestionUploadView.as_view(), name="recruiter-upload"),
+    path("recruiter/upload/template/", RecruiterImportTemplateView.as_view(), name="recruiter-import-template"),
+    path("recruiter/upload/<uuid:import_id>/map/", RecruiterColumnMappingView.as_view(), name="recruiter-import-map"),
+    path("recruiter/upload/<uuid:import_id>/preview/", RecruiterImportPreviewView.as_view(), name="recruiter-import-preview"),
+    path("recruiter/", RecruiterDashboardView.as_view(), name="recruiter-dashboard"),
+    path("recruiter/create/", RecruiterCreateView.as_view(), name="recruiter-create"),
+    path("recruiter/assessments/<uuid:assessment_id>/", RecruiterAssessmentView.as_view(), name="recruiter-assessment"),
+    path("recruiter/results/<uuid:submission_id>/", RecruiterResultView.as_view(), name="recruiter-result"),
+    path("assess/<uuid:token>/", RecruiterInviteView.as_view(), name="recruiter-invite"),
+    path("assess/<uuid:token>/start/", RecruiterCandidateStartView.as_view(), name="recruiter-candidate-start"),
+    path("assess/session/<uuid:submission_id>/", RecruiterCandidateSessionView.as_view(), name="recruiter-candidate-session"),
     path("practice/peer-review/<str:token>/", WorkshopPeerReviewView.as_view(), name="workshop-peer-review"),
     path("practice/<slug:assessment_slug>/workshop/", WorkshopPageView.as_view(), name="assessment-workshop"),
     path("", HomePageView.as_view(), name="home"),

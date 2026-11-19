@@ -109,4 +109,6 @@ def runtime_assessment_config(tenant, assessment_type):
             else "Timed like the real test, with a score for every section at the end."
         )
     )
+    if config.get("original_practice"):
+        config["full_test_description"] = f"Original MindMetric exercises across {len(config['modules'])} subject(s), with {count} questions in {policy['full_test_time_seconds'] / 60:g} minutes."
     return config

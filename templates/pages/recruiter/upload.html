@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section recruiter-shell">
+    <a href="{% url 'pages:recruiter-dashboard' %}">← Recruiter dashboard</a>
+    <span class="eyebrow">Custom questions</span><h1>Make a test from your spreadsheet</h1>
+    <p>Upload your question bank, choose a worksheet and map the columns. Review the questions and answer keys before creating a shareable assessment.</p>
+    <article class="card recruiter-panel">
+        <h2>1. Upload your questions</h2>
+        <p>Use one question per row with two to six answer options and one correct answer. True/false questions use two options. Column names and order can vary.</p>
+        <a href="{% url 'pages:recruiter-import-template' %}" class="button-secondary">Download CSV template for Excel</a>
+        <form method="post" enctype="multipart/form-data" class="recruiter-form">{% csrf_token %}{{ form.as_p }}<button class="button" type="submit">Upload and map columns</button></form>
+        <p class="muted">Supported: .xlsx, .xlsm, .xls and UTF-8 CSV. Up to 60 questions per test, 1,000 rows and 40 columns per sheet. Images and macros are not imported. Use plain values for questions and answers.</p>
+        <p class="muted">Only your recruiter workspace can view the upload and answer keys. Unpublished imports expire after one hour.</p>
+    </article>
+</section>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="content-section recruiter-shell">
+    <header class="recruiter-toolbar"><div><span class="eyebrow">Recruiter workspace</span><h1>Your assessments</h1><p class="muted">{{ request.user.organization|default:request.user.first_name }} · Create, share and review candidate assessments.</p></div><div class="practice-levels"><a class="button-secondary" href="{% url 'pages:recruiter-upload' %}">Upload Excel questions</a><a class="button" href="{% url 'pages:recruiter-create' %}">Create assessment</a></div></header>
+    <div class="recruiter-grid">
+    {% for assessment in assessments %}
+        <article class="card recruiter-panel">
+            <span class="eyebrow">{% if assessment.accepts_candidates %}Open for candidates{% else %}Closed to new starts{% endif %}</span>
+            <h2><a href="{% url 'pages:recruiter-assessment' assessment.id %}">{{ assessment.title }}</a></h2>
+            <p>{{ assessment.organization }}{% if assessment.role_title %} · {{ assessment.role_title }}{% endif %}</p>
+            <p class="muted">{{ assessment.duration_minutes }} minutes · {{ assessment.candidate_count }} / {{ assessment.max_candidates }} candidates · Closes {{ assessment.closes_at|date:"j M Y H:i T" }}</p>
+            <a class="button-secondary" href="{% url 'pages:recruiter-assessment' assessment.id %}">Share and view results</a>
+        </article>
+    {% empty %}
+        <article class="card recruiter-panel"><h2>Create your first assessment</h2><p>Choose subjects, difficulty and duration. Share the link with students and review their scores and monitoring flags here.</p><a href="{% url 'pages:recruiter-create' %}" class="button">Create assessment</a></article>
+    {% endfor %}
+    </div>
+</section>
+{% endblock %}

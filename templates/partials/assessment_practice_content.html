@@ -1,5 +1,8 @@
 <section class="content-section" data-assessment-practice-fragment>
     {% include "partials/assessment_guide_popover.html" %}
+    {% if assessment.original_practice %}
+    <p class="muted">{{ assessment.description }} Choose a subject below, then select Foundation, Intermediate or Advanced. Every answer includes an explanation.</p>
+    {% endif %}
 
     <article class="card practice-full-banner">
         <div class="practice-full-banner-copy">

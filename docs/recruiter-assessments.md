@@ -1,0 +1,30 @@
+# Recruiter assessments
+
+Entry: `/login/?as=recruiter` or `/recruiter/`. Email signup offers Student and Recruiter account types. Existing users can explicitly enable a recruiter workspace with their organisation name. Account type is separate from subscription tier; enabling recruiter access grants neither staff permissions nor paid practice access. Google sign-in can return to recruiter onboarding, and existing recruiter accounts use a role-aware login redirect.
+
+Recruiters create an assessment from tenant-allocated practice subjects, with Foundation, Intermediate, Advanced or Mixed difficulty; 4, 8 or 12 questions per subject (maximum 60 total); 5–120 minutes; 1–30-day start window; and a maximum of 500 candidates. Optional account-email restrictions can narrow who starts. Email restrictions match account addresses; they do not independently verify identity. Candidate email verification follows the platform's existing authentication settings.
+
+The unguessable share link is created on submission of the recruiter form. This feature does not email candidates automatically. Recruiters copy and share the link themselves. Owners can close or reopen new starts before the fixed closing time. Active candidates can finish after new starts close. Each signed-in account can start once. The tenant and recruiter owner scope every management/results query.
+
+Questions are generated locally for each candidate. Private question payloads, answer keys, submitted answers, a fixed deadline and consent time are stored durably in the database, separately from practice attempts and subscription quotas. The candidate API strips keys, explanations, generator seeds and internal seeded case identifiers. CSRF applies to all mutations, and assessment/result responses are marked private/no-store.
+
+Monotonic answer revisions prevent an older autosave from overwriting newer answers. Candidate answers save on selection, every ten seconds and on page exit when the browser permits it. A server-side deadline is authoritative. Refresh/resume cannot reset it. Requests after the deadline finalize only previously saved answers; they cannot submit late changes. Partial attempts are scored from saved answers upon expiry when the session, invitation, recruiter dashboard or results are next requested. There is no background job required for this lazy finalization. Completed submissions are immutable through the candidate API.
+
+## Browser monitoring scope
+
+Candidates acknowledge the disclosure before start/resume. The browser requests fullscreen and reports tab hiding, window focus loss, fullscreen exits and copy/paste attempts. Failed fullscreen support is recorded instead of blocking accessible/unsupported devices. Connection gaps are added using server last-seen times. Events carry server receipt timestamps and a source label; logs are capped at 200 events. The owner sees raw scores, subject scores, candidate identity from the account, status and monitoring flags.
+
+This first version is **browser-monitored**, not remote human supervision. No webcam, microphone, screen recording, device lockdown or identity verification is implemented. Client signals can be disabled or spoofed; missing flags do not prove an uninterrupted or supervised session. Flags are review prompts, not automatic misconduct verdicts. Scores reflect the generated practice assessment and are not psychometrically equated candidate rankings or calibrated hiring cut-offs.
+
+Validation: Django tests cover role creation, onboarding, email/Google return destinations, ownership and tenant isolation, allowed subjects and bounded forms, consent/CSRF, one-attempt semantics, answer-key/seed secrecy, save/submit/scoring, authoritative expiry, capacity/closure, bounded event logs and escaped recruiter text. `node scripts/test_recruiter_candidate.cjs` checks the client flow with a dependency-free simulated DOM, including submit queued behind an in-flight autosave. Native browser visual QA is unavailable when browser automation is disabled in Work settings.
+
+
+## Custom questions from spreadsheets
+
+Recruiter dashboard → Upload Excel questions → select worksheet and header row → map columns → validate and preview → set assessment details → create and copy the share link. The CSV template opens in Excel and round-trips through the importer. Original column names and ordering may vary.
+
+Supported formats are `.xlsx`, `.xlsm`, legacy `.xls`, and UTF-8 `.csv` (including comma, semicolon and tab delimiters). Import supports single-answer multiple-choice questions with 2–6 distinct options, including true/false, plus optional subject and explanation columns. Keys can be option letters, 1-based option numbers or exact option text. Automatic detection rejects ambiguous keys; the recruiter can explicitly select their key format. Free-response, multiple-correct-answer questions and embedded images are not imported by this release.
+
+Limits: 2 MB uploaded file; 20 MB expanded OOXML archive; 20 worksheets; 1,000 rows and 40 columns per sheet; 20,000 cells and 1 million text characters overall; up to 60 questions per assessment. Worksheets use read-only parsing, with no workbook/macro execution or external-link loading. Mapped OOXML formula/error cells are rejected; legacy `.xls` uses stored cell values, including cached formula results, without recalculation. Recruiters should upload plain values. File contents never become model instructions or trigger an AI call.
+
+Drafts are isolated by recruiter and tenant, expire after one hour, and are removed on that owner's next upload. The raw workbook is not stored. Any invalid question blocks publication of the whole test; nothing is silently skipped. The private preview includes answer keys. Explicit publication is idempotent and stores the validated question bank on the assessment, discarding unrelated worksheet cells from the draft. Every candidate receives the imported questions in spreadsheet order. Keys and explanations stay server-side, and scores group by uploaded subject.
